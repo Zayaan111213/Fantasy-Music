@@ -1,9 +1,14 @@
 import type { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
+import multer from 'multer';
 
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction): void {
   if (err instanceof ZodError) {
     res.status(400).json({ error: 'Validation error', details: err.flatten() });
+    return;
+  }
+  if (err instanceof multer.MulterError) {
+    res.status(400).json({ error: err.message });
     return;
   }
   if (err instanceof Error) {

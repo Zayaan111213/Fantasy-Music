@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Music2, ChevronLeft, Trophy, Users, Settings, Swords, Search, ArrowUpDown, User } from 'lucide-react';
+import { Music2, ChevronLeft, Trophy, Users, Settings, Swords, Search, ArrowUpDown, User, Pencil, X, Check } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/ui/Card';
@@ -106,9 +106,22 @@ function TeamRosterCard({ title, roster, reverse = false }: { title: string; ros
   );
 }
 
+const MAX_LOGO_SIZE = 5 * 1024 * 1024;
+const ALLOWED_LOGO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
 function MyTeamTab({ leagueId, league }: { leagueId: string; league: League }) {
   const queryClient = useQueryClient();
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+
+  // Team identity editing
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editLogoFile, setEditLogoFile] = useState<File | null>(null);
+  const [editLogoPreview, setEditLogoPreview] = useState<string | null>(null);
+  const [editFileError, setEditFileError] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: myTeam, isLoading } = useQuery({
     queryKey: ['myTeam', leagueId],
@@ -128,6 +141,55 @@ function MyTeamTab({ leagueId, league }: { leagueId: string; league: League }) {
     </div>
   );
 
+  function startEditing() {
+    setEditName(myTeam!.name);
+    setEditLogoFile(null);
+    setEditLogoPreview(null);
+    setEditFileError('');
+    setEditError('');
+    setEditing(true);
+  }
+
+  function cancelEditing() {
+    if (editLogoPreview) URL.revokeObjectURL(editLogoPreview);
+    setEditing(false);
+  }
+
+  function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!ALLOWED_LOGO_TYPES.includes(file.type)) {
+      setEditFileError('Only JPEG, PNG, or WebP images are allowed');
+      return;
+    }
+    if (file.size > MAX_LOGO_SIZE) {
+      setEditFileError('Image must be smaller than 5MB');
+      return;
+    }
+    setEditFileError('');
+    if (editLogoPreview) URL.revokeObjectURL(editLogoPreview);
+    setEditLogoFile(file);
+    setEditLogoPreview(URL.createObjectURL(file));
+  }
+
+  async function handleSaveIdentity() {
+    setEditSaving(true);
+    setEditError('');
+    try {
+      const formData = new FormData();
+      if (editName.trim()) formData.append('name', editName.trim());
+      if (editLogoFile) formData.append('logo', editLogoFile);
+      await api.put(`/leagues/${leagueId}/team`, formData);
+      await queryClient.invalidateQueries({ queryKey: ['myTeam', leagueId] });
+      if (editLogoPreview) URL.revokeObjectURL(editLogoPreview);
+      setEditing(false);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
   function handleSlotClick(slot: string) {
     if (!selectedSlot) { setSelectedSlot(slot); return; }
     if (selectedSlot === slot) { setSelectedSlot(null); return; }
@@ -136,6 +198,7 @@ function MyTeamTab({ leagueId, league }: { leagueId: string; league: League }) {
   }
 
   const myRoster = myTeam.rosterSpots ?? [];
+  const displayLogoUrl = editLogoPreview ?? myTeam.logoUrl ?? undefined;
 
   function getSpot(slot: string): RosterSpot {
     return getRosterSpot(myRoster, slot);
@@ -144,8 +207,67 @@ function MyTeamTab({ leagueId, league }: { leagueId: string; league: League }) {
   return (
     <div className="space-y-4">
       <Card className="p-5">
-        <div className="text-center text-xs text-gray-500 mb-1">Week {league.currentWeek}</div>
-        <div className="text-center font-semibold text-white text-lg">{myTeam.name}</div>
+        {editing ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="relative shrink-0">
+                <Avatar src={displayLogoUrl} name={editName || '?'} size="xl" />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-indigo-500 border-2 border-gray-950 flex items-center justify-center hover:bg-indigo-400 transition-colors"
+                >
+                  <Pencil className="w-3 h-3 text-white" />
+                </button>
+                <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleLogoChange} className="hidden" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <label className="text-xs font-medium text-gray-400 mb-1 block">Team Name</label>
+                <input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  maxLength={30}
+                  className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                {editFileError && <p className="text-xs text-red-400 mt-1">{editFileError}</p>}
+              </div>
+            </div>
+            {editError && <p className="text-xs text-red-400">{editError}</p>}
+            <div className="flex gap-2">
+              <button
+                onClick={handleSaveIdentity}
+                disabled={editSaving || !editName.trim()}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white text-sm font-medium transition-colors"
+              >
+                <Check className="w-3.5 h-3.5" />
+                {editSaving ? 'Saving…' : 'Save'}
+              </button>
+              <button
+                onClick={cancelEditing}
+                disabled={editSaving}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-gray-300 text-sm font-medium transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <Avatar src={myTeam.logoUrl ?? undefined} name={myTeam.name} size="xl" />
+            <div className="flex-1 min-w-0">
+              <div className="text-xs text-gray-500 mb-0.5">Week {league.currentWeek}</div>
+              <div className="font-semibold text-white text-lg truncate">{myTeam.name}</div>
+            </div>
+            <button
+              onClick={startEditing}
+              className="shrink-0 p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors"
+              title="Edit team name & logo"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </Card>
 
       {selectedSlot && (
@@ -272,10 +394,10 @@ function StandingsTab({ leagueId, league }: { leagueId: string; league: League }
           <div className="grid grid-cols-12 items-center p-4 hover:bg-white/5 transition-colors">
             <div className="col-span-1 text-gray-500 font-mono text-sm">{entry.rank}</div>
             <div className="col-span-5 flex items-center gap-2">
-              <Avatar src={entry.avatarUrl} name={entry.displayName} size="sm" />
+              <Avatar src={entry.avatarUrl} name={entry.username ?? '?'} size="sm" />
               <div>
                 <div className="text-sm font-medium text-white">{entry.teamName}</div>
-                <div className="text-xs text-gray-500">{entry.displayName}</div>
+                <div className="text-xs text-gray-500">{entry.username}</div>
               </div>
             </div>
             <div className="col-span-3 text-center text-sm font-semibold text-white">
@@ -630,7 +752,7 @@ export function LeagueHub() {
 
   const { data: league, isLoading } = useQuery({
     queryKey: ['league', id],
-    queryFn: () => api.get<League & { teams: Team[]; commissioner: { id: string; displayName: string } }>(`/leagues/${id}`),
+    queryFn: () => api.get<League & { teams: Team[]; commissioner: { id: string; username: string | null } }>(`/leagues/${id}`),
   });
 
   if (isLoading) return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><Spinner className="w-8 h-8" /></div>;

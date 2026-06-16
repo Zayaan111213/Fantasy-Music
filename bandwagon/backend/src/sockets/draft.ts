@@ -113,13 +113,13 @@ export function registerDraftSocket(io: Server) {
           include: {
             draftState: true,
             teams: {
-              include: { user: { select: { displayName: true, avatarUrl: true } } },
+              include: { user: { select: { username: true, avatarUrl: true } } },
               orderBy: { draftPosition: 'asc' },
             },
             draftPicks: {
               include: {
                 artist: { select: { id: true, name: true, primaryGenre: true, imageUrl: true } },
-                team: { select: { id: true, name: true } },
+                team: { select: { id: true, name: true, logoUrl: true } },
               },
               orderBy: { pickNumber: 'asc' },
             },

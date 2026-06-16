@@ -1,7 +1,10 @@
 import { Router } from 'express';
+import fs from 'fs';
+import path from 'path';
 import { z } from 'zod';
 import { prisma } from '../../db/prisma';
 import { requireAuth, type AuthRequest } from '../middleware/auth';
+import { uploadTeamLogo } from '../middleware/upload';
 
 const router = Router();
 
@@ -28,7 +31,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res, next) => {
         league: {
           include: {
             teams: {
-              include: { user: { select: { displayName: true, avatarUrl: true } } },
+              include: { user: { select: { username: true, avatarUrl: true } } },
             },
           },
         },
@@ -41,8 +44,8 @@ router.get('/', requireAuth, async (req: AuthRequest, res, next) => {
         const matchup = await prisma.matchup.findFirst({
           where: { leagueId: team.leagueId, week: currentWeek },
           include: {
-            homeTeam: { select: { id: true, name: true } },
-            awayTeam: { select: { id: true, name: true } },
+            homeTeam: { select: { id: true, name: true, logoUrl: true } },
+            awayTeam: { select: { id: true, name: true, logoUrl: true } },
           },
         });
 
@@ -63,7 +66,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res, next) => {
           currentWeek,
           privacy: team.league.privacy,
           teamCount: team.league.teamCount,
-          myTeam: { id: team.id, name: team.name, wins: team.wins, losses: team.losses },
+          myTeam: { id: team.id, name: team.name, logoUrl: team.logoUrl, wins: team.wins, losses: team.losses },
           opponent,
           myScore,
           opponentScore,
@@ -106,7 +109,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res, next) => {
       data: {
         leagueId: league.id,
         userId: req.userId!,
-        name: `${user?.displayName ?? 'Team'}'s Squad`,
+        name: `${user?.username ?? 'Team'}'s Squad`,
         draftPosition: 1,
         waiverPriority: 1,
       },
@@ -125,10 +128,10 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res, next) => {
       where: { id: req.params.id },
       include: {
         teams: {
-          include: { user: { select: { id: true, displayName: true, avatarUrl: true } } },
+          include: { user: { select: { id: true, username: true, avatarUrl: true } } },
           orderBy: [{ wins: 'desc' }, { pointsFor: 'desc' }],
         },
-        commissioner: { select: { id: true, displayName: true } },
+        commissioner: { select: { id: true, username: true } },
       },
     });
     if (!league) { res.status(404).json({ error: 'League not found' }); return; }
@@ -226,7 +229,7 @@ router.post('/join/:code', requireAuth, async (req: AuthRequest, res, next) => {
       data: {
         leagueId: league.id,
         userId: req.userId!,
-        name: `${user?.displayName ?? 'Team'}'s Squad`,
+        name: `${user?.username ?? 'Team'}'s Squad`,
         draftPosition: league.teams.length + 1,
         waiverPriority: league.teams.length + 1,
       },
@@ -243,13 +246,13 @@ router.get('/invite/:code', async (req, res, next) => {
   try {
     const league = await prisma.league.findUnique({
       where: { inviteCode: req.params.code },
-      include: { teams: true, commissioner: { select: { displayName: true } } },
+      include: { teams: true, commissioner: { select: { username: true } } },
     });
     if (!league) { res.status(404).json({ error: 'Invalid invite code' }); return; }
     res.json({
       id: league.id,
       name: league.name,
-      commissionerName: league.commissioner.displayName,
+      commissionerName: league.commissioner.username,
       memberCount: league.teams.length,
       teamCount: league.teamCount,
       status: league.status,
@@ -267,7 +270,7 @@ router.get('/:id/standings', requireAuth, async (req: AuthRequest, res, next) =>
 
     const teams = await prisma.team.findMany({
       where: { leagueId: req.params.id },
-      include: { user: { select: { displayName: true, avatarUrl: true } } },
+      include: { user: { select: { username: true, avatarUrl: true } } },
       orderBy: [{ wins: 'desc' }, { pointsFor: 'desc' }],
     });
 
@@ -275,8 +278,9 @@ router.get('/:id/standings', requireAuth, async (req: AuthRequest, res, next) =>
       rank: i + 1,
       teamId: t.id,
       teamName: t.name,
+      teamLogoUrl: t.logoUrl,
       userId: t.userId,
-      displayName: t.user.displayName,
+      username: t.user.username,
       avatarUrl: t.user.avatarUrl,
       wins: t.wins,
       losses: t.losses,
@@ -307,7 +311,7 @@ router.get('/:id/matchups/current', requireAuth, async (req: AuthRequest, res, n
       include: {
         homeTeam: {
           include: {
-            user: { select: { displayName: true, avatarUrl: true } },
+            user: { select: { username: true, avatarUrl: true } },
             rosterSpots: {
               include: {
                 artist: {
@@ -323,7 +327,7 @@ router.get('/:id/matchups/current', requireAuth, async (req: AuthRequest, res, n
         },
         awayTeam: {
           include: {
-            user: { select: { displayName: true, avatarUrl: true } },
+            user: { select: { username: true, avatarUrl: true } },
             rosterSpots: {
               include: {
                 artist: {
@@ -353,8 +357,8 @@ router.get('/:id/matchups', requireAuth, async (req: AuthRequest, res, next) => 
     const matchups = await prisma.matchup.findMany({
       where: { leagueId: req.params.id },
       include: {
-        homeTeam: { select: { id: true, name: true } },
-        awayTeam: { select: { id: true, name: true } },
+        homeTeam: { select: { id: true, name: true, logoUrl: true } },
+        awayTeam: { select: { id: true, name: true, logoUrl: true } },
       },
       orderBy: { week: 'asc' },
     });
@@ -430,6 +434,40 @@ router.get('/:id/roster', requireAuth, async (req: AuthRequest, res, next) => {
     if (!myTeam) { res.status(403).json({ error: 'Not a member' }); return; }
 
     res.json(myTeam);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Update my team's name/logo within this league (distinct from the account username/picture)
+router.put('/:id/team', requireAuth, uploadTeamLogo, async (req: AuthRequest, res, next) => {
+  try {
+    const data = z.object({
+      name: z.string().trim().min(1).max(30).optional(),
+    }).parse(req.body);
+
+    const myTeam = await prisma.team.findFirst({ where: { leagueId: req.params.id, userId: req.userId! } });
+    if (!myTeam) { res.status(404).json({ error: 'Team not found' }); return; }
+
+    const updateData: { name?: string; logoUrl?: string } = {};
+    if (data.name) updateData.name = data.name;
+    if (req.file) updateData.logoUrl = `/uploads/team-logos/${req.file.filename}`;
+
+    if (Object.keys(updateData).length === 0) {
+      res.json(myTeam);
+      return;
+    }
+
+    const updated = await prisma.team.update({ where: { id: myTeam.id }, data: updateData });
+
+    if (req.file && myTeam.logoUrl?.startsWith('/uploads/')) {
+      const oldPath = path.join(__dirname, '../../../uploads', myTeam.logoUrl.slice('/uploads/'.length));
+      fs.unlink(oldPath, (err) => {
+        if (err && (err as NodeJS.ErrnoException).code !== 'ENOENT') console.error('Failed to delete old team logo:', err);
+      });
+    }
+
+    res.json(updated);
   } catch (err) {
     next(err);
   }

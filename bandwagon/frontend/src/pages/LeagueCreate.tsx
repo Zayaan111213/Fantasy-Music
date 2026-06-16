@@ -2,14 +2,20 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Music2, ChevronLeft, Copy, Check } from 'lucide-react';
 import { api } from '../api/client';
+import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
+import { Avatar } from '../components/ui/Avatar';
 
 type Step = 'form' | 'success';
 
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
 export function LeagueCreate() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [step, setStep] = useState<Step>('form');
   const [name, setName] = useState('');
   const [teamCount, setTeamCount] = useState(8);
@@ -20,10 +26,37 @@ export function LeagueCreate() {
   const [inviteCode, setInviteCode] = useState('');
   const [leagueId, setLeagueId] = useState('');
   const [copied, setCopied] = useState(false);
+  const [teamSyncWarning, setTeamSyncWarning] = useState('');
+
+  const defaultTeamName = user?.username ? `${user.username}'s Squad` : '';
+  const [teamName, setTeamName] = useState(defaultTeamName);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [fileError, setFileError] = useState('');
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      setFileError('Only JPEG, PNG, or WebP images are allowed');
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      setFileError('Image must be smaller than 5MB');
+      return;
+    }
+
+    setFileError('');
+    if (logoPreview) URL.revokeObjectURL(logoPreview);
+    setLogoFile(file);
+    setLogoPreview(URL.createObjectURL(file));
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    setTeamSyncWarning('');
     setLoading(true);
     try {
       const league = await api.post<{ id: string; inviteCode: string }>('/leagues', {
@@ -34,6 +67,18 @@ export function LeagueCreate() {
       });
       setInviteCode(league.inviteCode);
       setLeagueId(league.id);
+
+      if (teamName !== defaultTeamName || logoFile) {
+        try {
+          const formData = new FormData();
+          if (teamName !== defaultTeamName) formData.append('name', teamName);
+          if (logoFile) formData.append('logo', logoFile);
+          await api.put(`/leagues/${league.id}/team`, formData);
+        } catch {
+          setTeamSyncWarning("League created, but we couldn't save your team customization — you can set it from the My Team tab.");
+        }
+      }
+
       setStep('success');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create league');
@@ -60,6 +105,12 @@ export function LeagueCreate() {
           </div>
           <h1 className="text-2xl font-bold text-white mb-1">League Created!</h1>
           <p className="text-gray-400 mb-6">Share this link to invite your friends</p>
+
+          {teamSyncWarning && (
+            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2 text-sm text-yellow-400 mb-4 text-left">
+              {teamSyncWarning}
+            </div>
+          )}
 
           <Card className="p-4 mb-4">
             <div className="flex items-center gap-2 bg-white/5 rounded-lg p-3">
@@ -103,6 +154,28 @@ export function LeagueCreate() {
               onChange={(e) => setName(e.target.value)}
               required
             />
+
+            <div className="flex items-center gap-3">
+              <Avatar src={logoPreview} name={teamName || '?'} size="lg" />
+              <div className="flex-1">
+                <Input
+                  label="Your Team Name"
+                  value={teamName}
+                  onChange={(e) => setTeamName(e.target.value)}
+                  required
+                />
+                <label className="text-xs text-indigo-400 hover:text-indigo-300 cursor-pointer transition-colors mt-1 inline-block">
+                  {logoFile ? 'Change logo' : 'Add a team logo (optional)'}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                </label>
+                {fileError && <p className="text-xs text-red-400 mt-0.5">{fileError}</p>}
+              </div>
+            </div>
 
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-gray-300">Number of Teams</label>

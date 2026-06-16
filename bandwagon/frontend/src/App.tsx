@@ -2,6 +2,8 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { FullPageSpinner } from './components/ui/Spinner';
 import { Auth } from './pages/Auth';
+import { Onboarding } from './pages/Onboarding';
+import { AccountSettings } from './pages/AccountSettings';
 import { Home } from './pages/Home';
 import { LeagueCreate } from './pages/LeagueCreate';
 import { LeagueJoin } from './pages/LeagueJoin';
@@ -16,6 +18,20 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function RequireOnboarded({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (user!.username === null) return <Navigate to="/onboarding" replace />;
+  return <>{children}</>;
+}
+
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  return (
+    <RequireAuth>
+      <RequireOnboarded>{children}</RequireOnboarded>
+    </RequireAuth>
+  );
+}
+
 export function App() {
   const { isLoading } = useAuth();
   if (isLoading) return <FullPageSpinner />;
@@ -23,14 +39,16 @@ export function App() {
   return (
     <Routes>
       <Route path="/auth" element={<Auth />} />
+      <Route path="/onboarding" element={<RequireAuth><Onboarding /></RequireAuth>} />
       <Route path="/" element={<Navigate to="/home" replace />} />
-      <Route path="/home" element={<RequireAuth><Home /></RequireAuth>} />
-      <Route path="/leagues/create" element={<RequireAuth><LeagueCreate /></RequireAuth>} />
-      <Route path="/leagues/join" element={<RequireAuth><LeagueJoin /></RequireAuth>} />
-      <Route path="/leagues/join/:code" element={<RequireAuth><LeagueJoin /></RequireAuth>} />
-      <Route path="/leagues/:id" element={<RequireAuth><LeagueHub /></RequireAuth>} />
-      <Route path="/leagues/:id/draft" element={<RequireAuth><DraftRoom /></RequireAuth>} />
-      <Route path="/artists/:id" element={<RequireAuth><ArtistDetail /></RequireAuth>} />
+      <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+      <Route path="/account" element={<ProtectedRoute><AccountSettings /></ProtectedRoute>} />
+      <Route path="/leagues/create" element={<ProtectedRoute><LeagueCreate /></ProtectedRoute>} />
+      <Route path="/leagues/join" element={<ProtectedRoute><LeagueJoin /></ProtectedRoute>} />
+      <Route path="/leagues/join/:code" element={<ProtectedRoute><LeagueJoin /></ProtectedRoute>} />
+      <Route path="/leagues/:id" element={<ProtectedRoute><LeagueHub /></ProtectedRoute>} />
+      <Route path="/leagues/:id/draft" element={<ProtectedRoute><DraftRoom /></ProtectedRoute>} />
+      <Route path="/artists/:id" element={<ProtectedRoute><ArtistDetail /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/home" replace />} />
     </Routes>
   );

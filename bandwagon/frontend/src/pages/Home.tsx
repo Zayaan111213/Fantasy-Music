@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Spinner } from '../components/ui/Spinner';
+import { Avatar } from '../components/ui/Avatar';
 import type { LeagueCard, Notification } from '../api/types';
 
 function StatusBadge({ status }: { status: string }) {
@@ -53,7 +54,10 @@ export function Home() {
             <span className="font-bold text-white text-lg">Bandwagon</span>
           </Link>
           <div className="flex items-center gap-3">
-            <span className="text-gray-400 text-sm">{user?.displayName}</span>
+            <Link to="/account" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <Avatar src={user?.avatarUrl} name={user?.username ?? '?'} size="sm" />
+              <span className="text-gray-400 text-sm">{user?.username}</span>
+            </Link>
             <Button variant="ghost" size="sm" onClick={logout}>Sign out</Button>
           </div>
         </div>

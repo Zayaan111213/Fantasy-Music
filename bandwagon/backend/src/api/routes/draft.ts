@@ -22,7 +22,7 @@ router.get('/:id/draft', requireAuth, async (req: AuthRequest, res, next) => {
         draftState: true,
         teams: {
           include: {
-            user: { select: { displayName: true, avatarUrl: true } },
+            user: { select: { username: true, avatarUrl: true } },
             rosterSpots: true,
           },
           orderBy: { draftPosition: 'asc' },
@@ -30,7 +30,7 @@ router.get('/:id/draft', requireAuth, async (req: AuthRequest, res, next) => {
         draftPicks: {
           include: {
             artist: { select: { id: true, name: true, primaryGenre: true, imageUrl: true } },
-            team: { select: { id: true, name: true } },
+            team: { select: { id: true, name: true, logoUrl: true } },
           },
           orderBy: { pickNumber: 'asc' },
         },
@@ -227,7 +227,7 @@ export async function makePick(
     where: { leagueId, pickNumber },
     include: {
       artist: { select: { id: true, name: true, primaryGenre: true, imageUrl: true } },
-      team: { select: { id: true, name: true } },
+      team: { select: { id: true, name: true, logoUrl: true } },
     },
   });
 

@@ -1,7 +1,7 @@
 export interface User {
   id: string;
   email: string;
-  displayName: string;
+  username: string | null;
   avatarUrl: string | null;
 }
 
@@ -23,11 +23,12 @@ export interface Team {
   leagueId: string;
   userId: string;
   name: string;
+  logoUrl: string | null;
   wins: number;
   losses: number;
   pointsFor: number;
   draftPosition: number | null;
-  user?: Pick<User, 'displayName' | 'avatarUrl'>;
+  user?: Pick<User, 'username' | 'avatarUrl'>;
 }
 
 export interface Artist {
@@ -84,8 +85,9 @@ export interface StandingsEntry {
   rank: number;
   teamId: string;
   teamName: string;
+  teamLogoUrl: string | null;
   userId: string;
-  displayName: string;
+  username: string | null;
   avatarUrl: string | null;
   wins: number;
   losses: number;
@@ -114,7 +116,7 @@ export interface DraftPick {
   isAutoDraft: boolean;
   pickedAt: string;
   artist?: Pick<Artist, 'id' | 'name' | 'primaryGenre' | 'imageUrl'>;
-  team?: Pick<Team, 'id' | 'name'>;
+  team?: Pick<Team, 'id' | 'name' | 'logoUrl'>;
 }
 
 export interface DraftState {
@@ -123,7 +125,7 @@ export interface DraftState {
   pickOrder: string[];
   timerEndsAt: string | null;
   isComplete: boolean;
-  teams: (Team & { user: Pick<User, 'displayName' | 'avatarUrl'>; rosterSpots: RosterSpot[] })[];
+  teams: (Team & { user: Pick<User, 'username' | 'avatarUrl'>; rosterSpots: RosterSpot[] })[];
   picks: DraftPick[];
   myUserId?: string;
 }
@@ -142,8 +144,8 @@ export interface LeagueCard {
   currentWeek: number;
   privacy: string;
   teamCount: number;
-  myTeam: { id: string; name: string; wins: number; losses: number };
-  opponent: { id: string; name: string } | null;
+  myTeam: { id: string; name: string; logoUrl: string | null; wins: number; losses: number };
+  opponent: { id: string; name: string; logoUrl: string | null } | null;
   myScore: number;
   opponentScore: number;
   memberCount: number;

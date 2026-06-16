@@ -1,5 +1,6 @@
 node_modules/
 dist/
+bandwagon/backend/uploads/
 .env
 .env.local
 .env.*.local

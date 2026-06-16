@@ -11,7 +11,6 @@ export function Auth() {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
@@ -25,10 +24,9 @@ export function Auth() {
     setLoading(true);
     try {
       const path = mode === 'login' ? '/auth/login' : '/auth/signup';
-      const body = mode === 'login' ? { email, password } : { email, password, displayName };
-      const { token, user } = await api.post<{ token: string; user: User }>(path, body);
+      const { token, user } = await api.post<{ token: string; user: User }>(path, { email, password });
       login(token, user);
-      navigate(redirect, { replace: true });
+      navigate(mode === 'signup' ? '/onboarding' : redirect, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
@@ -70,15 +68,6 @@ export function Auth() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === 'signup' && (
-              <Input
-                label="Display Name"
-                placeholder="Your name in leagues"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                required
-              />
-            )}
             <Input
               label="Email"
               type="email"

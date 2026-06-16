@@ -482,7 +482,7 @@ async function main() {
     data: {
       email: 'demo1@bandwagon.app',
       passwordHash,
-      displayName: 'MusicMaven',
+      username: 'MusicMaven',
       avatarUrl: 'https://ui-avatars.com/api/?name=Music+Maven&background=6366f1&color=fff&size=256',
     },
   });
@@ -491,7 +491,7 @@ async function main() {
     data: {
       email: 'demo2@bandwagon.app',
       passwordHash,
-      displayName: 'ChartWatcher',
+      username: 'ChartWatcher',
       avatarUrl: 'https://ui-avatars.com/api/?name=Chart+Watcher&background=8b5cf6&color=fff&size=256',
     },
   });
