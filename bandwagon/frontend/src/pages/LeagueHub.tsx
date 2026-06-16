@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Music2, ChevronLeft, Trophy, Users, Settings, Swords, Search, ArrowUpDown } from 'lucide-react';
+import { Music2, ChevronLeft, Trophy, Users, Settings, Swords, Search, ArrowUpDown, User } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/ui/Card';
@@ -11,7 +11,7 @@ import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
 import type { League, Matchup, StandingsEntry, PlayerEntry, RosterSpot, Team } from '../api/types';
 
-type Tab = 'matchup' | 'standings' | 'players' | 'settings';
+type Tab = 'myteam' | 'matchup' | 'standings' | 'players' | 'settings';
 
 const ALL_STARTER_SLOTS = ['Hip-Hop', 'Pop', 'Rock', 'Country', 'Niche', 'Flex'];
 const ALL_BENCH_SLOTS = ['Bench-1', 'Bench-2', 'Bench-3'];
@@ -26,80 +26,107 @@ function SlotLabel({ slot }: { slot: string }) {
   return <span className={`text-xs font-semibold uppercase tracking-wider ${colors[slot] || 'text-gray-400'}`}>{display}</span>;
 }
 
-function RosterRow({ spot, onSwapSelect, selectedSlot }: {
+function RosterRow({ spot, onSwapSelect, selectedSlot, readOnly = false, compact = false, reverse = false }: {
   spot: RosterSpot;
-  onSwapSelect: (slot: string) => void;
-  selectedSlot: string | null;
+  onSwapSelect?: (slot: string) => void;
+  selectedSlot?: string | null;
+  readOnly?: boolean;
+  compact?: boolean;
+  reverse?: boolean;
 }) {
   const score = spot.artist?.weeklyScores?.[0];
   const isBench = spot.slot.startsWith('Bench');
-  const isSelected = selectedSlot === spot.slot;
+  const isSelected = !readOnly && selectedSlot === spot.slot;
 
   return (
     <div
-      className={`flex items-center gap-3 p-3 rounded-lg transition-colors cursor-pointer ${isSelected ? 'bg-indigo-500/20 border border-indigo-500/50' : 'hover:bg-white/5 border border-transparent'}`}
-      onClick={() => onSwapSelect(spot.slot)}
+      className={`flex items-center gap-3 rounded-lg transition-colors ${compact ? 'p-2 gap-2' : 'p-3'} ${reverse ? 'flex-row-reverse' : ''} ${
+        readOnly
+          ? ''
+          : `cursor-pointer ${isSelected ? 'bg-indigo-500/20 border border-indigo-500/50' : 'hover:bg-white/5 border border-transparent'}`
+      }`}
+      onClick={readOnly ? undefined : () => onSwapSelect?.(spot.slot)}
     >
-      <div className="w-16 shrink-0">
-        <SlotLabel slot={spot.slot} />
-      </div>
+      {!compact && (
+        <div className={`shrink-0 w-16 ${reverse ? 'text-right' : ''}`}>
+          <SlotLabel slot={spot.slot} />
+        </div>
+      )}
       {spot.artist ? (
         <>
           <Avatar src={spot.artist.imageUrl} name={spot.artist.name} size="sm" />
-          <div className="flex-1 min-w-0">
-            <Link to={`/artists/${spot.artist.id}`} onClick={(e) => e.stopPropagation()} className="font-medium text-white text-sm hover:text-indigo-400 transition-colors truncate block">
+          <div className={`flex-1 min-w-0 ${reverse ? 'text-right' : ''}`}>
+            {compact && <SlotLabel slot={spot.slot} />}
+            <Link to={`/artists/${spot.artist.id}`} onClick={(e) => e.stopPropagation()} className={`font-medium text-white hover:text-indigo-400 transition-colors truncate block ${compact ? 'text-xs' : 'text-sm'}`}>
               {spot.artist.name}
             </Link>
-            <Badge genre={spot.artist.primaryGenre} className="mt-0.5">{spot.artist.primaryGenre}</Badge>
+            {!compact && <Badge genre={spot.artist.primaryGenre} className="mt-0.5">{spot.artist.primaryGenre}</Badge>}
           </div>
           <div className="text-right shrink-0">
-            <div className={`text-base font-bold ${isBench ? 'text-gray-500' : 'text-white'}`}>
+            <div className={`font-bold ${compact ? 'text-sm' : 'text-base'} ${isBench ? 'text-gray-500' : 'text-white'}`}>
               {score ? score.totalPoints.toFixed(1) : '—'}
             </div>
-            <div className="text-xs text-gray-600">pts</div>
+            {!compact && <div className="text-xs text-gray-600">pts</div>}
           </div>
         </>
       ) : (
         <>
-          <div className="flex-1">
+          {compact && <Avatar src={null} name="?" size="sm" />}
+          <div className={`flex-1 min-w-0 ${reverse ? 'text-right' : ''}`}>
+            {compact && <SlotLabel slot={spot.slot} />}
             <span className="text-sm text-gray-600">Empty slot</span>
           </div>
-          <span className="text-xs text-gray-600">—</span>
+          <span className="text-xs text-gray-600 shrink-0">—</span>
         </>
       )}
     </div>
   );
 }
 
-function MatchupTab({ leagueId, league }: { leagueId: string; league: League }) {
-  const { user } = useAuth();
+function getRosterSpot(roster: RosterSpot[], slot: string): RosterSpot {
+  return roster.find((s) => s.slot === slot) ?? { id: '', teamId: '', artistId: null, slot, artist: null };
+}
+
+function TeamRosterCard({ title, roster, reverse = false }: { title: string; roster: RosterSpot[]; reverse?: boolean }) {
+  return (
+    <Card className="p-3">
+      <h3 className={`text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 truncate ${reverse ? 'text-right' : ''}`}>{title}</h3>
+      <div className="space-y-1">
+        {ALL_STARTER_SLOTS.map((slot) => (
+          <RosterRow key={slot} spot={getRosterSpot(roster, slot)} readOnly compact reverse={reverse} />
+        ))}
+      </div>
+      <div className={`text-xs font-semibold text-gray-500 uppercase tracking-wider mt-2 mb-1 ${reverse ? 'text-right' : ''}`}>Bench</div>
+      <div className="space-y-1">
+        {ALL_BENCH_SLOTS.map((slot) => (
+          <RosterRow key={slot} spot={getRosterSpot(roster, slot)} readOnly compact reverse={reverse} />
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function MyTeamTab({ leagueId, league }: { leagueId: string; league: League }) {
   const queryClient = useQueryClient();
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
 
-  const { data: matchup, isLoading } = useQuery({
-    queryKey: ['matchup', leagueId, 'current'],
-    queryFn: () => api.get<Matchup | null>(`/leagues/${leagueId}/matchups/current`),
+  const { data: myTeam, isLoading } = useQuery({
+    queryKey: ['myTeam', leagueId],
+    queryFn: () => api.get<Team & { rosterSpots: RosterSpot[] }>(`/leagues/${leagueId}/roster`),
   });
 
   const swapMutation = useMutation({
     mutationFn: ({ slotA, slotB }: { slotA: string; slotB: string }) =>
       api.put(`/leagues/${leagueId}/roster/lineup`, { slotA, slotB }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['matchup', leagueId] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['myTeam', leagueId] }),
   });
 
   if (isLoading) return <div className="flex justify-center py-12"><Spinner className="w-8 h-8" /></div>;
-  if (!matchup) return (
+  if (!myTeam) return (
     <div className="text-center py-12 text-gray-400">
-      {league.status === 'pending' ? 'Season hasn\'t started yet. Draft a team first!' : 'No matchup this week.'}
+      {league.status === 'pending' ? 'Season hasn\'t started yet. Draft a team first!' : 'No team found.'}
     </div>
   );
-
-  const isHome = matchup.homeTeam?.user && 'id' in (matchup.homeTeam ?? {}) && matchup.homeTeamId && matchup.homeTeam &&
-    matchup.homeTeam.userId === user?.id;
-  const myTeamData = isHome ? matchup.homeTeam : matchup.awayTeam;
-  const oppTeamData = isHome ? matchup.awayTeam : matchup.homeTeam;
-  const myScore = isHome ? matchup.homeScore : matchup.awayScore;
-  const oppScore = isHome ? matchup.awayScore : matchup.homeScore;
 
   function handleSlotClick(slot: string) {
     if (!selectedSlot) { setSelectedSlot(slot); return; }
@@ -108,32 +135,17 @@ function MatchupTab({ leagueId, league }: { leagueId: string; league: League }) 
     setSelectedSlot(null);
   }
 
-  const myRoster = myTeamData?.rosterSpots ?? [];
+  const myRoster = myTeam.rosterSpots ?? [];
 
   function getSpot(slot: string): RosterSpot {
-    return myRoster.find((s) => s.slot === slot) ?? { id: '', teamId: '', artistId: null, slot, artist: null };
+    return getRosterSpot(myRoster, slot);
   }
 
   return (
     <div className="space-y-4">
-      {/* Head-to-head header */}
       <Card className="p-5">
-        <div className="text-center text-xs text-gray-500 mb-3">Week {league.currentWeek} · updates daily</div>
-        <div className="flex items-center justify-center gap-6">
-          <div className="text-center">
-            <div className="font-semibold text-white mb-1">{myTeamData?.name ?? 'Your Team'}</div>
-            <div className={`text-3xl font-bold ${myScore >= oppScore ? 'text-green-400' : 'text-white'}`}>
-              {myScore.toFixed(1)}
-            </div>
-          </div>
-          <div className="text-gray-600 text-lg font-light">vs</div>
-          <div className="text-center">
-            <div className="font-semibold text-white mb-1">{oppTeamData?.name ?? 'Opponent'}</div>
-            <div className={`text-3xl font-bold ${oppScore > myScore ? 'text-green-400' : 'text-white'}`}>
-              {oppScore.toFixed(1)}
-            </div>
-          </div>
-        </div>
+        <div className="text-center text-xs text-gray-500 mb-1">Week {league.currentWeek}</div>
+        <div className="text-center font-semibold text-white text-lg">{myTeam.name}</div>
       </Card>
 
       {selectedSlot && (
@@ -174,6 +186,58 @@ function MatchupTab({ leagueId, league }: { leagueId: string; league: League }) 
           ))}
         </div>
       </Card>
+    </div>
+  );
+}
+
+function MatchupTab({ leagueId, league }: { leagueId: string; league: League }) {
+  const { user } = useAuth();
+
+  const { data: matchup, isLoading } = useQuery({
+    queryKey: ['matchup', leagueId, 'current'],
+    queryFn: () => api.get<Matchup | null>(`/leagues/${leagueId}/matchups/current`),
+  });
+
+  if (isLoading) return <div className="flex justify-center py-12"><Spinner className="w-8 h-8" /></div>;
+  if (!matchup) return (
+    <div className="text-center py-12 text-gray-400">
+      {league.status === 'pending' ? 'Season hasn\'t started yet. Draft a team first!' : 'No matchup this week.'}
+    </div>
+  );
+
+  const isHome = matchup.homeTeam?.user && 'id' in (matchup.homeTeam ?? {}) && matchup.homeTeamId && matchup.homeTeam &&
+    matchup.homeTeam.userId === user?.id;
+  const myTeamData = isHome ? matchup.homeTeam : matchup.awayTeam;
+  const oppTeamData = isHome ? matchup.awayTeam : matchup.homeTeam;
+  const myScore = isHome ? matchup.homeScore : matchup.awayScore;
+  const oppScore = isHome ? matchup.awayScore : matchup.homeScore;
+
+  return (
+    <div className="space-y-4">
+      {/* Head-to-head header */}
+      <Card className="p-5">
+        <div className="text-center text-xs text-gray-500 mb-3">Week {league.currentWeek} · updates daily</div>
+        <div className="flex items-center justify-center gap-6">
+          <div className="text-center">
+            <div className="font-semibold text-white mb-1">{myTeamData?.name ?? 'Your Team'}</div>
+            <div className={`text-3xl font-bold ${myScore >= oppScore ? 'text-green-400' : 'text-white'}`}>
+              {myScore.toFixed(1)}
+            </div>
+          </div>
+          <div className="text-gray-600 text-lg font-light">vs</div>
+          <div className="text-center">
+            <div className="font-semibold text-white mb-1">{oppTeamData?.name ?? 'Opponent'}</div>
+            <div className={`text-3xl font-bold ${oppScore > myScore ? 'text-green-400' : 'text-white'}`}>
+              {oppScore.toFixed(1)}
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-2 gap-2">
+        <TeamRosterCard title={myTeamData?.name ?? 'Your Team'} roster={myTeamData?.rosterSpots ?? []} />
+        <TeamRosterCard title={oppTeamData?.name ?? 'Opponent'} roster={oppTeamData?.rosterSpots ?? []} reverse />
+      </div>
     </div>
   );
 }
@@ -251,6 +315,7 @@ function SortHeader({ label, field, sort, onSort }: {
 function PlayersTab({ leagueId }: { leagueId: string }) {
   const [search, setSearch] = useState('');
   const [genre, setGenre] = useState('');
+  const [freeAgentsOnly, setFreeAgentsOnly] = useState(false);
   const [sort, setSort] = useState<{ field: SortField; dir: SortDir }>({ field: 'last', dir: 'desc' });
 
   const { data, isLoading } = useQuery({
@@ -269,7 +334,9 @@ function PlayersTab({ leagueId }: { leagueId: string }) {
     );
   }
 
-  const sorted = [...(data ?? [])].sort((a, b) => {
+  const filtered = freeAgentsOnly ? (data ?? []).filter((a) => !a.rosteredBy) : (data ?? []);
+
+  const sorted = [...filtered].sort((a, b) => {
     let cmp = 0;
     if (sort.field === 'name') cmp = a.name.localeCompare(b.name);
     else if (sort.field === 'last') cmp = (a.lastWeekPoints ?? 0) - (b.lastWeekPoints ?? 0);
@@ -297,6 +364,17 @@ function PlayersTab({ leagueId }: { leagueId: string }) {
           <option value="">All Genres</option>
           {genres.map((g) => <option key={g} value={g}>{g}</option>)}
         </select>
+        <button
+          onClick={() => setFreeAgentsOnly((v) => !v)}
+          aria-pressed={freeAgentsOnly}
+          className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors whitespace-nowrap ${
+            freeAgentsOnly
+              ? 'bg-green-500/20 border-green-500/30 text-green-400'
+              : 'bg-white/10 border-white/20 text-gray-300 hover:bg-white/20'
+          }`}
+        >
+          Free Agents Only
+        </button>
       </div>
 
       {isLoading ? (
@@ -546,7 +624,7 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League })
 
 export function LeagueHub() {
   const { id } = useParams<{ id: string }>();
-  const [tab, setTab] = useState<Tab>('matchup');
+  const [tab, setTab] = useState<Tab>('myteam');
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -561,6 +639,7 @@ export function LeagueHub() {
   const isCommissioner = league.commissionerId === user?.id;
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
+    { id: 'myteam', label: 'My Team', icon: <User className="w-4 h-4" /> },
     { id: 'matchup', label: 'Matchup', icon: <Swords className="w-4 h-4" /> },
     { id: 'standings', label: 'Standings', icon: <Trophy className="w-4 h-4" /> },
     { id: 'players', label: 'Players', icon: <Users className="w-4 h-4" /> },
@@ -614,6 +693,7 @@ export function LeagueHub() {
       </header>
 
       <main className="relative max-w-3xl mx-auto px-4 py-6">
+        {tab === 'myteam' && <MyTeamTab leagueId={id!} league={league} />}
         {tab === 'matchup' && <MatchupTab leagueId={id!} league={league} />}
         {tab === 'standings' && <StandingsTab leagueId={id!} league={league} />}
         {tab === 'players' && <PlayersTab leagueId={id!} />}

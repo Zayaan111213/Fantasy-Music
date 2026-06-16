@@ -407,6 +407,34 @@ router.get('/:id/players', requireAuth, async (req: AuthRequest, res, next) => {
   }
 });
 
+// My team's roster (used by the My Team tab to view/edit lineup independent of a matchup)
+router.get('/:id/roster', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const league = await prisma.league.findUnique({ where: { id: req.params.id } });
+    if (!league) { res.status(404).json({ error: 'League not found' }); return; }
+
+    const myTeam = await prisma.team.findFirst({
+      where: { leagueId: req.params.id, userId: req.userId! },
+      include: {
+        rosterSpots: {
+          include: {
+            artist: {
+              include: {
+                weeklyScores: { where: { week: league.currentWeek, seasonYear: league.seasonYear } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!myTeam) { res.status(403).json({ error: 'Not a member' }); return; }
+
+    res.json(myTeam);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Roster: swap lineup (starter ↔ bench)
 router.put('/:id/roster/lineup', requireAuth, async (req: AuthRequest, res, next) => {
   try {

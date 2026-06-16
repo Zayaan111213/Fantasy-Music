@@ -57,7 +57,7 @@ Live snake draft with a per-pick clock (default 60s). Auto-draft on expiry selec
 - **Leagues**: create, join (invite code/link), settings, commissioner delete with member notifications
 - **Artist database**: genre-tagged, weekly scores seeded for 10 weeks, searchable/filterable
 - **Draft**: live snake draft via socket.io, 60s timer, auto-draft on expiry, slot selector UI
-- **Roster/lineup**: starter↔bench swap, slot-legality enforced
+- **Roster/lineup**: starter↔bench swap (My Team tab, the default tab), slot-legality enforced; Matchup tab is read-only (both rosters' scores side by side)
 - **Matchups & standings**: head-to-head, weekly scores, standings with playoff cutline
 - **Scoring**: seeded mock data; `streamingPoints + chartPositionPoints + chartMovementPoints = totalPoints`
 - **Player lists**: all lists show Name, Genre, Picture, Last Week score, 5W Avg; sortable by clicking headers (first click = high→low, second = low→high)
@@ -70,42 +70,74 @@ bandwagon/
     prisma/
       schema.prisma       # DB schema
       seed.ts             # Mock data (artists, weekly scores, demo league)
+      migrations/
     src/
       server.ts           # Express + socket.io entry point
-      api/routes/
-        auth.ts
-        leagues.ts        # includes /players endpoint
-        artists.ts
-        draft.ts
-        notifications.ts
-      sockets/draft.ts    # Live draft socket handler
+      db/prisma.ts         # Shared PrismaClient singleton
+      api/
+        middleware/
+          auth.ts          # JWT signing + requireAuth middleware
+          errorHandler.ts
+        routes/
+          auth.ts
+          leagues.ts        # League CRUD, standings, matchups, /players, lineup swap
+          artists.ts
+          draft.ts          # Draft lifecycle + makePick() (also used by sockets/draft.ts)
+          notifications.ts
+      data/
+        provider.ts         # DataProvider interface (data-access-layer abstraction)
+        mock.ts             # MockDataProvider — only implementation today, seeded-random
+      scoring/
+        tiers.ts            # Pure scoring functions (chart position/movement/streaming tiers)
+        engine.ts           # scoreArtistWeek() / updateMatchupScores() orchestration
+      sockets/draft.ts      # Live draft socket handler + in-memory per-pick timers
   frontend/
     src/
       pages/
         Auth.tsx
         Home.tsx           # Shows leagues + dismissible notifications
-        LeagueHub.tsx      # Tabs: Matchup, Standings, Players, Settings
+        LeagueHub.tsx      # Tabs: My Team (default, lineup editing), Matchup (read-only), Standings, Players, Settings
         DraftRoom.tsx      # Live draft room with artist pool
         LeagueCreate.tsx
         LeagueJoin.tsx
         ArtistDetail.tsx
+      context/AuthContext.tsx
       api/
         client.ts          # fetch wrapper
         types.ts           # shared TS interfaces
-      components/ui/       # Card, Badge, Avatar, Button, Spinner
+      components/ui/       # Card, Badge, Avatar, Button, Input, Spinner
 ```
 
-## Running Locally
+## Backend Architecture Notes
+
+- **Data access layer**: `data/provider.ts` defines the `DataProvider` interface (`getWeeklyStreams`, `getBestChartPosition`, `getChartMovement`). `data/mock.ts`'s `MockDataProvider` is the only implementation today — it's deterministic per `artistId`/week via a seeded hash, not random per run. `scoring/engine.ts` is the only consumer; swapping in a real Luminate/Billboard provider means implementing the interface and passing it into `scoreArtistWeek`, no call-site changes elsewhere.
+- **Scoring engine**: `scoring/tiers.ts` holds pure, DB-free scoring functions. `scoring/engine.ts`'s `scoreArtistWeek` loads the genre's `GenreStreamingTier` rows, **falls back to `'Pop'` tiers if the artist's genre has none seeded**, then upserts a `WeeklyScore`. Any signal the provider returns `null` for is recorded in `WeeklyScore.dataMissing` (comma-joined) rather than failing the run — this is the PRD's "never hard-fail on a missing signal" requirement in practice.
+- **Auth**: `api/middleware/auth.ts` exports `requireAuth` (HTTP) for Express routes. `sockets/draft.ts` does **not** reuse that middleware — it verifies the JWT manually on every `draft:join`/`draft:pick` socket event because socket.io has no shared middleware chain with Express here.
+- **Draft concurrency**: per-pick countdown timers live in an in-memory `Map<leagueId, Interval>` inside `sockets/draft.ts` (`leagueTimers`) — they are not persisted. Restarting the backend mid-draft drops the running interval; the draft's logical state (`DraftState.currentPick`/`timerEndsAt`) survives in Postgres, but a client reconnect (`draft:join`) is what actually restarts the timer.
+- **Slot-eligibility logic is duplicated in three places** — keep them in sync if roster rules change: `api/routes/draft.ts` (`isEligible`, human picks), `sockets/draft.ts` (`isEligible`, auto-draft), and `api/routes/leagues.ts` (`artistEligibleForSlot`, starter↔bench lineup swap). All three encode "Niche = primary genre not in Hip-Hop/Pop/Rock/Country".
+- **Routing**: both `leagueRoutes` and `draftRoutes` are mounted at `/api/leagues` in `server.ts` — draft endpoints live under `/api/leagues/:id/draft*`, not a separate `/api/draft` prefix.
+
+## Commands
 
 ```bash
-# Backend (port 3001) — uses tsx watch, restart picks up code changes automatically
-cd bandwagon/backend && npm run dev
+# Install everything (root + backend + frontend)
+npm run setup
 
-# Frontend (port 5174 — Vite auto-selected this; 5173 is a different app on this machine)
-cd bandwagon/frontend && npm run dev
+# Run backend + frontend together from repo root
+npm run dev
 
-# Seed database (required for weekly score data and demo league)
-cd bandwagon/backend && npx prisma db seed
+# Or individually:
+cd bandwagon/backend && npm run dev     # tsx watch, port 3001, restart picks up code changes
+cd bandwagon/frontend && npm run dev    # Vite, port 5174 (see note below)
+
+# DB: migrate / seed / inspect (runnable from repo root or bandwagon/backend)
+npm run db:migrate
+npm run db:seed
+npm run db:studio
+
+# Typecheck / build (no test suite or lint config exists in this repo yet)
+cd bandwagon/backend && npm run build   # tsc
+cd bandwagon/frontend && npm run build  # tsc && vite build
 ```
 
 **Demo accounts** (created by seed, both use `password123`):
@@ -114,7 +146,7 @@ cd bandwagon/backend && npx prisma db seed
 
 ## Key Implementation Notes
 
-- **Frontend port is 5174**, not the Vite default 5173. The Vite proxy (`/api`, `/socket.io` → port 3001) works on 5174.
+- **Frontend dev port is 5174**, not the Vite-configured default of 5173 (`vite.config.ts` sets `server.port: 5173`). Vite auto-increments when 5173 is taken by another process on this machine; the proxy (`/api`, `/socket.io` → port 3001) works the same regardless of which port Vite lands on.
 - **DraftRoom socket state** does not include `rosterSpots`. Derive a team's filled slots from `state.picks.filter(p => p.teamId === myTeam.id).map(p => p.slot)` — do not access `myTeam.rosterSpots`.
 - **Weekly score data** only exists after running the seed. Without it, all score columns show `0.0`.
 - **Backend must be running** for the `/api/health` check and all data. Kill old process with `lsof -ti :3001 | xargs kill -9` before restarting.
