@@ -1,0 +1,125 @@
+import { useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Music2 } from 'lucide-react';
+import { api } from '../api/client';
+import { useAuth } from '../context/AuthContext';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import type { User } from '../api/types';
+
+export function Auth() {
+  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const redirect = params.get('redirect') || '/home';
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const path = mode === 'login' ? '/auth/login' : '/auth/signup';
+      const body = mode === 'login' ? { email, password } : { email, password, displayName };
+      const { token, user } = await api.post<{ token: string; user: User }>(path, body);
+      login(token, user);
+      navigate(redirect, { replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
+      {/* Background gradient */}
+      <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/50 via-gray-950 to-purple-950/30 pointer-events-none" />
+
+      <div className="relative w-full max-w-md">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 mb-4">
+            <Music2 className="w-7 h-7 text-indigo-400" />
+          </div>
+          <h1 className="text-3xl font-bold text-white">Bandwagon</h1>
+          <p className="text-gray-400 mt-1">Fantasy sports for music fans</p>
+        </div>
+
+        {/* Card */}
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-8 backdrop-blur-sm">
+          {/* Toggle */}
+          <div className="flex bg-white/5 rounded-lg p-1 mb-6">
+            <button
+              onClick={() => setMode('login')}
+              className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${mode === 'login' ? 'bg-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              Log In
+            </button>
+            <button
+              onClick={() => setMode('signup')}
+              className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${mode === 'signup' ? 'bg-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              Sign Up
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {mode === 'signup' && (
+              <Input
+                label="Display Name"
+                placeholder="Your name in leagues"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                required
+              />
+            )}
+            <Input
+              label="Email"
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+            <Input
+              label="Password"
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-sm text-red-400">
+                {error}
+              </div>
+            )}
+
+            <Button type="submit" disabled={loading} className="w-full mt-2" size="lg">
+              {loading ? 'Loading…' : mode === 'login' ? 'Log In' : 'Create Account'}
+            </Button>
+          </form>
+
+          <div className="mt-4 p-3 bg-white/5 rounded-lg">
+            <p className="text-xs text-gray-400 text-center mb-1">Demo accounts</p>
+            <div className="flex gap-2 text-xs text-gray-500">
+              <button onClick={() => { setEmail('demo1@bandwagon.app'); setPassword('password123'); setMode('login'); }} className="flex-1 text-center hover:text-gray-300 transition-colors">
+                demo1 / password123
+              </button>
+              <button onClick={() => { setEmail('demo2@bandwagon.app'); setPassword('password123'); setMode('login'); }} className="flex-1 text-center hover:text-gray-300 transition-colors">
+                demo2 / password123
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,184 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  displayName  String
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  teams              Team[]
+  commissionedLeagues League[] @relation("Commissioner")
+  notifications      Notification[]
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String
+  message   String
+  seenAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model League {
+  id             String    @id @default(cuid())
+  name           String
+  commissionerId String
+  commissioner   User      @relation("Commissioner", fields: [commissionerId], references: [id])
+  teamCount      Int       @default(8)
+  privacy        String    @default("private")
+  draftTime      DateTime?
+  status         String    @default("pending")
+  inviteCode     String    @unique
+  currentWeek    Int       @default(1)
+  seasonYear     Int       @default(2026)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  teams      Team[]
+  matchups   Matchup[]
+  draftPicks DraftPick[]
+  draftState DraftState?
+}
+
+model Team {
+  id             String @id @default(cuid())
+  leagueId       String
+  userId         String
+  name           String
+  waiverPriority Int    @default(0)
+  wins           Int    @default(0)
+  losses         Int    @default(0)
+  pointsFor      Float  @default(0)
+  draftPosition  Int?
+  createdAt      DateTime @default(now())
+
+  league       League      @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user         User        @relation(fields: [userId], references: [id])
+  rosterSpots  RosterSpot[]
+  homeMatchups Matchup[]   @relation("HomeTeam")
+  awayMatchups Matchup[]   @relation("AwayTeam")
+  draftPicks   DraftPick[]
+
+  @@unique([leagueId, userId])
+}
+
+model Artist {
+  id              String   @id @default(cuid())
+  name            String
+  primaryGenre    String
+  secondaryGenres String[]
+  imageUrl        String?
+  spotifyId       String?
+  appleMusicId    String?
+  createdAt       DateTime @default(now())
+
+  weeklyScores WeeklyScore[]
+  rosterSpots  RosterSpot[]
+  draftPicks   DraftPick[]
+}
+
+model RosterSpot {
+  id       String  @id @default(cuid())
+  teamId   String
+  artistId String?
+  slot     String
+
+  team   Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  artist Artist? @relation(fields: [artistId], references: [id])
+
+  @@unique([teamId, slot])
+}
+
+model WeeklyScore {
+  id                  String   @id @default(cuid())
+  artistId            String
+  week                Int
+  seasonYear          Int
+  streamingPoints     Float    @default(0)
+  chartPositionPoints Float    @default(0)
+  chartMovementPoints Float    @default(0)
+  totalPoints         Float    @default(0)
+  weeklyStreams        BigInt?
+  bestChartPosition   Int?
+  chartMovement       Int?
+  isFinalized         Boolean  @default(false)
+  dataMissing         String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  artist Artist @relation(fields: [artistId], references: [id])
+
+  @@unique([artistId, week, seasonYear])
+}
+
+model Matchup {
+  id          String  @id @default(cuid())
+  leagueId    String
+  week        Int
+  homeTeamId  String
+  awayTeamId  String
+  homeScore   Float   @default(0)
+  awayScore   Float   @default(0)
+  winnerId    String?
+  isFinalized Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  league   League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  homeTeam Team   @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeam Team   @relation("AwayTeam", fields: [awayTeamId], references: [id])
+}
+
+model DraftPick {
+  id         String   @id @default(cuid())
+  leagueId   String
+  teamId     String
+  artistId   String
+  round      Int
+  pickNumber Int
+  slot       String
+  isAutoDraft Boolean @default(false)
+  pickedAt   DateTime @default(now())
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  team   Team   @relation(fields: [teamId], references: [id])
+  artist Artist @relation(fields: [artistId], references: [id])
+
+  @@unique([leagueId, pickNumber])
+}
+
+model DraftState {
+  id           String   @id @default(cuid())
+  leagueId     String   @unique
+  currentPick  Int      @default(0)
+  pickOrder    String[]
+  timerEndsAt  DateTime?
+  isComplete   Boolean  @default(false)
+  updatedAt    DateTime @updatedAt
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+}
+
+model GenreStreamingTier {
+  id         String @id @default(cuid())
+  genre      String
+  minStreams  BigInt
+  maxStreams  BigInt?
+  points     Int
+  sortOrder  Int
+
+  @@index([genre, sortOrder])
+}
