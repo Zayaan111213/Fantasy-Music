@@ -1,6 +1,6 @@
 import { prisma } from '../db/prisma';
 import type { DataProvider } from '../data/provider';
-import { scoreChartPosition, scoreChartMovement, scoreStreaming } from './tiers';
+import { scoreChartPosition, scoreChartMovement, scoreStreaming, ScoringConfigSchema, CHART_POSITION_TIERS } from './tiers';
 
 export async function scoreArtistWeek(
   artistId: string,
@@ -69,32 +69,78 @@ export async function scoreArtistWeek(
 }
 
 export async function updateMatchupScores(leagueId: string, week: number, year: number): Promise<void> {
-  const matchup = await prisma.matchup.findFirst({
-    where: { leagueId, week },
-    include: {
-      homeTeam: { include: { rosterSpots: { where: { slot: { not: { startsWith: 'Bench' } } } } } },
-      awayTeam: { include: { rosterSpots: { where: { slot: { not: { startsWith: 'Bench' } } } } } },
-    },
-  });
+  const [matchup, leagueRow] = await Promise.all([
+    prisma.matchup.findFirst({
+      where: { leagueId, week },
+      include: {
+        homeTeam: {
+          include: {
+            rosterSpots: {
+              where: { slot: { not: { startsWith: 'Bench' } } },
+              include: { artist: { select: { primaryGenre: true } } },
+            },
+          },
+        },
+        awayTeam: {
+          include: {
+            rosterSpots: {
+              where: { slot: { not: { startsWith: 'Bench' } } },
+              include: { artist: { select: { primaryGenre: true } } },
+            },
+          },
+        },
+      },
+    }),
+    prisma.league.findUnique({ where: { id: leagueId }, select: { scoringConfig: true } }),
+  ]);
   if (!matchup) return;
 
-  async function teamScore(spots: { artistId: string | null }[]): Promise<number> {
-    let total = 0;
-    for (const spot of spots) {
-      if (!spot.artistId) continue;
-      const ws = await prisma.weeklyScore.findUnique({
-        where: { artistId_week_seasonYear: { artistId: spot.artistId, week, seasonYear: year } },
-      });
-      total += ws?.totalPoints ?? 0;
+  const cfg = ScoringConfigSchema.safeParse(leagueRow?.scoringConfig).data ?? null;
+  const genreTierCache = new Map<string, Awaited<ReturnType<typeof prisma.genreStreamingTier.findMany>>>();
+
+  async function spotScore(artistId: string | null, genre: string | null): Promise<number> {
+    if (!artistId) return 0;
+    const ws = await prisma.weeklyScore.findUnique({
+      where: { artistId_week_seasonYear: { artistId, week, seasonYear: year } },
+    });
+    if (!ws) return 0;
+    if (!cfg) return ws.totalPoints;
+
+    const g = genre ?? 'Pop';
+
+    if (!genreTierCache.has(g)) {
+      const rows = await prisma.genreStreamingTier.findMany({ where: { genre: g }, orderBy: { sortOrder: 'asc' } });
+      genreTierCache.set(g, rows.length ? rows : await prisma.genreStreamingTier.findMany({ where: { genre: 'Pop' }, orderBy: { sortOrder: 'asc' } }));
     }
+    const globalTiers = genreTierCache.get(g)!;
+    const customPts = cfg.streaming[g] ?? cfg.streaming['Pop'];
+    const tiersWithCustomPts = globalTiers.map((t, i) => ({
+      minStreams: t.minStreams,
+      maxStreams: t.maxStreams,
+      points: customPts?.[i] ?? t.points,
+    }));
+
+    const customChartTiers = CHART_POSITION_TIERS.map((t, i) => ({ maxPos: t.maxPos, points: cfg.chartPosition[i] }));
+
+    const streams = ws.weeklyStreams !== null ? Number(ws.weeklyStreams) : null;
+    const streamingPts = streams !== null ? scoreStreaming(streams, tiersWithCustomPts) : 0;
+    const chartPosPts = scoreChartPosition(ws.bestChartPosition, customChartTiers);
+    const isNewEntry = ws.chartMovement === null && ws.bestChartPosition !== null;
+    const chartMovPts = scoreChartMovement(ws.chartMovement, isNewEntry, cfg.chartMovement);
+
+    return streamingPts + chartPosPts + chartMovPts;
+  }
+
+  async function teamScore(spots: { artistId: string | null; artist: { primaryGenre: string } | null }[]): Promise<number> {
+    let total = 0;
+    for (const spot of spots) total += await spotScore(spot.artistId, spot.artist?.primaryGenre ?? null);
     return total;
   }
 
-  const homeScore = await teamScore(matchup.homeTeam.rosterSpots);
-  const awayScore = await teamScore(matchup.awayTeam.rosterSpots);
+  const [homeScore, awayScore] = await Promise.all([
+    teamScore(matchup.homeTeam.rosterSpots),
+    teamScore(matchup.awayTeam.rosterSpots),
+  ]);
 
-  await prisma.matchup.update({
-    where: { id: matchup.id },
-    data: { homeScore, awayScore },
-  });
+  await prisma.matchup.update({ where: { id: matchup.id }, data: { homeScore, awayScore } });
 }

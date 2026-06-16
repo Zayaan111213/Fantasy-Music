@@ -44,6 +44,7 @@ model League {
   inviteCode     String    @unique
   currentWeek    Int       @default(1)
   seasonYear     Int       @default(2026)
+  scoringConfig  Json?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 

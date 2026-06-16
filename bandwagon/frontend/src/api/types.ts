@@ -5,6 +5,12 @@ export interface User {
   avatarUrl: string | null;
 }
 
+export interface ScoringConfig {
+  chartPosition: [number, number, number, number, number];
+  chartMovement: { newEntryBonus: number; maxGain: number; maxDrop: number };
+  streaming: Record<string, [number, number, number, number, number, number, number]>;
+}
+
 export interface League {
   id: string;
   name: string;
@@ -16,6 +22,7 @@ export interface League {
   inviteCode: string;
   currentWeek: number;
   seasonYear: number;
+  scoringConfig?: ScoringConfig | null;
 }
 
 export interface Team {
@@ -144,6 +151,7 @@ export interface LeagueCard {
   currentWeek: number;
   privacy: string;
   teamCount: number;
+  isCommissioner: boolean;
   myTeam: { id: string; name: string; logoUrl: string | null; wins: number; losses: number };
   opponent: { id: string; name: string; logoUrl: string | null } | null;
   myScore: number;

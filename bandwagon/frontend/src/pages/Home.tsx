@@ -112,6 +112,11 @@ export function Home() {
                       <div className="flex items-center gap-2 mb-1">
                         <h2 className="font-semibold text-white">{league.name}</h2>
                         <StatusBadge status={league.status} />
+                        {league.isCommissioner && (
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-500/20 text-amber-300">
+                            Commissioner
+                          </span>
+                        )}
                       </div>
                       <p className="text-sm text-gray-400">
                         {league.myTeam.name} · {league.memberCount}/{league.teamCount} teams

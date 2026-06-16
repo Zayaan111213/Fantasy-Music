@@ -2,9 +2,11 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../db/prisma';
 import { requireAuth, type AuthRequest } from '../middleware/auth';
 import { uploadTeamLogo } from '../middleware/upload';
+import { ScoringConfigSchema } from '../../scoring/tiers';
 
 const router = Router();
 
@@ -66,6 +68,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res, next) => {
           currentWeek,
           privacy: team.league.privacy,
           teamCount: team.league.teamCount,
+          isCommissioner: team.league.commissionerId === req.userId,
           myTeam: { id: team.id, name: team.name, logoUrl: team.logoUrl, wins: team.wins, losses: team.losses },
           opponent,
           myScore,
@@ -145,21 +148,33 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res, next) => {
   }
 });
 
-// Update league settings (commissioner only, pre-season)
+// Update league settings (commissioner only)
 router.put('/:id', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const league = await prisma.league.findUnique({ where: { id: req.params.id } });
     if (!league) { res.status(404).json({ error: 'League not found' }); return; }
     if (league.commissionerId !== req.userId) { res.status(403).json({ error: 'Only the commissioner can edit settings' }); return; }
-    if (league.status !== 'pending') { res.status(400).json({ error: 'Settings are locked once the season starts' }); return; }
 
     const schema = z.object({
       name: z.string().min(1).max(50).optional(),
       teamCount: z.number().int().min(4).max(12).optional(),
       privacy: z.enum(['private', 'public']).optional(),
       draftTime: z.string().datetime().optional().nullable(),
+      scoringConfig: ScoringConfigSchema.optional().nullable(),
     });
     const data = schema.parse(req.body);
+
+    const settingsLocked = league.status !== 'pending';
+    const scoringLocked = league.status !== 'pending' && league.status !== 'complete';
+
+    if (settingsLocked && (data.name !== undefined || data.draftTime !== undefined || data.teamCount !== undefined || data.privacy !== undefined)) {
+      res.status(400).json({ error: 'League settings are locked once the season starts' });
+      return;
+    }
+    if (scoringLocked && data.scoringConfig !== undefined) {
+      res.status(400).json({ error: 'Scoring settings can only be changed pre-draft or between seasons' });
+      return;
+    }
 
     const updated = await prisma.league.update({
       where: { id: req.params.id },
@@ -168,6 +183,7 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res, next) => {
         ...(data.teamCount && { teamCount: data.teamCount }),
         ...(data.privacy && { privacy: data.privacy }),
         ...(data.draftTime !== undefined && { draftTime: data.draftTime ? new Date(data.draftTime) : null }),
+        ...(data.scoringConfig !== undefined && { scoringConfig: data.scoringConfig ?? Prisma.DbNull }),
       },
     });
     res.json(updated);

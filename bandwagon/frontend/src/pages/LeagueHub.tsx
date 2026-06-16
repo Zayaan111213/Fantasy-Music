@@ -553,11 +553,28 @@ function PlayersTab({ leagueId }: { leagueId: string }) {
   );
 }
 
+const CHART_POSITION_LABELS = ['#1', '#2–10', '#11–25', '#26–50', '#51–100'];
+const DEFAULT_CHART_POSITION: [number, number, number, number, number] = [25, 18, 12, 8, 4];
+const DEFAULT_CHART_MOVEMENT = { newEntryBonus: 10, maxGain: 15, maxDrop: 10 };
+const GENRES = ['Hip-Hop', 'Pop', 'Rock', 'Country', 'Latin', 'Dance/Electronic', 'R&B', 'World'];
+const DEFAULT_STREAMING: [number, number, number, number, number, number, number] = [40, 30, 20, 12, 6, 2, 0];
+const STREAMING_TIER_LABELS: Record<string, string[]> = {
+  'Hip-Hop':          ['50M+', '25–49M', '10–24M', '5–9M', '1–4M', '1K–999K', '0'],
+  'Pop':              ['50M+', '25–49M', '10–24M', '5–9M', '1–4M', '1K–999K', '0'],
+  'Rock':             ['20M+', '10–19M', '4–9M',   '2–3M', '500K–1.9M', '1K–499K', '0'],
+  'Country':          ['15M+', '8–14M',  '3–7M',   '1.5–2M', '400K–1.4M', '1K–399K', '0'],
+  'Latin':            ['20M+', '10–19M', '4–9M',   '2–3M', '500K–1.9M', '1K–499K', '0'],
+  'Dance/Electronic': ['10M+', '5–9M',   '2–4M',   '1–1.9M', '250K–999K', '1K–249K', '0'],
+  'R&B':              ['25M+', '12–24M', '5–11M',  '2–4M', '500K–1.9M', '1K–499K', '0'],
+  'World':            ['15M+', '7–14M',  '3–6M',   '1–2M', '250K–999K', '1K–249K', '0'],
+};
+
 function SettingsTab({ leagueId, league }: { leagueId: string; league: League }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const isCommissioner = league.commissionerId === user?.id;
-  const isLocked = league.status !== 'pending';
+  const isSettingsLocked = league.status !== 'pending';
+  const isScoringLocked = league.status !== 'pending' && league.status !== 'complete';
 
   const [name, setName] = useState(league.name);
   const [draftTime, setDraftTime] = useState(
@@ -569,6 +586,20 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League })
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+
+  const [chartPosition, setChartPosition] = useState<[number, number, number, number, number]>(
+    league.scoringConfig?.chartPosition ?? DEFAULT_CHART_POSITION
+  );
+  const [chartMovement, setChartMovement] = useState(
+    league.scoringConfig?.chartMovement ?? DEFAULT_CHART_MOVEMENT
+  );
+  const [streaming, setStreaming] = useState<Record<string, [number, number, number, number, number, number, number]>>(
+    league.scoringConfig?.streaming ?? Object.fromEntries(GENRES.map((g) => [g, [...DEFAULT_STREAMING] as [number, number, number, number, number, number, number]]))
+  );
+  const [activeGenre, setActiveGenre] = useState(GENRES[0]);
+  const [scoringSaving, setScoringSaving] = useState(false);
+  const [scoringSaved, setScoringSaved] = useState(false);
+  const [scoringError, setScoringError] = useState('');
 
   const navigate = useNavigate();
 
@@ -598,6 +629,21 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League })
       setError(err instanceof Error ? err.message : 'Save failed');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSaveScoring() {
+    setScoringSaving(true);
+    setScoringError('');
+    try {
+      await api.put(`/leagues/${leagueId}`, { scoringConfig: { chartPosition, chartMovement, streaming } });
+      queryClient.invalidateQueries({ queryKey: ['league', leagueId] });
+      setScoringSaved(true);
+      setTimeout(() => setScoringSaved(false), 2000);
+    } catch (err) {
+      setScoringError(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setScoringSaving(false);
     }
   }
 
@@ -631,10 +677,10 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League })
       <Card className="p-5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">League Settings</h3>
-          {isLocked && <span className="text-xs text-yellow-500">Locked (season started)</span>}
+          {isSettingsLocked && <span className="text-xs text-yellow-500">Locked (season started)</span>}
         </div>
 
-        {isCommissioner && !isLocked ? (
+        {isCommissioner && !isSettingsLocked ? (
           <form onSubmit={handleSave} className="space-y-4">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-gray-300">League Name</label>
@@ -685,6 +731,129 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League })
             )}
             {!isCommissioner && <p className="text-xs text-gray-600">Only the commissioner can edit settings</p>}
           </div>
+        )}
+      </Card>
+
+      <Card className="p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Scoring Settings</h3>
+          {isScoringLocked && <span className="text-xs text-yellow-500">Locked (season in progress)</span>}
+        </div>
+
+        <div className="space-y-6">
+          {/* Chart Position */}
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-2">Chart Position</p>
+            <div className="grid grid-cols-5 gap-2">
+              {CHART_POSITION_LABELS.map((label, i) => (
+                <div key={i} className="flex flex-col gap-1">
+                  <label className="text-xs text-gray-500 text-center">{label}</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={chartPosition[i]}
+                    onChange={(e) => {
+                      const next = [...chartPosition] as typeof chartPosition;
+                      next[i] = parseInt(e.target.value) || 0;
+                      setChartPosition(next);
+                    }}
+                    disabled={!isCommissioner || isScoringLocked}
+                    className="w-full text-center bg-white/10 border border-white/20 rounded-lg px-1 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Chart Movement */}
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-2">Chart Movement</p>
+            <div className="grid grid-cols-3 gap-3">
+              {([
+                { label: 'New Entry Bonus', key: 'newEntryBonus' },
+                { label: 'Max Gain Cap', key: 'maxGain' },
+                { label: 'Max Drop Floor', key: 'maxDrop' },
+              ] as const).map(({ label, key }) => (
+                <div key={key} className="flex flex-col gap-1">
+                  <label className="text-xs text-gray-500">{label}</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={chartMovement[key]}
+                    onChange={(e) => setChartMovement({ ...chartMovement, [key]: parseInt(e.target.value) || 0 })}
+                    disabled={!isCommissioner || isScoringLocked}
+                    className="w-full text-center bg-white/10 border border-white/20 rounded-lg px-1 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Streaming Tiers */}
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-2">Streaming Tiers</p>
+            <div className="flex gap-1 overflow-x-auto pb-1 mb-3">
+              {GENRES.map((g) => (
+                <button
+                  key={g}
+                  onClick={() => setActiveGenre(g)}
+                  className={`shrink-0 px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                    activeGenre === g
+                      ? 'bg-indigo-500/30 text-indigo-300 border border-indigo-500/40'
+                      : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1.5">
+              {(STREAMING_TIER_LABELS[activeGenre] ?? []).map((label, i) => (
+                <div key={i} className="flex flex-col gap-1">
+                  <label className="text-xs text-gray-500 text-center leading-tight">{label}</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={streaming[activeGenre]?.[i] ?? 0}
+                    onChange={(e) => {
+                      const next = [...(streaming[activeGenre] ?? DEFAULT_STREAMING)] as [number, number, number, number, number, number, number];
+                      next[i] = parseInt(e.target.value) || 0;
+                      setStreaming({ ...streaming, [activeGenre]: next });
+                    }}
+                    disabled={!isCommissioner || isScoringLocked}
+                    className="w-full text-center bg-white/10 border border-white/20 rounded-lg px-0.5 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {isCommissioner && !isScoringLocked && (
+          <div className="mt-5 space-y-2">
+            {scoringError && (
+              <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg p-2">{scoringError}</div>
+            )}
+            <div className="flex gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setChartPosition(DEFAULT_CHART_POSITION);
+                  setChartMovement(DEFAULT_CHART_MOVEMENT);
+                  setStreaming(Object.fromEntries(GENRES.map((g) => [g, [...DEFAULT_STREAMING] as [number, number, number, number, number, number, number]])));
+                }}
+              >
+                Reset to Defaults
+              </Button>
+              <Button onClick={handleSaveScoring} disabled={scoringSaving} className="flex-1">
+                {scoringSaving ? 'Saving…' : scoringSaved ? 'Saved!' : 'Save Scoring'}
+              </Button>
+            </div>
+          </div>
+        )}
+        {!isCommissioner && (
+          <p className="text-xs text-gray-600 mt-4">Only the commissioner can edit scoring settings</p>
         )}
       </Card>
 
