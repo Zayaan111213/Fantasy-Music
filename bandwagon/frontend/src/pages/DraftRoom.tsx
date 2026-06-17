@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { io, type Socket } from 'socket.io-client';
-import { Search, Clock, CheckCircle, Circle, X } from 'lucide-react';
+import { Search, Clock, CheckCircle, Circle, X, Users } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Badge } from '../components/ui/Badge';
 import { Avatar } from '../components/ui/Avatar';
@@ -20,6 +20,12 @@ function hasEligibleSlot(genre: string, openSlots: string[]): boolean {
     if (slot === 'Other') return !MAIN_GENRES_DRAFT.has(genre);
     return genre === slot;
   });
+}
+
+function formatCountdown(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
 }
 
 function TimerRing({ seconds, total = 60 }: { seconds: number; total?: number }) {
@@ -55,6 +61,7 @@ export function DraftRoom() {
   const socketRef = useRef<Socket | null>(null);
   const [state, setState] = useState<DraftState | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(60);
+  const [countdownSeconds, setCountdownSeconds] = useState(0);
   const [search, setSearch] = useState('');
   const [genreFilter, setGenreFilter] = useState('');
   const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([]);
@@ -62,6 +69,18 @@ export function DraftRoom() {
   const [availableArtists, setAvailableArtists] = useState<Artist[]>([]);
   const [loadingArtists, setLoadingArtists] = useState(false);
   const [sort, setSort] = useState<{ field: 'name' | 'last' | 'avg'; dir: 'desc' | 'asc' }>({ field: 'last', dir: 'desc' });
+
+  // Tick down the pre-draft countdown locally
+  useEffect(() => {
+    if (!state?.countdownEndsAt) return;
+    const tick = () => {
+      const remaining = Math.max(0, Math.round((new Date(state.countdownEndsAt!).getTime() - Date.now()) / 1000));
+      setCountdownSeconds(remaining);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [state?.countdownEndsAt]);
 
   useEffect(() => {
     const socket = io('/', { path: '/socket.io', transports: ['websocket', 'polling'] });
@@ -129,6 +148,10 @@ export function DraftRoom() {
     socketRef.current?.emit('draft:pick', { leagueId, artistId, token });
   }
 
+  function skipCountdown() {
+    socketRef.current?.emit('draft:skip-countdown', { leagueId, token });
+  }
+
   if (!state) return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center">
       <div className="text-center">
@@ -137,6 +160,77 @@ export function DraftRoom() {
       </div>
     </div>
   );
+
+  // Pre-draft countdown lobby
+  if (state.status === 'pre_draft') {
+    return (
+      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-4">
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/30 via-gray-950 to-purple-950/20 pointer-events-none" />
+
+        {/* Toast notifications */}
+        <div className="fixed top-4 right-4 z-50 space-y-2 max-w-xs">
+          {toasts.map(({ id, msg }) => (
+            <div key={id} className="flex items-start gap-2 bg-gray-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white shadow-xl animate-in slide-in-from-right">
+              <span className="flex-1">{msg}</span>
+              <button onClick={() => dismissToast(id)} className="shrink-0 text-gray-500 hover:text-white transition-colors mt-0.5">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <div className="relative w-full max-w-lg space-y-6">
+          <div className="text-center">
+            <h1 className="text-3xl font-bold text-white mb-1">Draft Lobby</h1>
+            <p className="text-gray-400 text-sm">Draft begins when the timer expires</p>
+          </div>
+
+          <Card className="p-8 text-center">
+            <p className="text-xs text-gray-500 uppercase tracking-widest mb-4">Draft starts in</p>
+            <div className="text-6xl font-bold text-white font-mono tabular-nums mb-2">
+              {formatCountdown(countdownSeconds)}
+            </div>
+            <div className="w-full bg-gray-800 rounded-full h-1.5 mt-4">
+              <div
+                className="bg-indigo-500 h-1.5 rounded-full transition-all duration-1000"
+                style={{ width: `${Math.min(100, (countdownSeconds / 600) * 100)}%` }}
+              />
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Users className="w-4 h-4 text-gray-500" />
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Teams ({state.teams.length})
+              </h3>
+            </div>
+            <div className="space-y-2">
+              {state.teams.map((team) => (
+                <div key={team.id} className="flex items-center gap-3">
+                  <Avatar src={team.user?.avatarUrl ?? null} name={team.user?.username ?? team.name} size="sm" />
+                  <div>
+                    <div className="text-sm font-medium text-white">{team.name}</div>
+                    <div className="text-xs text-gray-500">{team.user?.username ?? ''}</div>
+                  </div>
+                  {team.draftPosition != null && (
+                    <span className="ml-auto text-xs text-gray-600 font-mono">#{team.draftPosition}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <div className="text-center space-y-2">
+            <Button onClick={skipCountdown} className="w-full">
+              Start Draft Now
+            </Button>
+            <p className="text-xs text-gray-600">Commissioner only</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const onClockTeamId = state.pickOrder[state.currentPickIndex];
   const onClockTeam = state.teams.find((t) => t.id === onClockTeamId);

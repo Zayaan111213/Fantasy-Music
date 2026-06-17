@@ -83,18 +83,18 @@ router.post('/:id/draft/start', requireAuth, async (req: AuthRequest, res, next)
       pickOrder.push(...roundTeams);
     }
 
-    const timerEndsAt = new Date(Date.now() + 60_000);
+    const draftStartsAt = new Date(Date.now() + 10 * 60_000);
 
     await prisma.$transaction([
-      prisma.league.update({ where: { id: req.params.id }, data: { status: 'drafting' } }),
+      prisma.league.update({ where: { id: req.params.id }, data: { status: 'pre_draft', draftTime: draftStartsAt } }),
       prisma.draftState.upsert({
         where: { leagueId: req.params.id },
-        create: { leagueId: req.params.id, currentPick: 0, pickOrder, timerEndsAt },
-        update: { currentPick: 0, pickOrder, timerEndsAt, isComplete: false },
+        create: { leagueId: req.params.id, currentPick: 0, pickOrder, timerEndsAt: null },
+        update: { currentPick: 0, pickOrder, timerEndsAt: null, isComplete: false },
       }),
     ]);
 
-    res.json({ message: 'Draft started', pickOrder });
+    res.json({ message: 'Draft starting', draftStartsAt, pickOrder });
   } catch (err) {
     next(err);
   }

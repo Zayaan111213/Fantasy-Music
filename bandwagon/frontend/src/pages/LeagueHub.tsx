@@ -143,7 +143,7 @@ function MyTeamTab({ leagueId, league }: { leagueId: string; league: League }) {
   if (isLoading) return <div className="flex justify-center py-12"><Spinner className="w-8 h-8" /></div>;
   if (!myTeam) return (
     <div className="text-center py-12 text-gray-400">
-      {league.status === 'pending' ? 'Season hasn\'t started yet. Draft a team first!' : 'No team found.'}
+      {(league.status === 'pending' || league.status === 'pre_draft') ? 'Season hasn\'t started yet. Draft a team first!' : 'No team found.'}
     </div>
   );
 
@@ -329,7 +329,7 @@ function MatchupTab({ leagueId, league }: { leagueId: string; league: League }) 
   if (isLoading) return <div className="flex justify-center py-12"><Spinner className="w-8 h-8" /></div>;
   if (!matchup) return (
     <div className="text-center py-12 text-gray-400">
-      {league.status === 'pending' ? 'Season hasn\'t started yet. Draft a team first!' : 'No matchup this week.'}
+      {(league.status === 'pending' || league.status === 'pre_draft') ? 'Season hasn\'t started yet. Draft a team first!' : 'No matchup this week.'}
     </div>
   );
 
@@ -1059,6 +1059,11 @@ export function LeagueHub() {
           {league.status === 'pending' && isCommissioner && (
             <Button size="sm" onClick={() => navigate(`/leagues/${id}/draft`)}>
               Go to Draft
+            </Button>
+          )}
+          {league.status === 'pre_draft' && (
+            <Button size="sm" onClick={() => navigate(`/leagues/${id}/draft`)} className="animate-pulse">
+              Draft Lobby
             </Button>
           )}
           {league.status === 'drafting' && (

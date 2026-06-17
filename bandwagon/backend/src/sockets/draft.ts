@@ -21,12 +21,20 @@ function findBestSlot(genre: string, openSlots: string[]): string | null {
   return null;
 }
 
-// Per-league timer state (in-memory)
+// Per-league per-pick timer (interval)
 const leagueTimers = new Map<string, ReturnType<typeof setInterval>>();
 
 function clearLeagueTimer(leagueId: string) {
   const t = leagueTimers.get(leagueId);
   if (t) { clearInterval(t); leagueTimers.delete(leagueId); }
+}
+
+// Pre-draft countdown timers (timeout, fires once)
+const countdownTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function clearCountdownTimer(leagueId: string) {
+  const t = countdownTimers.get(leagueId);
+  if (t) { clearTimeout(t); countdownTimers.delete(leagueId); }
 }
 
 async function startPickTimer(io: Server, leagueId: string) {
@@ -43,6 +51,48 @@ async function startPickTimer(io: Server, leagueId: string) {
     }
   }, 1000);
   leagueTimers.set(leagueId, interval);
+}
+
+async function transitionToLiveDraft(io: Server, leagueId: string) {
+  const timerEndsAt = new Date(Date.now() + 60_000);
+
+  await prisma.$transaction([
+    prisma.league.update({ where: { id: leagueId }, data: { status: 'drafting' } }),
+    prisma.draftState.update({ where: { leagueId }, data: { timerEndsAt } }),
+  ]);
+
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    include: {
+      draftState: true,
+      teams: {
+        include: { user: { select: { username: true, avatarUrl: true } } },
+        orderBy: { draftPosition: 'asc' },
+      },
+      draftPicks: {
+        include: {
+          artist: { select: { id: true, name: true, primaryGenre: true, imageUrl: true } },
+          team: { select: { id: true, name: true, logoUrl: true } },
+        },
+        orderBy: { pickNumber: 'asc' },
+      },
+    },
+  });
+
+  if (!league) return;
+
+  io.to(`draft:${leagueId}`).emit('draft:state', {
+    status: 'drafting',
+    currentPickIndex: league.draftState?.currentPick ?? 0,
+    pickOrder: league.draftState?.pickOrder ?? [],
+    timerEndsAt,
+    isComplete: false,
+    teams: league.teams,
+    picks: league.draftPicks,
+    countdownEndsAt: null,
+  });
+
+  await startPickTimer(io, leagueId);
 }
 
 async function fireAutoDraft(io: Server, leagueId: string) {
@@ -121,7 +171,6 @@ export function registerDraftSocket(io: Server) {
 
         await socket.join(`draft:${leagueId}`);
 
-        // Send current state
         const league = await prisma.league.findUnique({
           where: { id: leagueId },
           include: {
@@ -142,6 +191,33 @@ export function registerDraftSocket(io: Server) {
 
         if (!league) { socket.emit('draft:error', 'League not found'); return; }
 
+        if (league.status === 'pre_draft') {
+          const countdownEndsAt = league.draftTime;
+
+          socket.emit('draft:state', {
+            status: 'pre_draft',
+            currentPickIndex: 0,
+            pickOrder: league.draftState?.pickOrder ?? [],
+            timerEndsAt: null,
+            isComplete: false,
+            teams: league.teams,
+            picks: league.draftPicks,
+            myUserId: socketUserId,
+            countdownEndsAt,
+          });
+
+          // Start countdown if not already running
+          if (!countdownTimers.has(leagueId) && countdownEndsAt) {
+            const msRemaining = Math.max(0, countdownEndsAt.getTime() - Date.now());
+            const timeout = setTimeout(() => {
+              countdownTimers.delete(leagueId);
+              transitionToLiveDraft(io, leagueId);
+            }, msRemaining);
+            countdownTimers.set(leagueId, timeout);
+          }
+          return;
+        }
+
         socket.emit('draft:state', {
           status: league.status,
           currentPickIndex: league.draftState?.currentPick ?? 0,
@@ -151,6 +227,7 @@ export function registerDraftSocket(io: Server) {
           teams: league.teams,
           picks: league.draftPicks,
           myUserId: socketUserId,
+          countdownEndsAt: null,
         });
 
         // If drafting and no timer running, start one
@@ -159,6 +236,24 @@ export function registerDraftSocket(io: Server) {
         }
       } catch {
         socket.emit('draft:error', 'Authentication failed');
+      }
+    });
+
+    socket.on('draft:skip-countdown', async ({ leagueId, token }: { leagueId: string; token: string }) => {
+      try {
+        const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
+        const league = await prisma.league.findUnique({ where: { id: leagueId } });
+        if (!league) { socket.emit('draft:error', 'League not found'); return; }
+        if (league.commissionerId !== payload.userId) {
+          socket.emit('draft:error', 'Only the commissioner can skip the countdown');
+          return;
+        }
+        if (league.status !== 'pre_draft') return;
+
+        clearCountdownTimer(leagueId);
+        await transitionToLiveDraft(io, leagueId);
+      } catch {
+        socket.emit('draft:error', 'Failed to skip countdown');
       }
     });
 

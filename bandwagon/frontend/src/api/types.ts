@@ -18,7 +18,7 @@ export interface League {
   teamCount: number;
   privacy: 'private' | 'public';
   draftTime: string | null;
-  status: 'pending' | 'drafting' | 'active' | 'complete';
+  status: 'pending' | 'pre_draft' | 'drafting' | 'active' | 'complete';
   inviteCode: string;
   currentWeek: number;
   seasonYear: number;
@@ -135,6 +135,7 @@ export interface DraftState {
   teams: (Team & { user: Pick<User, 'username' | 'avatarUrl'>; rosterSpots: RosterSpot[] })[];
   picks: DraftPick[];
   myUserId?: string;
+  countdownEndsAt?: string | null;
 }
 
 export interface Notification {
