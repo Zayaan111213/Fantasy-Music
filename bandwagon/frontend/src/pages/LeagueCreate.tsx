@@ -63,7 +63,7 @@ export function LeagueCreate() {
         name,
         teamCount,
         privacy,
-        draftTime: draftTime || undefined,
+        draftTime: draftTime ? new Date(draftTime).toISOString() : undefined,
       });
       setInviteCode(league.inviteCode);
       setLeagueId(league.id);
@@ -217,9 +217,11 @@ export function LeagueCreate() {
               <input
                 type="datetime-local"
                 value={draftTime}
+                min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
                 onChange={(e) => setDraftTime(e.target.value)}
                 className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
+              <p className="text-xs text-gray-500">Must be in the future — can also be set later in settings</p>
             </div>
 
             {error && (

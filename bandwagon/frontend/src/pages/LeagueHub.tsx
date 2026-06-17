@@ -725,12 +725,9 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League })
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    if (draftTime) {
-      const minAllowed = new Date(Date.now() + 60 * 60_000);
-      if (new Date(draftTime) < minAllowed) {
-        setError('Draft time must be at least 1 hour from now');
-        return;
-      }
+    if (draftTime && new Date(draftTime) <= new Date()) {
+      setError('Draft time must be in the future');
+      return;
     }
     setSaving(true);
     setError('');
@@ -809,14 +806,14 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League })
               <input
                 type="datetime-local"
                 value={draftTime}
-                min={new Date(Date.now() + 60 * 60_000).toISOString().slice(0, 16)}
+                min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
                 disabled={isDraftTimeLocked}
                 onChange={(e) => setDraftTime(e.target.value)}
                 className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
               />
               {isDraftTimeLocked
                 ? <p className="text-xs text-gray-500">Draft time cannot be changed after the draft has started</p>
-                : <p className="text-xs text-gray-500">Must be at least 1 hour from now</p>
+                : <p className="text-xs text-gray-500">Must be in the future</p>
               }
             </div>
             <div className="flex flex-col gap-1">
