@@ -160,6 +160,77 @@ async function fireAutoDraft(io: Server, leagueId: string) {
   await startPickTimer(io, leagueId);
 }
 
+async function scheduledDraftStart(io: Server, leagueId: string) {
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    include: { teams: { orderBy: { draftPosition: 'asc' } } },
+  });
+  if (!league || league.status !== 'pending' || league.teams.length < 2) return;
+
+  const teamIds = league.teams.map((t) => t.id);
+  const pickOrder: string[] = [];
+  for (let round = 0; round < ALL_SLOTS.length; round++) {
+    const roundTeams = round % 2 === 0 ? teamIds : [...teamIds].reverse();
+    pickOrder.push(...roundTeams);
+  }
+
+  const countdownEndsAt = new Date(Date.now() + 10 * 60_000);
+
+  await prisma.$transaction([
+    prisma.league.update({ where: { id: leagueId }, data: { status: 'pre_draft', draftTime: countdownEndsAt } }),
+    prisma.draftState.upsert({
+      where: { leagueId },
+      create: { leagueId, currentPick: 0, pickOrder, timerEndsAt: null },
+      update: { currentPick: 0, pickOrder, timerEndsAt: null, isComplete: false },
+    }),
+  ]);
+
+  const updated = await prisma.league.findUnique({
+    where: { id: leagueId },
+    include: {
+      teams: { include: { user: { select: { username: true, avatarUrl: true } } }, orderBy: { draftPosition: 'asc' } },
+      draftPicks: {
+        include: {
+          artist: { select: { id: true, name: true, primaryGenre: true, imageUrl: true } },
+          team: { select: { id: true, name: true, logoUrl: true } },
+        },
+        orderBy: { pickNumber: 'asc' },
+      },
+    },
+  });
+
+  io.to(`draft:${leagueId}`).emit('draft:state', {
+    status: 'pre_draft',
+    currentPickIndex: 0,
+    pickOrder,
+    timerEndsAt: null,
+    isComplete: false,
+    teams: updated?.teams ?? [],
+    picks: [],
+    countdownEndsAt,
+  });
+
+  if (!countdownTimers.has(leagueId)) {
+    const timeout = setTimeout(() => {
+      countdownTimers.delete(leagueId);
+      transitionToLiveDraft(io, leagueId);
+    }, 10 * 60_000);
+    countdownTimers.set(leagueId, timeout);
+  }
+}
+
+export function startDraftScheduler(io: Server) {
+  setInterval(async () => {
+    const overdue = await prisma.league.findMany({
+      where: { status: 'pending', draftTime: { not: null, lte: new Date() } },
+      select: { id: true },
+    });
+    for (const { id } of overdue) {
+      await scheduledDraftStart(io, id);
+    }
+  }, 30_000);
+}
+
 export function registerDraftSocket(io: Server) {
   io.on('connection', (socket: Socket) => {
     let socketUserId: string | null = null;

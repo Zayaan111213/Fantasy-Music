@@ -19,7 +19,7 @@ import artistRoutes from './api/routes/artists';
 import draftRoutes from './api/routes/draft';
 import notificationRoutes from './api/routes/notifications';
 import { errorHandler, notFound } from './api/middleware/errorHandler';
-import { registerDraftSocket } from './sockets/draft';
+import { registerDraftSocket, startDraftScheduler } from './sockets/draft';
 
 const app = express();
 const httpServer = createServer(app);
@@ -48,6 +48,7 @@ app.use(notFound);
 app.use(errorHandler);
 
 registerDraftSocket(io);
+startDraftScheduler(io);
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 httpServer.listen(PORT, () => {

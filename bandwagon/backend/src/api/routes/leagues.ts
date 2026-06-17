@@ -172,6 +172,14 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res, next) => {
       res.status(400).json({ error: 'League settings are locked once the season starts' });
       return;
     }
+
+    if (data.draftTime) {
+      const minAllowed = new Date(Date.now() + 60 * 60_000);
+      if (new Date(data.draftTime) < minAllowed) {
+        res.status(400).json({ error: 'Draft time must be at least 1 hour from now' });
+        return;
+      }
+    }
     if (scoringLocked && data.scoringConfig !== undefined) {
       res.status(400).json({ error: 'Scoring settings can only be changed pre-draft or between seasons' });
       return;
