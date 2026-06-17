@@ -1057,11 +1057,6 @@ export function LeagueHub() {
             <Music2 className="w-4 h-4 text-indigo-400" />
             <span className="font-semibold text-white text-sm">{league.name}</span>
           </div>
-          {league.status === 'pending' && isCommissioner && (
-            <Button size="sm" onClick={() => navigate(`/leagues/${id}/draft`)}>
-              Go to Draft
-            </Button>
-          )}
           {league.status === 'pre_draft' && (
             <Button size="sm" onClick={() => navigate(`/leagues/${id}/draft`)} className="animate-pulse">
               Draft Lobby
