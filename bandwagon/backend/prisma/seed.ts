@@ -608,10 +608,33 @@ async function main() {
     });
   }
 
+  // Seed a public pending league so the join page has something to show
+  const publicLeague = await prisma.league.create({
+    data: {
+      name: 'Open Draft — Join Now',
+      commissionerId: user1.id,
+      teamCount: 8,
+      privacy: 'public',
+      status: 'pending',
+      inviteCode: 'PUBLIC-DEMO-2026',
+      seasonYear: SEASON_YEAR,
+      draftTime: new Date(Date.now() + 2 * 60 * 60_000), // 2 hours from seed time
+    },
+  });
+  await prisma.team.create({
+    data: {
+      leagueId: publicLeague.id,
+      userId: user1.id,
+      name: "Maven's Squad",
+      draftPosition: 1,
+    },
+  });
+
   console.log('✅ Seed complete!');
   console.log('   Demo user 1: demo1@bandwagon.app / password123');
   console.log('   Demo user 2: demo2@bandwagon.app / password123');
   console.log(`   Demo league invite code: DEMO-LEAGUE-2026`);
+  console.log(`   Public league invite code: PUBLIC-DEMO-2026`);
   console.log(`   Total artists seeded: ${artists.length}`);
 }
 
