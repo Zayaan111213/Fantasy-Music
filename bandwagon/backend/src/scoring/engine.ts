@@ -1,6 +1,6 @@
 import { prisma } from '../db/prisma';
 import type { DataProvider } from '../data/provider';
-import { scoreChartPosition, scoreChartMovement, scoreStreaming, ScoringConfigSchema, CHART_POSITION_TIERS } from './tiers';
+import { scoreChartPosition, scoreChartMovement, scoreStreaming, ScoringConfigSchema, CHART_POSITION_TIERS, type ScoringConfig } from './tiers';
 
 export async function scoreArtistWeek(
   artistId: string,
@@ -68,6 +68,27 @@ export async function scoreArtistWeek(
   });
 }
 
+export function applyCustomScoringToWeeklyScore(
+  ws: { weeklyStreams: bigint | null; bestChartPosition: number | null; chartMovement: number | null },
+  genre: string,
+  genreTiers: { minStreams: bigint; maxStreams: bigint | null; points: number }[],
+  cfg: ScoringConfig
+): { streamingPoints: number; chartPositionPoints: number; chartMovementPoints: number; totalPoints: number } {
+  const customPts = cfg.streaming[genre] ?? cfg.streaming['Pop'];
+  const tiersWithCustomPts = genreTiers.map((t, i) => ({
+    minStreams: t.minStreams,
+    maxStreams: t.maxStreams,
+    points: customPts?.[i] ?? t.points,
+  }));
+  const customChartTiers = CHART_POSITION_TIERS.map((t, i) => ({ maxPos: t.maxPos, points: cfg.chartPosition[i] }));
+  const streams = ws.weeklyStreams !== null ? Number(ws.weeklyStreams) : null;
+  const streamingPoints = streams !== null ? scoreStreaming(streams, tiersWithCustomPts) : 0;
+  const chartPositionPoints = scoreChartPosition(ws.bestChartPosition, customChartTiers);
+  const isNewEntry = ws.chartMovement === null && ws.bestChartPosition !== null;
+  const chartMovementPoints = scoreChartMovement(ws.chartMovement, isNewEntry, cfg.chartMovement);
+  return { streamingPoints, chartPositionPoints, chartMovementPoints, totalPoints: streamingPoints + chartPositionPoints + chartMovementPoints };
+}
+
 export async function updateMatchupScores(leagueId: string, week: number, year: number): Promise<void> {
   const [matchup, leagueRow] = await Promise.all([
     prisma.matchup.findFirst({
@@ -107,28 +128,12 @@ export async function updateMatchupScores(leagueId: string, week: number, year: 
     if (!cfg) return ws.totalPoints;
 
     const g = genre ?? 'Pop';
-
     if (!genreTierCache.has(g)) {
       const rows = await prisma.genreStreamingTier.findMany({ where: { genre: g }, orderBy: { sortOrder: 'asc' } });
       genreTierCache.set(g, rows.length ? rows : await prisma.genreStreamingTier.findMany({ where: { genre: 'Pop' }, orderBy: { sortOrder: 'asc' } }));
     }
-    const globalTiers = genreTierCache.get(g)!;
-    const customPts = cfg.streaming[g] ?? cfg.streaming['Pop'];
-    const tiersWithCustomPts = globalTiers.map((t, i) => ({
-      minStreams: t.minStreams,
-      maxStreams: t.maxStreams,
-      points: customPts?.[i] ?? t.points,
-    }));
-
-    const customChartTiers = CHART_POSITION_TIERS.map((t, i) => ({ maxPos: t.maxPos, points: cfg.chartPosition[i] }));
-
-    const streams = ws.weeklyStreams !== null ? Number(ws.weeklyStreams) : null;
-    const streamingPts = streams !== null ? scoreStreaming(streams, tiersWithCustomPts) : 0;
-    const chartPosPts = scoreChartPosition(ws.bestChartPosition, customChartTiers);
-    const isNewEntry = ws.chartMovement === null && ws.bestChartPosition !== null;
-    const chartMovPts = scoreChartMovement(ws.chartMovement, isNewEntry, cfg.chartMovement);
-
-    return streamingPts + chartPosPts + chartMovPts;
+    const genreTiers = genreTierCache.get(g)!;
+    return applyCustomScoringToWeeklyScore(ws, g, genreTiers, cfg).totalPoints;
   }
 
   async function teamScore(spots: { artistId: string | null; artist: { primaryGenre: string } | null }[]): Promise<number> {

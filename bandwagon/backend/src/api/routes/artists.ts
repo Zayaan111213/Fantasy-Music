@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { prisma } from '../../db/prisma';
 import { requireAuth } from '../middleware/auth';
+import { ScoringConfigSchema } from '../../scoring/tiers';
+import { applyCustomScoringToWeeklyScore } from '../../scoring/engine';
 
 const router = Router();
 
@@ -39,16 +41,37 @@ router.get('/', requireAuth, async (req, res, next) => {
 
 router.get('/:id', requireAuth, async (req, res, next) => {
   try {
-    const artist = await prisma.artist.findUnique({
-      where: { id: req.params.id },
-      include: {
-        weeklyScores: {
-          orderBy: { week: 'desc' },
-        },
-      },
-    });
+    const leagueId = req.query.leagueId as string | undefined;
+
+    const [artist, leagueRow] = await Promise.all([
+      prisma.artist.findUnique({
+        where: { id: req.params.id },
+        include: { weeklyScores: { orderBy: { week: 'desc' } } },
+      }),
+      leagueId
+        ? prisma.league.findUnique({ where: { id: leagueId }, select: { scoringConfig: true } })
+        : Promise.resolve(null),
+    ]);
     if (!artist) { res.status(404).json({ error: 'Artist not found' }); return; }
-    res.json(artist);
+
+    const cfg = leagueRow ? ScoringConfigSchema.safeParse(leagueRow.scoringConfig).data ?? null : null;
+
+    if (!cfg) {
+      res.json(artist);
+      return;
+    }
+
+    const genreRows = await prisma.genreStreamingTier.findMany({ where: { genre: artist.primaryGenre }, orderBy: { sortOrder: 'asc' } });
+    const genreTiers = genreRows.length
+      ? genreRows
+      : await prisma.genreStreamingTier.findMany({ where: { genre: 'Pop' }, orderBy: { sortOrder: 'asc' } });
+
+    const adjustedWeeklyScores = artist.weeklyScores.map((ws) => {
+      const adjusted = applyCustomScoringToWeeklyScore(ws, artist.primaryGenre, genreTiers, cfg);
+      return { ...ws, ...adjusted };
+    });
+
+    res.json({ ...artist, weeklyScores: adjustedWeeklyScores });
   } catch (err) {
     next(err);
   }

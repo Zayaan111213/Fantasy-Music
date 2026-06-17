@@ -7,6 +7,7 @@ import { prisma } from '../../db/prisma';
 import { requireAuth, type AuthRequest } from '../middleware/auth';
 import { uploadTeamLogo } from '../middleware/upload';
 import { ScoringConfigSchema } from '../../scoring/tiers';
+import { applyCustomScoringToWeeklyScore } from '../../scoring/engine';
 
 const router = Router();
 
@@ -390,37 +391,76 @@ router.get('/:id/players', requireAuth, async (req: AuthRequest, res, next) => {
     const q = (req.query.q as string) || '';
     const genre = req.query.genre as string | undefined;
 
-    const artists = await prisma.artist.findMany({
-      where: {
-        ...(q && { name: { contains: q, mode: 'insensitive' } }),
-        ...(genre && { primaryGenre: genre }),
-      },
-      include: {
-        rosterSpots: {
-          where: { team: { leagueId: req.params.id } },
-          include: { team: { select: { id: true, name: true } } },
+    const [artists, leagueRow] = await Promise.all([
+      prisma.artist.findMany({
+        where: {
+          ...(q && { name: { contains: q, mode: 'insensitive' } }),
+          ...(genre && { primaryGenre: genre }),
         },
-        weeklyScores: {
-          orderBy: { week: 'desc' },
-          take: 5,
+        include: {
+          rosterSpots: {
+            where: { team: { leagueId: req.params.id } },
+            include: { team: { select: { id: true, name: true } } },
+          },
+          weeklyScores: {
+            orderBy: { week: 'desc' },
+            take: 5,
+          },
         },
-      },
-      orderBy: { name: 'asc' },
-    });
+        orderBy: { name: 'asc' },
+      }),
+      prisma.league.findUnique({ where: { id: req.params.id }, select: { scoringConfig: true } }),
+    ]);
+
+    const cfg = ScoringConfigSchema.safeParse(leagueRow?.scoringConfig).data ?? null;
+
+    // Pre-fetch genre tiers for all distinct genres if custom config is set
+    const genreTierCache = new Map<string, Awaited<ReturnType<typeof prisma.genreStreamingTier.findMany>>>();
+    if (cfg) {
+      const genres = [...new Set(artists.map((a) => a.primaryGenre))];
+      await Promise.all(
+        genres.map(async (g) => {
+          const rows = await prisma.genreStreamingTier.findMany({ where: { genre: g }, orderBy: { sortOrder: 'asc' } });
+          genreTierCache.set(g, rows.length ? rows : await prisma.genreStreamingTier.findMany({ where: { genre: 'Pop' }, orderBy: { sortOrder: 'asc' } }));
+        })
+      );
+    }
 
     res.json(
-      artists.map((a) => ({
-        id: a.id,
-        name: a.name,
-        primaryGenre: a.primaryGenre,
-        secondaryGenres: a.secondaryGenres,
-        imageUrl: a.imageUrl,
-        rosteredBy: a.rosterSpots[0]?.team ?? null,
-        lastWeekPoints: a.weeklyScores[0]?.totalPoints ?? 0,
-        avgLast5Points: a.weeklyScores.length > 0
-          ? a.weeklyScores.reduce((s, w) => s + w.totalPoints, 0) / a.weeklyScores.length
-          : 0,
-      }))
+      artists.map((a) => {
+        if (!cfg) {
+          return {
+            id: a.id,
+            name: a.name,
+            primaryGenre: a.primaryGenre,
+            secondaryGenres: a.secondaryGenres,
+            imageUrl: a.imageUrl,
+            rosteredBy: a.rosterSpots[0]?.team ?? null,
+            lastWeekPoints: a.weeklyScores[0]?.totalPoints ?? 0,
+            avgLast5Points: a.weeklyScores.length > 0
+              ? a.weeklyScores.reduce((s, w) => s + w.totalPoints, 0) / a.weeklyScores.length
+              : 0,
+          };
+        }
+
+        const genreTiers = genreTierCache.get(a.primaryGenre) ?? [];
+        const adjustedScores = a.weeklyScores.map((ws) =>
+          applyCustomScoringToWeeklyScore(ws, a.primaryGenre, genreTiers, cfg).totalPoints
+        );
+
+        return {
+          id: a.id,
+          name: a.name,
+          primaryGenre: a.primaryGenre,
+          secondaryGenres: a.secondaryGenres,
+          imageUrl: a.imageUrl,
+          rosteredBy: a.rosterSpots[0]?.team ?? null,
+          lastWeekPoints: adjustedScores[0] ?? 0,
+          avgLast5Points: adjustedScores.length > 0
+            ? adjustedScores.reduce((s, p) => s + p, 0) / adjustedScores.length
+            : 0,
+        };
+      })
     );
   } catch (err) {
     next(err);

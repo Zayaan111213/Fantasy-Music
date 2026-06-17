@@ -1,4 +1,4 @@
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ExternalLink, Music2, BarChart2, TrendingUp, Radio } from 'lucide-react';
 import { api } from '../api/client';
@@ -26,10 +26,12 @@ function ScoreBar({ label, value, max, color }: { label: string; value: number; 
 
 export function ArtistDetail() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const leagueId = searchParams.get('leagueId');
 
   const { data: artist, isLoading } = useQuery({
-    queryKey: ['artist', id],
-    queryFn: () => api.get<ArtistWithScores>(`/artists/${id}`),
+    queryKey: ['artist', id, leagueId],
+    queryFn: () => api.get<ArtistWithScores>(`/artists/${id}${leagueId ? `?leagueId=${leagueId}` : ''}`),
   });
 
   if (isLoading) return (

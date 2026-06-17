@@ -11,11 +11,10 @@ import { Spinner } from '../components/ui/Spinner';
 import type { DraftState, DraftPick, Artist } from '../api/types';
 import { api } from '../api/client';
 
-const ALL_SLOTS = ['Hip-Hop', 'Pop', 'Rock', 'Country', 'Niche', 'Flex', 'Bench-1', 'Bench-2', 'Bench-3'];
+const ALL_SLOTS = ['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country', 'Other', 'Flex', 'Bench-1', 'Bench-2', 'Bench-3'];
 
 function isEligibleClientSide(genre: string, slot: string): boolean {
   if (slot.startsWith('Bench') || slot === 'Flex') return true;
-  if (slot === 'Niche') return !['Hip-Hop', 'Pop', 'Rock', 'Country'].includes(genre);
   return genre === slot;
 }
 
@@ -139,7 +138,7 @@ export function DraftRoom() {
   const totalPicks = state.teams.length * ALL_SLOTS.length;
   const round = Math.floor(state.currentPickIndex / state.teams.length) + 1;
 
-  const genres = ['Hip-Hop', 'Pop', 'Rock', 'Country', 'Latin', 'Dance/Electronic', 'R&B', 'World'];
+  const genres = ['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country', 'Other'];
 
   return (
     <div className="min-h-screen bg-gray-950">

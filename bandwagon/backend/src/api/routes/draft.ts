@@ -5,11 +5,13 @@ import { requireAuth, type AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
-const ALL_SLOTS = ['Hip-Hop', 'Pop', 'Rock', 'Country', 'Niche', 'Flex', 'Bench-1', 'Bench-2', 'Bench-3'];
+const ALL_SLOTS = ['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country', 'Other', 'Flex', 'Bench-1', 'Bench-2', 'Bench-3'];
+
+const MAIN_GENRE_SLOTS = new Set(['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country']);
 
 function isEligible(genre: string, slot: string): boolean {
   if (slot.startsWith('Bench') || slot === 'Flex') return true;
-  if (slot === 'Niche') return !['Hip-Hop', 'Pop', 'Rock', 'Country'].includes(genre);
+  if (slot === 'Other') return !MAIN_GENRE_SLOTS.has(genre);
   return genre === slot;
 }
 

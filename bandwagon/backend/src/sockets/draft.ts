@@ -39,7 +39,7 @@ async function fireAutoDraft(io: Server, leagueId: string) {
   if (!team) return;
 
   const filledSlots = new Set(team.rosterSpots.filter((s) => s.artistId).map((s) => s.slot));
-  const allSlots = ['Hip-Hop', 'Pop', 'Rock', 'Country', 'Niche', 'Flex', 'Bench-1', 'Bench-2', 'Bench-3'];
+  const allSlots = ['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country', 'Other', 'Flex', 'Bench-1', 'Bench-2', 'Bench-3'];
   const openSlots = allSlots.filter((s) => !filledSlots.has(s));
   if (openSlots.length === 0) return;
 
@@ -48,7 +48,6 @@ async function fireAutoDraft(io: Server, leagueId: string) {
 
   function isEligible(genre: string, slot: string): boolean {
     if (slot.startsWith('Bench') || slot === 'Flex') return true;
-    if (slot === 'Niche') return !['Hip-Hop', 'Pop', 'Rock', 'Country'].includes(genre);
     return genre === slot;
   }
 

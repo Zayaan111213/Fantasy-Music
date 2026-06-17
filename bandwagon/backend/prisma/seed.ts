@@ -20,116 +20,123 @@ function seededRandom(seed: string, index: number = 0): number {
 }
 
 const ARTIST_DATA: { name: string; primaryGenre: string; secondaryGenres?: string[] }[] = [
-  // Hip-Hop (40)
-  { name: 'Drake', primaryGenre: 'Hip-Hop', secondaryGenres: ['R&B'] },
-  { name: 'Kendrick Lamar', primaryGenre: 'Hip-Hop' },
-  { name: 'Travis Scott', primaryGenre: 'Hip-Hop', secondaryGenres: ['Rap'] },
-  { name: 'J. Cole', primaryGenre: 'Hip-Hop' },
-  { name: 'Nicki Minaj', primaryGenre: 'Hip-Hop', secondaryGenres: ['Pop'] },
-  { name: 'Cardi B', primaryGenre: 'Hip-Hop' },
-  { name: 'Future', primaryGenre: 'Hip-Hop' },
-  { name: 'Lil Baby', primaryGenre: 'Hip-Hop' },
-  { name: 'Lil Durk', primaryGenre: 'Hip-Hop' },
-  { name: 'Gunna', primaryGenre: 'Hip-Hop' },
-  { name: 'Young Thug', primaryGenre: 'Hip-Hop' },
-  { name: 'Roddy Ricch', primaryGenre: 'Hip-Hop' },
-  { name: 'DaBaby', primaryGenre: 'Hip-Hop' },
-  { name: 'Polo G', primaryGenre: 'Hip-Hop' },
-  { name: 'NBA YoungBoy', primaryGenre: 'Hip-Hop' },
-  { name: 'Moneybagg Yo', primaryGenre: 'Hip-Hop' },
-  { name: 'Lil Uzi Vert', primaryGenre: 'Hip-Hop' },
-  { name: 'Pop Smoke', primaryGenre: 'Hip-Hop' },
-  { name: 'A$AP Rocky', primaryGenre: 'Hip-Hop' },
-  { name: 'Tyler, the Creator', primaryGenre: 'Hip-Hop', secondaryGenres: ['Alternative'] },
-  { name: 'Meek Mill', primaryGenre: 'Hip-Hop' },
-  { name: 'Rick Ross', primaryGenre: 'Hip-Hop' },
-  { name: 'Kevin Gates', primaryGenre: 'Hip-Hop' },
-  { name: 'Jack Harlow', primaryGenre: 'Hip-Hop', secondaryGenres: ['Pop'] },
-  { name: 'Fivio Foreign', primaryGenre: 'Hip-Hop' },
-  { name: 'Latto', primaryGenre: 'Hip-Hop' },
-  { name: 'Ice Spice', primaryGenre: 'Hip-Hop' },
-  { name: 'GloRilla', primaryGenre: 'Hip-Hop' },
-  { name: 'Sexyy Red', primaryGenre: 'Hip-Hop' },
-  { name: 'Doechii', primaryGenre: 'Hip-Hop', secondaryGenres: ['R&B'] },
-  { name: 'Playboi Carti', primaryGenre: 'Hip-Hop' },
-  { name: 'Kodkodak Black', primaryGenre: 'Hip-Hop' },
-  { name: '21 Savage', primaryGenre: 'Hip-Hop' },
-  { name: 'Offset', primaryGenre: 'Hip-Hop' },
-  { name: 'Quavo', primaryGenre: 'Hip-Hop' },
-  { name: 'Don Toliver', primaryGenre: 'Hip-Hop', secondaryGenres: ['R&B'] },
-  { name: 'Central Cee', primaryGenre: 'Hip-Hop' },
-  { name: 'Metro Boomin', primaryGenre: 'Hip-Hop' },
-  { name: 'Tee Grizzley', primaryGenre: 'Hip-Hop' },
-  { name: 'EST Gee', primaryGenre: 'Hip-Hop' },
+  // R&B/Hip-Hop (40)
+  { name: 'Drake', primaryGenre: 'R&B/Hip-Hop', secondaryGenres: ['R&B/Hip-Hop'] },
+  { name: 'Kendrick Lamar', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Travis Scott', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'J. Cole', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Nicki Minaj', primaryGenre: 'R&B/Hip-Hop', secondaryGenres: ['Pop'] },
+  { name: 'Cardi B', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Future', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Lil Baby', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Lil Durk', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Gunna', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Young Thug', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Roddy Ricch', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'DaBaby', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Polo G', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'NBA YoungBoy', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Moneybagg Yo', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Lil Uzi Vert', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Pop Smoke', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'A$AP Rocky', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Tyler, the Creator', primaryGenre: 'R&B/Hip-Hop', secondaryGenres: ['Rock & Alternative'] },
+  { name: 'Meek Mill', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Rick Ross', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Kevin Gates', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Jack Harlow', primaryGenre: 'R&B/Hip-Hop', secondaryGenres: ['Pop'] },
+  { name: 'Fivio Foreign', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Latto', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Ice Spice', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'GloRilla', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Sexyy Red', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Doechii', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Playboi Carti', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Kodkodak Black', primaryGenre: 'R&B/Hip-Hop' },
+  { name: '21 Savage', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Offset', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Quavo', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Don Toliver', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Central Cee', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Metro Boomin', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'SZA', primaryGenre: 'R&B/Hip-Hop', secondaryGenres: ['Pop'] },
+  { name: 'H.E.R.', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Jhené Aiko', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Summer Walker', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Ari Lennox', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Giveon', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Lucky Daye', primaryGenre: 'R&B/Hip-Hop' },
+  { name: 'Daniel Caesar', primaryGenre: 'R&B/Hip-Hop', secondaryGenres: ['Pop'] },
+  { name: 'Frank Ocean', primaryGenre: 'R&B/Hip-Hop', secondaryGenres: ['Rock & Alternative'] },
 
   // Pop (40)
   { name: 'Taylor Swift', primaryGenre: 'Pop', secondaryGenres: ['Country'] },
-  { name: 'Billie Eilish', primaryGenre: 'Pop', secondaryGenres: ['Alternative'] },
+  { name: 'Billie Eilish', primaryGenre: 'Pop', secondaryGenres: ['Rock & Alternative'] },
   { name: 'Dua Lipa', primaryGenre: 'Pop' },
-  { name: 'The Weeknd', primaryGenre: 'Pop', secondaryGenres: ['R&B'] },
-  { name: 'Ariana Grande', primaryGenre: 'Pop', secondaryGenres: ['R&B'] },
-  { name: 'Harry Styles', primaryGenre: 'Pop', secondaryGenres: ['Rock'] },
-  { name: 'Olivia Rodrigo', primaryGenre: 'Pop', secondaryGenres: ['Alternative'] },
-  { name: 'Post Malone', primaryGenre: 'Pop', secondaryGenres: ['Hip-Hop'] },
+  { name: 'The Weeknd', primaryGenre: 'Pop', secondaryGenres: ['R&B/Hip-Hop'] },
+  { name: 'Ariana Grande', primaryGenre: 'Pop', secondaryGenres: ['R&B/Hip-Hop'] },
+  { name: 'Harry Styles', primaryGenre: 'Pop', secondaryGenres: ['Rock & Alternative'] },
+  { name: 'Olivia Rodrigo', primaryGenre: 'Pop', secondaryGenres: ['Rock & Alternative'] },
+  { name: 'Post Malone', primaryGenre: 'Pop', secondaryGenres: ['R&B/Hip-Hop'] },
   { name: 'Ed Sheeran', primaryGenre: 'Pop' },
-  { name: 'Justin Bieber', primaryGenre: 'Pop', secondaryGenres: ['R&B'] },
-  { name: 'Doja Cat', primaryGenre: 'Pop', secondaryGenres: ['Hip-Hop'] },
-  { name: 'Lizzo', primaryGenre: 'Pop', secondaryGenres: ['R&B'] },
+  { name: 'Justin Bieber', primaryGenre: 'Pop', secondaryGenres: ['R&B/Hip-Hop'] },
+  { name: 'Doja Cat', primaryGenre: 'Pop', secondaryGenres: ['R&B/Hip-Hop'] },
+  { name: 'Lizzo', primaryGenre: 'Pop', secondaryGenres: ['R&B/Hip-Hop'] },
   { name: 'Sabrina Carpenter', primaryGenre: 'Pop' },
-  { name: 'Charli XCX', primaryGenre: 'Pop', secondaryGenres: ['Dance/Electronic'] },
+  { name: 'Charli XCX', primaryGenre: 'Pop', secondaryGenres: ['Dance'] },
   { name: 'Gracie Abrams', primaryGenre: 'Pop' },
   { name: 'Benson Boone', primaryGenre: 'Pop' },
-  { name: 'Teddy Swims', primaryGenre: 'Pop', secondaryGenres: ['R&B'] },
+  { name: 'Teddy Swims', primaryGenre: 'Pop', secondaryGenres: ['R&B/Hip-Hop'] },
   { name: 'Zach Bryan', primaryGenre: 'Pop', secondaryGenres: ['Country'] },
-  { name: 'Noah Kahan', primaryGenre: 'Pop', secondaryGenres: ['Folk'] },
+  { name: 'Noah Kahan', primaryGenre: 'Pop', secondaryGenres: ['Other'] },
   { name: 'Tate McRae', primaryGenre: 'Pop' },
   { name: 'Sia', primaryGenre: 'Pop' },
-  { name: 'Camila Cabello', primaryGenre: 'Pop', secondaryGenres: ['Latin'] },
-  { name: 'Selena Gomez', primaryGenre: 'Pop', secondaryGenres: ['R&B'] },
-  { name: 'Lady Gaga', primaryGenre: 'Pop', secondaryGenres: ['Dance/Electronic'] },
+  { name: 'Camila Cabello', primaryGenre: 'Pop', secondaryGenres: ['Other'] },
+  { name: 'Selena Gomez', primaryGenre: 'Pop', secondaryGenres: ['R&B/Hip-Hop'] },
+  { name: 'Lady Gaga', primaryGenre: 'Pop', secondaryGenres: ['Dance'] },
   { name: 'Katy Perry', primaryGenre: 'Pop' },
-  { name: 'Adele', primaryGenre: 'Pop', secondaryGenres: ['Soul'] },
-  { name: 'Rihanna', primaryGenre: 'Pop', secondaryGenres: ['R&B'] },
-  { name: 'Bruno Mars', primaryGenre: 'Pop', secondaryGenres: ['R&B'] },
+  { name: 'Adele', primaryGenre: 'Pop', secondaryGenres: ['R&B/Hip-Hop'] },
+  { name: 'Rihanna', primaryGenre: 'Pop', secondaryGenres: ['R&B/Hip-Hop'] },
+  { name: 'Bruno Mars', primaryGenre: 'Pop', secondaryGenres: ['R&B/Hip-Hop'] },
   { name: 'Charlie Puth', primaryGenre: 'Pop' },
-  { name: 'Halsey', primaryGenre: 'Pop', secondaryGenres: ['Alternative'] },
+  { name: 'Halsey', primaryGenre: 'Pop', secondaryGenres: ['Rock & Alternative'] },
   { name: 'Meghan Trainor', primaryGenre: 'Pop' },
   { name: 'Lewis Capaldi', primaryGenre: 'Pop' },
-  { name: 'Kim Petras', primaryGenre: 'Pop', secondaryGenres: ['Dance/Electronic'] },
-  { name: 'Sam Smith', primaryGenre: 'Pop', secondaryGenres: ['R&B'] },
+  { name: 'Kim Petras', primaryGenre: 'Pop', secondaryGenres: ['Dance'] },
+  { name: 'Sam Smith', primaryGenre: 'Pop', secondaryGenres: ['R&B/Hip-Hop'] },
   { name: 'Conan Gray', primaryGenre: 'Pop' },
   { name: 'Troye Sivan', primaryGenre: 'Pop' },
-  { name: 'Lana Del Rey', primaryGenre: 'Pop', secondaryGenres: ['Alternative'] },
-  { name: 'Miley Cyrus', primaryGenre: 'Pop', secondaryGenres: ['Rock'] },
+  { name: 'Lana Del Rey', primaryGenre: 'Pop', secondaryGenres: ['Rock & Alternative'] },
+  { name: 'Miley Cyrus', primaryGenre: 'Pop', secondaryGenres: ['Rock & Alternative'] },
   { name: 'Ava Max', primaryGenre: 'Pop' },
-  { name: 'Bebe Rexha', primaryGenre: 'Pop', secondaryGenres: ['R&B'] },
+  { name: 'Bebe Rexha', primaryGenre: 'Pop', secondaryGenres: ['R&B/Hip-Hop'] },
 
-  // Rock (25)
-  { name: 'Imagine Dragons', primaryGenre: 'Rock', secondaryGenres: ['Alternative'] },
-  { name: 'Twenty One Pilots', primaryGenre: 'Rock', secondaryGenres: ['Alternative'] },
-  { name: 'Foo Fighters', primaryGenre: 'Rock' },
-  { name: 'Coldplay', primaryGenre: 'Rock', secondaryGenres: ['Pop'] },
-  { name: 'Linkin Park', primaryGenre: 'Rock', secondaryGenres: ['Alternative'] },
-  { name: 'Green Day', primaryGenre: 'Rock' },
-  { name: 'Fall Out Boy', primaryGenre: 'Rock', secondaryGenres: ['Alternative'] },
-  { name: 'Panic! at the Disco', primaryGenre: 'Rock', secondaryGenres: ['Alternative'] },
-  { name: 'My Chemical Romance', primaryGenre: 'Rock', secondaryGenres: ['Alternative'] },
-  { name: 'Arctic Monkeys', primaryGenre: 'Rock', secondaryGenres: ['Alternative'] },
-  { name: 'Paramore', primaryGenre: 'Rock', secondaryGenres: ['Alternative'] },
-  { name: 'Muse', primaryGenre: 'Rock' },
-  { name: 'Kings of Leon', primaryGenre: 'Rock' },
-  { name: 'The 1975', primaryGenre: 'Rock', secondaryGenres: ['Alternative'] },
-  { name: 'Hozier', primaryGenre: 'Rock', secondaryGenres: ['Folk'] },
-  { name: 'Weezer', primaryGenre: 'Rock' },
-  { name: 'Highly Suspect', primaryGenre: 'Rock' },
-  { name: 'Maneskin', primaryGenre: 'Rock' },
-  { name: 'Machine Gun Kelly', primaryGenre: 'Rock', secondaryGenres: ['Pop'] },
-  { name: 'Badflower', primaryGenre: 'Rock' },
-  { name: 'Nothing But Thieves', primaryGenre: 'Rock', secondaryGenres: ['Alternative'] },
-  { name: 'Metallica', primaryGenre: 'Rock' },
-  { name: 'Red Hot Chili Peppers', primaryGenre: 'Rock' },
-  { name: 'Pearl Jam', primaryGenre: 'Rock' },
-  { name: 'Jack White', primaryGenre: 'Rock' },
+  // Rock & Alternative (25)
+  { name: 'Imagine Dragons', primaryGenre: 'Rock & Alternative' },
+  { name: 'Twenty One Pilots', primaryGenre: 'Rock & Alternative' },
+  { name: 'Foo Fighters', primaryGenre: 'Rock & Alternative' },
+  { name: 'Coldplay', primaryGenre: 'Rock & Alternative', secondaryGenres: ['Pop'] },
+  { name: 'Linkin Park', primaryGenre: 'Rock & Alternative' },
+  { name: 'Green Day', primaryGenre: 'Rock & Alternative' },
+  { name: 'Fall Out Boy', primaryGenre: 'Rock & Alternative' },
+  { name: 'Panic! at the Disco', primaryGenre: 'Rock & Alternative' },
+  { name: 'My Chemical Romance', primaryGenre: 'Rock & Alternative' },
+  { name: 'Arctic Monkeys', primaryGenre: 'Rock & Alternative' },
+  { name: 'Paramore', primaryGenre: 'Rock & Alternative' },
+  { name: 'Muse', primaryGenre: 'Rock & Alternative' },
+  { name: 'Kings of Leon', primaryGenre: 'Rock & Alternative' },
+  { name: 'The 1975', primaryGenre: 'Rock & Alternative', secondaryGenres: ['Pop'] },
+  { name: 'Hozier', primaryGenre: 'Rock & Alternative', secondaryGenres: ['Other'] },
+  { name: 'Weezer', primaryGenre: 'Rock & Alternative' },
+  { name: 'Highly Suspect', primaryGenre: 'Rock & Alternative' },
+  { name: 'Maneskin', primaryGenre: 'Rock & Alternative' },
+  { name: 'Machine Gun Kelly', primaryGenre: 'Rock & Alternative', secondaryGenres: ['Pop'] },
+  { name: 'Badflower', primaryGenre: 'Rock & Alternative' },
+  { name: 'Nothing But Thieves', primaryGenre: 'Rock & Alternative' },
+  { name: 'Metallica', primaryGenre: 'Rock & Alternative' },
+  { name: 'Red Hot Chili Peppers', primaryGenre: 'Rock & Alternative' },
+  { name: 'Pearl Jam', primaryGenre: 'Rock & Alternative' },
+  { name: 'Jack White', primaryGenre: 'Rock & Alternative' },
 
   // Country (20)
   { name: 'Morgan Wallen', primaryGenre: 'Country' },
@@ -137,7 +144,7 @@ const ARTIST_DATA: { name: string; primaryGenre: string; secondaryGenres?: strin
   { name: 'Chris Stapleton', primaryGenre: 'Country' },
   { name: 'Kacey Musgraves', primaryGenre: 'Country', secondaryGenres: ['Pop'] },
   { name: 'Cody Johnson', primaryGenre: 'Country' },
-  { name: 'Jelly Roll', primaryGenre: 'Country', secondaryGenres: ['Hip-Hop'] },
+  { name: 'Jelly Roll', primaryGenre: 'Country', secondaryGenres: ['R&B/Hip-Hop'] },
   { name: 'Lainey Wilson', primaryGenre: 'Country' },
   { name: 'Tyler Hubbard', primaryGenre: 'Country' },
   { name: 'Bailey Zimmerman', primaryGenre: 'Country' },
@@ -153,66 +160,59 @@ const ARTIST_DATA: { name: string; primaryGenre: string; secondaryGenres?: strin
   { name: 'Dustin Lynch', primaryGenre: 'Country' },
   { name: 'Kane Brown', primaryGenre: 'Country', secondaryGenres: ['Pop'] },
 
-  // Latin (20)
-  { name: 'Bad Bunny', primaryGenre: 'Latin' },
-  { name: 'J Balvin', primaryGenre: 'Latin' },
-  { name: 'Karol G', primaryGenre: 'Latin' },
-  { name: 'Ozuna', primaryGenre: 'Latin' },
-  { name: 'Rauw Alejandro', primaryGenre: 'Latin' },
-  { name: 'Maluma', primaryGenre: 'Latin' },
-  { name: 'Anuel AA', primaryGenre: 'Latin' },
-  { name: 'Daddy Yankee', primaryGenre: 'Latin' },
-  { name: 'Becky G', primaryGenre: 'Latin', secondaryGenres: ['Pop'] },
-  { name: 'Nicky Jam', primaryGenre: 'Latin' },
-  { name: 'Farruko', primaryGenre: 'Latin' },
-  { name: 'Jhay Cortez', primaryGenre: 'Latin' },
-  { name: 'Myke Towers', primaryGenre: 'Latin' },
-  { name: 'Sech', primaryGenre: 'Latin' },
-  { name: 'Lunay', primaryGenre: 'Latin' },
-  { name: 'Zion & Lennox', primaryGenre: 'Latin' },
-  { name: 'Peso Pluma', primaryGenre: 'Latin' },
-  { name: 'Fuerza Regida', primaryGenre: 'Latin' },
-  { name: 'Eslabon Armado', primaryGenre: 'Latin' },
-  { name: 'Grupo Frontera', primaryGenre: 'Latin' },
+  // Other - Latin artists now classified as Other (20)
+  { name: 'Bad Bunny', primaryGenre: 'Other' },
+  { name: 'J Balvin', primaryGenre: 'Other' },
+  { name: 'Karol G', primaryGenre: 'Other' },
+  { name: 'Ozuna', primaryGenre: 'Other' },
+  { name: 'Rauw Alejandro', primaryGenre: 'Other' },
+  { name: 'Maluma', primaryGenre: 'Other' },
+  { name: 'Anuel AA', primaryGenre: 'Other' },
+  { name: 'Daddy Yankee', primaryGenre: 'Other' },
+  { name: 'Becky G', primaryGenre: 'Other', secondaryGenres: ['Pop'] },
+  { name: 'Nicky Jam', primaryGenre: 'Other' },
+  { name: 'Farruko', primaryGenre: 'Other' },
+  { name: 'Jhay Cortez', primaryGenre: 'Other' },
+  { name: 'Myke Towers', primaryGenre: 'Other' },
+  { name: 'Sech', primaryGenre: 'Other' },
+  { name: 'Lunay', primaryGenre: 'Other' },
+  { name: 'Zion & Lennox', primaryGenre: 'Other' },
+  { name: 'Peso Pluma', primaryGenre: 'Other' },
+  { name: 'Fuerza Regida', primaryGenre: 'Other' },
+  { name: 'Eslabon Armado', primaryGenre: 'Other' },
+  { name: 'Grupo Frontera', primaryGenre: 'Other' },
 
-  // Dance/Electronic (15)
-  { name: 'David Guetta', primaryGenre: 'Dance/Electronic' },
-  { name: 'Calvin Harris', primaryGenre: 'Dance/Electronic' },
-  { name: 'Marshmello', primaryGenre: 'Dance/Electronic' },
-  { name: 'The Chainsmokers', primaryGenre: 'Dance/Electronic', secondaryGenres: ['Pop'] },
-  { name: 'Diplo', primaryGenre: 'Dance/Electronic' },
-  { name: 'Kygo', primaryGenre: 'Dance/Electronic', secondaryGenres: ['Pop'] },
-  { name: 'Zedd', primaryGenre: 'Dance/Electronic', secondaryGenres: ['Pop'] },
-  { name: 'Skrillex', primaryGenre: 'Dance/Electronic' },
-  { name: 'Martin Garrix', primaryGenre: 'Dance/Electronic' },
-  { name: 'Tiësto', primaryGenre: 'Dance/Electronic' },
-  { name: 'Alesso', primaryGenre: 'Dance/Electronic', secondaryGenres: ['Pop'] },
-  { name: 'ILLENIUM', primaryGenre: 'Dance/Electronic' },
-  { name: 'Alan Walker', primaryGenre: 'Dance/Electronic', secondaryGenres: ['Pop'] },
-  { name: 'Disclosure', primaryGenre: 'Dance/Electronic' },
-  { name: 'Flume', primaryGenre: 'Dance/Electronic' },
+  // Dance (15)
+  { name: 'David Guetta', primaryGenre: 'Dance' },
+  { name: 'Calvin Harris', primaryGenre: 'Dance' },
+  { name: 'Marshmello', primaryGenre: 'Dance' },
+  { name: 'The Chainsmokers', primaryGenre: 'Dance', secondaryGenres: ['Pop'] },
+  { name: 'Diplo', primaryGenre: 'Dance' },
+  { name: 'Kygo', primaryGenre: 'Dance', secondaryGenres: ['Pop'] },
+  { name: 'Zedd', primaryGenre: 'Dance', secondaryGenres: ['Pop'] },
+  { name: 'Skrillex', primaryGenre: 'Dance' },
+  { name: 'Martin Garrix', primaryGenre: 'Dance' },
+  { name: 'Tiësto', primaryGenre: 'Dance' },
+  { name: 'Alesso', primaryGenre: 'Dance', secondaryGenres: ['Pop'] },
+  { name: 'ILLENIUM', primaryGenre: 'Dance' },
+  { name: 'Alan Walker', primaryGenre: 'Dance', secondaryGenres: ['Pop'] },
+  { name: 'Disclosure', primaryGenre: 'Dance' },
+  { name: 'Flume', primaryGenre: 'Dance' },
 
-  // World / R&B / Other (20 - eligible for Niche slot)
-  { name: 'SZA', primaryGenre: 'R&B', secondaryGenres: ['Pop'] },
-  { name: 'H.E.R.', primaryGenre: 'R&B' },
-  { name: 'Jhené Aiko', primaryGenre: 'R&B' },
-  { name: 'Summer Walker', primaryGenre: 'R&B' },
-  { name: 'Ari Lennox', primaryGenre: 'R&B' },
-  { name: 'Giveon', primaryGenre: 'R&B' },
-  { name: 'Lucky Daye', primaryGenre: 'R&B' },
-  { name: 'Daniel Caesar', primaryGenre: 'R&B', secondaryGenres: ['Pop'] },
-  { name: 'Frank Ocean', primaryGenre: 'R&B', secondaryGenres: ['Alternative'] },
-  { name: 'BTS', primaryGenre: 'World', secondaryGenres: ['Pop'] },
-  { name: 'BLACKPINK', primaryGenre: 'World', secondaryGenres: ['Pop'] },
-  { name: 'Stray Kids', primaryGenre: 'World', secondaryGenres: ['Pop'] },
-  { name: 'NewJeans', primaryGenre: 'World', secondaryGenres: ['Pop'] },
-  { name: 'TWICE', primaryGenre: 'World', secondaryGenres: ['Pop'] },
-  { name: 'Wizkid', primaryGenre: 'World', secondaryGenres: ['R&B'] },
-  { name: 'Burna Boy', primaryGenre: 'World', secondaryGenres: ['R&B'] },
-  { name: 'Tems', primaryGenre: 'World', secondaryGenres: ['R&B'] },
-  { name: 'Rema', primaryGenre: 'World', secondaryGenres: ['R&B'] },
-  { name: 'Ayra Starr', primaryGenre: 'World', secondaryGenres: ['Pop'] },
-  { name: 'Asake', primaryGenre: 'World', secondaryGenres: ['R&B'] },
+  // Other (11 - eligible for Flex slot)
+  { name: 'BTS', primaryGenre: 'Other', secondaryGenres: ['Pop'] },
+  { name: 'BLACKPINK', primaryGenre: 'Other', secondaryGenres: ['Pop'] },
+  { name: 'Stray Kids', primaryGenre: 'Other', secondaryGenres: ['Pop'] },
+  { name: 'NewJeans', primaryGenre: 'Other', secondaryGenres: ['Pop'] },
+  { name: 'TWICE', primaryGenre: 'Other', secondaryGenres: ['Pop'] },
+  { name: 'Wizkid', primaryGenre: 'Other', secondaryGenres: ['R&B/Hip-Hop'] },
+  { name: 'Burna Boy', primaryGenre: 'Other', secondaryGenres: ['R&B/Hip-Hop'] },
+  { name: 'Tems', primaryGenre: 'Other', secondaryGenres: ['R&B/Hip-Hop'] },
+  { name: 'Rema', primaryGenre: 'Other', secondaryGenres: ['R&B/Hip-Hop'] },
+  { name: 'Ayra Starr', primaryGenre: 'Other', secondaryGenres: ['Pop'] },
+  { name: 'Asake', primaryGenre: 'Other', secondaryGenres: ['R&B/Hip-Hop'] },
+  { name: 'Tee Grizzley', primaryGenre: 'Other' },
+  { name: 'EST Gee', primaryGenre: 'Other' },
 ];
 
 const GENRE_STREAMING_TIERS: {
@@ -220,7 +220,7 @@ const GENRE_STREAMING_TIERS: {
   tiers: { minStreams: bigint; maxStreams: bigint | null; points: number }[];
 }[] = [
   {
-    genre: 'Hip-Hop',
+    genre: 'R&B/Hip-Hop',
     tiers: [
       { minStreams: BigInt(50_000_000), maxStreams: null, points: 40 },
       { minStreams: BigInt(25_000_000), maxStreams: BigInt(49_999_999), points: 30 },
@@ -244,7 +244,7 @@ const GENRE_STREAMING_TIERS: {
     ],
   },
   {
-    genre: 'Rock',
+    genre: 'Rock & Alternative',
     tiers: [
       { minStreams: BigInt(20_000_000), maxStreams: null, points: 40 },
       { minStreams: BigInt(10_000_000), maxStreams: BigInt(19_999_999), points: 30 },
@@ -268,7 +268,7 @@ const GENRE_STREAMING_TIERS: {
     ],
   },
   {
-    genre: 'Latin',
+    genre: 'Other',
     tiers: [
       { minStreams: BigInt(20_000_000), maxStreams: null, points: 40 },
       { minStreams: BigInt(10_000_000), maxStreams: BigInt(19_999_999), points: 30 },
@@ -280,7 +280,7 @@ const GENRE_STREAMING_TIERS: {
     ],
   },
   {
-    genre: 'Dance/Electronic',
+    genre: 'Dance',
     tiers: [
       { minStreams: BigInt(10_000_000), maxStreams: null, points: 40 },
       { minStreams: BigInt(5_000_000), maxStreams: BigInt(9_999_999), points: 30 },
@@ -292,19 +292,7 @@ const GENRE_STREAMING_TIERS: {
     ],
   },
   {
-    genre: 'R&B',
-    tiers: [
-      { minStreams: BigInt(25_000_000), maxStreams: null, points: 40 },
-      { minStreams: BigInt(12_000_000), maxStreams: BigInt(24_999_999), points: 30 },
-      { minStreams: BigInt(5_000_000), maxStreams: BigInt(11_999_999), points: 20 },
-      { minStreams: BigInt(2_000_000), maxStreams: BigInt(4_999_999), points: 12 },
-      { minStreams: BigInt(500_000), maxStreams: BigInt(1_999_999), points: 6 },
-      { minStreams: BigInt(1), maxStreams: BigInt(499_999), points: 2 },
-      { minStreams: BigInt(0), maxStreams: BigInt(0), points: 0 },
-    ],
-  },
-  {
-    genre: 'World',
+    genre: 'Other',
     tiers: [
       { minStreams: BigInt(15_000_000), maxStreams: null, points: 40 },
       { minStreams: BigInt(7_000_000), maxStreams: BigInt(14_999_999), points: 30 },
@@ -536,36 +524,34 @@ async function main() {
   });
 
   // Pick artists for rosters
-  const hipHopArtists = artists.filter((a) => a.primaryGenre === 'Hip-Hop');
+  const rbhiphopArtists = artists.filter((a) => a.primaryGenre === 'R&B/Hip-Hop');
   const popArtists = artists.filter((a) => a.primaryGenre === 'Pop');
-  const rockArtists = artists.filter((a) => a.primaryGenre === 'Rock');
+  const rockAltArtists = artists.filter((a) => a.primaryGenre === 'Rock & Alternative');
   const countryArtists = artists.filter((a) => a.primaryGenre === 'Country');
-  const nichArtists = artists.filter(
-    (a) => !['Hip-Hop', 'Pop', 'Rock', 'Country'].includes(a.primaryGenre)
-  );
+  const otherArtists = artists.filter((a) => a.primaryGenre === 'Other');
 
   const team1Roster: { slot: string; artist: (typeof artists)[0] }[] = [
-    { slot: 'Hip-Hop', artist: hipHopArtists[0] },   // Drake
-    { slot: 'Pop', artist: popArtists[0] },            // Taylor Swift
-    { slot: 'Rock', artist: rockArtists[0] },          // Imagine Dragons
-    { slot: 'Country', artist: countryArtists[0] },    // Morgan Wallen
-    { slot: 'Niche', artist: nichArtists[0] },         // SZA
-    { slot: 'Flex', artist: hipHopArtists[1] },        // Kendrick Lamar
-    { slot: 'Bench-1', artist: popArtists[1] },        // Billie Eilish
-    { slot: 'Bench-2', artist: rockArtists[1] },       // Twenty One Pilots
-    { slot: 'Bench-3', artist: countryArtists[1] },    // Luke Combs
+    { slot: 'R&B/Hip-Hop', artist: rbhiphopArtists[0] },          // Drake
+    { slot: 'Pop', artist: popArtists[0] },                         // Taylor Swift
+    { slot: 'Rock & Alternative', artist: rockAltArtists[0] },     // Imagine Dragons
+    { slot: 'Country', artist: countryArtists[0] },                 // Morgan Wallen
+    { slot: 'Other', artist: otherArtists[0] },                     // Bad Bunny
+    { slot: 'Flex', artist: rbhiphopArtists[1] },                   // Kendrick Lamar
+    { slot: 'Bench-1', artist: popArtists[1] },                     // Billie Eilish
+    { slot: 'Bench-2', artist: rockAltArtists[1] },                 // Twenty One Pilots
+    { slot: 'Bench-3', artist: countryArtists[1] },                 // Luke Combs
   ];
 
   const team2Roster: { slot: string; artist: (typeof artists)[0] }[] = [
-    { slot: 'Hip-Hop', artist: hipHopArtists[2] },    // Travis Scott
-    { slot: 'Pop', artist: popArtists[2] },             // Dua Lipa
-    { slot: 'Rock', artist: rockArtists[2] },           // Foo Fighters
-    { slot: 'Country', artist: countryArtists[2] },    // Chris Stapleton
-    { slot: 'Niche', artist: nichArtists[1] },          // H.E.R.
-    { slot: 'Flex', artist: hipHopArtists[3] },         // J. Cole
-    { slot: 'Bench-1', artist: popArtists[3] },         // The Weeknd
-    { slot: 'Bench-2', artist: rockArtists[3] },        // Coldplay
-    { slot: 'Bench-3', artist: countryArtists[3] },    // Kacey Musgraves
+    { slot: 'R&B/Hip-Hop', artist: rbhiphopArtists[2] },          // Travis Scott
+    { slot: 'Pop', artist: popArtists[2] },                         // Dua Lipa
+    { slot: 'Rock & Alternative', artist: rockAltArtists[2] },     // Foo Fighters
+    { slot: 'Country', artist: countryArtists[2] },                 // Chris Stapleton
+    { slot: 'Other', artist: otherArtists[1] },                     // J Balvin
+    { slot: 'Flex', artist: rbhiphopArtists[3] },                   // J. Cole
+    { slot: 'Bench-1', artist: popArtists[3] },                     // The Weeknd
+    { slot: 'Bench-2', artist: rockAltArtists[3] },                 // Coldplay
+    { slot: 'Bench-3', artist: countryArtists[3] },                 // Kacey Musgraves
   ];
 
   for (const { slot, artist } of team1Roster) {

@@ -13,26 +13,27 @@ import type { League, Matchup, StandingsEntry, PlayerEntry, RosterSpot, Team } f
 
 type Tab = 'myteam' | 'matchup' | 'standings' | 'players' | 'settings';
 
-const ALL_STARTER_SLOTS = ['Hip-Hop', 'Pop', 'Rock', 'Country', 'Niche', 'Flex'];
+const ALL_STARTER_SLOTS = ['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country', 'Other', 'Flex'];
 const ALL_BENCH_SLOTS = ['Bench-1', 'Bench-2', 'Bench-3'];
 
 function SlotLabel({ slot }: { slot: string }) {
   const colors: Record<string, string> = {
-    'Hip-Hop': 'text-purple-400', 'Pop': 'text-pink-400', 'Rock': 'text-orange-400',
-    'Country': 'text-amber-400', 'Niche': 'text-teal-400', 'Flex': 'text-indigo-400',
+    'R&B/Hip-Hop': 'text-purple-400', 'Pop': 'text-pink-400', 'Rock & Alternative': 'text-orange-400',
+    'Country': 'text-amber-400', 'Other': 'text-teal-400', 'Flex': 'text-indigo-400',
     'Bench-1': 'text-gray-500', 'Bench-2': 'text-gray-500', 'Bench-3': 'text-gray-500',
   };
   const display = slot.startsWith('Bench') ? 'Bench' : slot;
   return <span className={`text-xs font-semibold uppercase tracking-wider ${colors[slot] || 'text-gray-400'}`}>{display}</span>;
 }
 
-function RosterRow({ spot, onSwapSelect, selectedSlot, readOnly = false, compact = false, reverse = false }: {
+function RosterRow({ spot, onSwapSelect, selectedSlot, readOnly = false, compact = false, reverse = false, leagueId }: {
   spot: RosterSpot;
   onSwapSelect?: (slot: string) => void;
   selectedSlot?: string | null;
   readOnly?: boolean;
   compact?: boolean;
   reverse?: boolean;
+  leagueId?: string;
 }) {
   const score = spot.artist?.weeklyScores?.[0];
   const isBench = spot.slot.startsWith('Bench');
@@ -57,7 +58,7 @@ function RosterRow({ spot, onSwapSelect, selectedSlot, readOnly = false, compact
           <Avatar src={spot.artist.imageUrl} name={spot.artist.name} size="sm" />
           <div className={`flex-1 min-w-0 ${reverse ? 'text-right' : ''}`}>
             {compact && <SlotLabel slot={spot.slot} />}
-            <Link to={`/artists/${spot.artist.id}`} onClick={(e) => e.stopPropagation()} className={`font-medium text-white hover:text-indigo-400 transition-colors truncate block ${compact ? 'text-xs' : 'text-sm'}`}>
+            <Link to={`/artists/${spot.artist.id}${leagueId ? `?leagueId=${leagueId}` : ''}`} onClick={(e) => e.stopPropagation()} className={`font-medium text-white hover:text-indigo-400 transition-colors truncate block ${compact ? 'text-xs' : 'text-sm'}`}>
               {spot.artist.name}
             </Link>
             {!compact && <Badge genre={spot.artist.primaryGenre} className="mt-0.5">{spot.artist.primaryGenre}</Badge>}
@@ -87,19 +88,19 @@ function getRosterSpot(roster: RosterSpot[], slot: string): RosterSpot {
   return roster.find((s) => s.slot === slot) ?? { id: '', teamId: '', artistId: null, slot, artist: null };
 }
 
-function TeamRosterCard({ title, roster, reverse = false }: { title: string; roster: RosterSpot[]; reverse?: boolean }) {
+function TeamRosterCard({ title, roster, reverse = false, leagueId }: { title: string; roster: RosterSpot[]; reverse?: boolean; leagueId?: string }) {
   return (
     <Card className="p-3">
       <h3 className={`text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 truncate ${reverse ? 'text-right' : ''}`}>{title}</h3>
       <div className="space-y-1">
         {ALL_STARTER_SLOTS.map((slot) => (
-          <RosterRow key={slot} spot={getRosterSpot(roster, slot)} readOnly compact reverse={reverse} />
+          <RosterRow key={slot} spot={getRosterSpot(roster, slot)} readOnly compact reverse={reverse} leagueId={leagueId} />
         ))}
       </div>
       <div className={`text-xs font-semibold text-gray-500 uppercase tracking-wider mt-2 mb-1 ${reverse ? 'text-right' : ''}`}>Bench</div>
       <div className="space-y-1">
         {ALL_BENCH_SLOTS.map((slot) => (
-          <RosterRow key={slot} spot={getRosterSpot(roster, slot)} readOnly compact reverse={reverse} />
+          <RosterRow key={slot} spot={getRosterSpot(roster, slot)} readOnly compact reverse={reverse} leagueId={leagueId} />
         ))}
       </div>
     </Card>
@@ -294,7 +295,7 @@ function MyTeamTab({ leagueId, league }: { leagueId: string; league: League }) {
         </div>
         <div className="space-y-1">
           {ALL_STARTER_SLOTS.map((slot) => (
-            <RosterRow key={slot} spot={getSpot(slot)} onSwapSelect={handleSlotClick} selectedSlot={selectedSlot} />
+            <RosterRow key={slot} spot={getSpot(slot)} onSwapSelect={handleSlotClick} selectedSlot={selectedSlot} leagueId={leagueId} />
           ))}
         </div>
       </Card>
@@ -304,7 +305,7 @@ function MyTeamTab({ leagueId, league }: { leagueId: string; league: League }) {
         <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Bench</h3>
         <div className="space-y-1">
           {ALL_BENCH_SLOTS.map((slot) => (
-            <RosterRow key={slot} spot={getSpot(slot)} onSwapSelect={handleSlotClick} selectedSlot={selectedSlot} />
+            <RosterRow key={slot} spot={getSpot(slot)} onSwapSelect={handleSlotClick} selectedSlot={selectedSlot} leagueId={leagueId} />
           ))}
         </div>
       </Card>
@@ -357,8 +358,8 @@ function MatchupTab({ leagueId, league }: { leagueId: string; league: League }) 
       </Card>
 
       <div className="grid grid-cols-2 gap-2">
-        <TeamRosterCard title={myTeamData?.name ?? 'Your Team'} roster={myTeamData?.rosterSpots ?? []} />
-        <TeamRosterCard title={oppTeamData?.name ?? 'Opponent'} roster={oppTeamData?.rosterSpots ?? []} reverse />
+        <TeamRosterCard title={myTeamData?.name ?? 'Your Team'} roster={myTeamData?.rosterSpots ?? []} leagueId={leagueId} />
+        <TeamRosterCard title={oppTeamData?.name ?? 'Opponent'} roster={oppTeamData?.rosterSpots ?? []} reverse leagueId={leagueId} />
       </div>
     </div>
   );
@@ -442,11 +443,11 @@ function PlayersTab({ leagueId }: { leagueId: string }) {
 
   const { data, isLoading } = useQuery({
     queryKey: ['players', leagueId, search, genre],
-    queryFn: () => api.get<PlayerEntry[]>(`/leagues/${leagueId}/players?q=${search}&genre=${genre}`),
+    queryFn: () => api.get<PlayerEntry[]>(`/leagues/${leagueId}/players?${new URLSearchParams({ q: search, genre }).toString()}`),
     placeholderData: (prev) => prev,
   });
 
-  const genres = ['Hip-Hop', 'Pop', 'Rock', 'Country', 'Latin', 'Dance/Electronic', 'R&B', 'World'];
+  const genres = ['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country', 'Dance', 'Other'];
 
   function handleSort(field: SortField) {
     setSort((prev) =>
@@ -524,7 +525,7 @@ function PlayersTab({ leagueId }: { leagueId: string }) {
                   <div className="col-span-5 flex items-center gap-2 min-w-0">
                     <Avatar src={artist.imageUrl} name={artist.name} size="sm" />
                     <div className="min-w-0">
-                      <Link to={`/artists/${artist.id}`} className="text-sm font-medium text-white hover:text-indigo-400 transition-colors block truncate">
+                      <Link to={`/artists/${artist.id}?leagueId=${leagueId}`} className="text-sm font-medium text-white hover:text-indigo-400 transition-colors block truncate">
                         {artist.name}
                       </Link>
                       <Badge genre={artist.primaryGenre} className="mt-0.5">{artist.primaryGenre}</Badge>
@@ -556,17 +557,15 @@ function PlayersTab({ leagueId }: { leagueId: string }) {
 const CHART_POSITION_LABELS = ['#1', '#2–10', '#11–25', '#26–50', '#51–100'];
 const DEFAULT_CHART_POSITION: [number, number, number, number, number] = [25, 18, 12, 8, 4];
 const DEFAULT_CHART_MOVEMENT = { newEntryBonus: 10, maxGain: 15, maxDrop: 10 };
-const GENRES = ['Hip-Hop', 'Pop', 'Rock', 'Country', 'Latin', 'Dance/Electronic', 'R&B', 'World'];
+const GENRES = ['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country', 'Dance', 'Other'];
 const DEFAULT_STREAMING: [number, number, number, number, number, number, number] = [40, 30, 20, 12, 6, 2, 0];
 const STREAMING_TIER_LABELS: Record<string, string[]> = {
-  'Hip-Hop':          ['50M+', '25–49M', '10–24M', '5–9M', '1–4M', '1K–999K', '0'],
-  'Pop':              ['50M+', '25–49M', '10–24M', '5–9M', '1–4M', '1K–999K', '0'],
-  'Rock':             ['20M+', '10–19M', '4–9M',   '2–3M', '500K–1.9M', '1K–499K', '0'],
-  'Country':          ['15M+', '8–14M',  '3–7M',   '1.5–2M', '400K–1.4M', '1K–399K', '0'],
-  'Latin':            ['20M+', '10–19M', '4–9M',   '2–3M', '500K–1.9M', '1K–499K', '0'],
-  'Dance/Electronic': ['10M+', '5–9M',   '2–4M',   '1–1.9M', '250K–999K', '1K–249K', '0'],
-  'R&B':              ['25M+', '12–24M', '5–11M',  '2–4M', '500K–1.9M', '1K–499K', '0'],
-  'World':            ['15M+', '7–14M',  '3–6M',   '1–2M', '250K–999K', '1K–249K', '0'],
+  'R&B/Hip-Hop':        ['50M+', '25–49M', '10–24M', '5–9M', '1–4M', '1K–999K', '0'],
+  'Pop':                ['50M+', '25–49M', '10–24M', '5–9M', '1–4M', '1K–999K', '0'],
+  'Rock & Alternative': ['20M+', '10–19M', '4–9M',   '2–3M', '500K–1.9M', '1K–499K', '0'],
+  'Country':            ['15M+', '8–14M',  '3–7M',   '1.5–2M', '400K–1.4M', '1K–399K', '0'],
+  'Dance':              ['10M+', '5–9M',   '2–4M',   '1–1.9M', '250K–999K', '1K–249K', '0'],
+  'Other':              ['15M+', '7–14M',  '3–6M',   '1–2M', '250K–999K', '1K–249K', '0'],
 };
 
 function SettingsTab({ leagueId, league }: { leagueId: string; league: League }) {
