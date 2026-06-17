@@ -240,6 +240,36 @@ router.delete('/:id', requireAuth, async (req: AuthRequest, res, next) => {
   }
 });
 
+// List open public leagues
+router.get('/public', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const leagues = await prisma.league.findMany({
+      where: { privacy: 'public', status: 'pending' },
+      include: {
+        teams: { select: { id: true } },
+        commissioner: { select: { username: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const open = leagues
+      .filter((l) => l.teams.length < l.teamCount)
+      .map((l) => ({
+        id: l.id,
+        name: l.name,
+        commissionerName: l.commissioner.username,
+        memberCount: l.teams.length,
+        teamCount: l.teamCount,
+        draftTime: l.draftTime,
+        inviteCode: l.inviteCode,
+      }));
+
+    res.json(open);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Join league by invite code
 router.post('/join/:code', requireAuth, async (req: AuthRequest, res, next) => {
   try {

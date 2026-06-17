@@ -21,6 +21,16 @@ interface LeaguePreview {
   status: string;
 }
 
+interface PublicLeague {
+  id: string;
+  name: string;
+  commissionerName: string;
+  memberCount: number;
+  teamCount: number;
+  draftTime: string | null;
+  inviteCode: string;
+}
+
 export function LeagueJoin() {
   const { code } = useParams<{ code?: string }>();
   const navigate = useNavigate();
@@ -31,6 +41,7 @@ export function LeagueJoin() {
   const [loading, setLoading] = useState(false);
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState('');
+  const [publicLeagues, setPublicLeagues] = useState<PublicLeague[]>([]);
 
   // Post-join customize step
   const [joinedLeagueId, setJoinedLeagueId] = useState<string | null>(null);
@@ -42,6 +53,7 @@ export function LeagueJoin() {
 
   useEffect(() => {
     if (code) loadPreview(code);
+    api.get<PublicLeague[]>('/leagues/public').then(setPublicLeagues).catch(() => {});
   }, [code]);
 
   async function loadPreview(c: string) {
@@ -192,25 +204,51 @@ export function LeagueJoin() {
             </Button>
           </Card>
         ) : (
-          <Card className="p-6">
-            <h2 className="text-lg font-semibold text-white mb-4">Enter an Invite Code</h2>
-            <div className="space-y-4">
-              <Input
-                label="Invite Code"
-                placeholder="e.g. ABC12345"
-                value={manualCode}
-                onChange={(e) => setManualCode(e.target.value.toUpperCase())}
-              />
-              {error && (
-                <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-sm text-red-400">
-                  {error}
+          <div className="space-y-6">
+            <Card className="p-6">
+              <h2 className="text-lg font-semibold text-white mb-4">Enter an Invite Code</h2>
+              <div className="space-y-4">
+                <Input
+                  label="Invite Code"
+                  placeholder="e.g. ABC12345"
+                  value={manualCode}
+                  onChange={(e) => setManualCode(e.target.value.toUpperCase())}
+                />
+                {error && (
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-sm text-red-400">
+                    {error}
+                  </div>
+                )}
+                <Button onClick={() => loadPreview(manualCode)} disabled={!manualCode.trim() || loading} className="w-full">
+                  Look Up League
+                </Button>
+              </div>
+            </Card>
+
+            {publicLeagues.length > 0 && (
+              <div>
+                <h2 className="text-lg font-semibold text-white mb-3">Open Public Leagues</h2>
+                <div className="space-y-2">
+                  {publicLeagues.map((league) => (
+                    <Card key={league.id} className="p-4 flex items-center justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="text-white font-medium truncate">{league.name}</p>
+                        <p className="text-sm text-gray-400">
+                          by {league.commissionerName} · {league.memberCount}/{league.teamCount} teams
+                          {league.draftTime && (
+                            <> · Draft {new Date(league.draftTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</>
+                          )}
+                        </p>
+                      </div>
+                      <Button size="sm" onClick={() => loadPreview(league.inviteCode)} className="shrink-0">
+                        Join
+                      </Button>
+                    </Card>
+                  ))}
                 </div>
-              )}
-              <Button onClick={() => loadPreview(manualCode)} disabled={!manualCode.trim() || loading} className="w-full">
-                Look Up League
-              </Button>
-            </div>
-          </Card>
+              </div>
+            )}
+          </div>
         )}
       </main>
     </div>
