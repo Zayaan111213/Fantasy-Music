@@ -22,12 +22,6 @@ function hasEligibleSlot(genre: string, openSlots: string[]): boolean {
   });
 }
 
-function formatCountdown(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
-}
-
 function TimerRing({ seconds, total = 60 }: { seconds: number; total?: number }) {
   const pct = seconds / total;
   const r = 36;
@@ -48,6 +42,36 @@ function TimerRing({ seconds, total = 60 }: { seconds: number; total?: number })
         />
       </svg>
       <span className="text-2xl font-bold text-white">{seconds}</span>
+    </div>
+  );
+}
+
+function CountdownRing({ seconds, total = 600 }: { seconds: number; total?: number }) {
+  const pct = Math.max(0, seconds / total);
+  const r = 72;
+  const circ = 2 * Math.PI * r;
+  const dash = pct * circ;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+
+  return (
+    <div className="relative w-48 h-48 flex items-center justify-center mx-auto">
+      <svg className="absolute inset-0 -rotate-90" viewBox="0 0 160 160">
+        <circle cx="80" cy="80" r={r} fill="none" stroke="#1f2937" strokeWidth="8" />
+        <circle
+          cx="80" cy="80" r={r} fill="none"
+          stroke="#6366f1" strokeWidth="8"
+          strokeDasharray={`${dash} ${circ}`}
+          strokeLinecap="round"
+          style={{ transition: 'stroke-dasharray 1s linear' }}
+        />
+      </svg>
+      <div className="text-center">
+        <span className="text-4xl font-bold text-white font-mono tabular-nums">
+          {m}:{String(s).padStart(2, '0')}
+        </span>
+        <div className="text-xs text-gray-500 mt-0.5">until draft</div>
+      </div>
     </div>
   );
 }
@@ -186,16 +210,7 @@ export function DraftRoom() {
           </div>
 
           <Card className="p-8 text-center">
-            <p className="text-xs text-gray-500 uppercase tracking-widest mb-4">Draft starts in</p>
-            <div className="text-6xl font-bold text-white font-mono tabular-nums mb-2">
-              {formatCountdown(countdownSeconds)}
-            </div>
-            <div className="w-full bg-gray-800 rounded-full h-1.5 mt-4">
-              <div
-                className="bg-indigo-500 h-1.5 rounded-full transition-all duration-1000"
-                style={{ width: `${Math.min(100, (countdownSeconds / 600) * 100)}%` }}
-              />
-            </div>
+            <CountdownRing seconds={countdownSeconds} />
           </Card>
 
           <Card className="p-4">
