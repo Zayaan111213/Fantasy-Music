@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { io, type Socket } from 'socket.io-client';
-import { Search, Clock, CheckCircle, Circle, X, Users } from 'lucide-react';
+import { Search, Clock, CheckCircle, Circle, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Badge } from '../components/ui/Badge';
 import { Avatar } from '../components/ui/Avatar';
@@ -48,30 +48,27 @@ function TimerRing({ seconds, total = 60 }: { seconds: number; total?: number })
 
 function CountdownRing({ seconds, total = 600 }: { seconds: number; total?: number }) {
   const pct = Math.max(0, seconds / total);
-  const r = 72;
+  const r = 36;
   const circ = 2 * Math.PI * r;
   const dash = pct * circ;
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
 
   return (
-    <div className="relative w-48 h-48 flex items-center justify-center mx-auto">
-      <svg className="absolute inset-0 -rotate-90" viewBox="0 0 160 160">
-        <circle cx="80" cy="80" r={r} fill="none" stroke="#1f2937" strokeWidth="8" />
+    <div className="relative w-24 h-24 flex items-center justify-center">
+      <svg className="absolute inset-0 -rotate-90" viewBox="0 0 88 88">
+        <circle cx="44" cy="44" r={r} fill="none" stroke="#1f2937" strokeWidth="6" />
         <circle
-          cx="80" cy="80" r={r} fill="none"
-          stroke="#6366f1" strokeWidth="8"
+          cx="44" cy="44" r={r} fill="none"
+          stroke="#6366f1" strokeWidth="6"
           strokeDasharray={`${dash} ${circ}`}
           strokeLinecap="round"
           style={{ transition: 'stroke-dasharray 1s linear' }}
         />
       </svg>
-      <div className="text-center">
-        <span className="text-4xl font-bold text-white font-mono tabular-nums">
-          {m}:{String(s).padStart(2, '0')}
-        </span>
-        <div className="text-xs text-gray-500 mt-0.5">until draft</div>
-      </div>
+      <span className="text-sm font-bold text-white font-mono tabular-nums leading-none">
+        {m}:{String(s).padStart(2, '0')}
+      </span>
     </div>
   );
 }
@@ -85,7 +82,7 @@ export function DraftRoom() {
   const socketRef = useRef<Socket | null>(null);
   const [state, setState] = useState<DraftState | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(60);
-  const [countdownSeconds, setCountdownSeconds] = useState(0);
+  const [countdownSeconds, setCountdownSeconds] = useState(600);
   const [search, setSearch] = useState('');
   const [genreFilter, setGenreFilter] = useState('');
   const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([]);
@@ -94,7 +91,7 @@ export function DraftRoom() {
   const [loadingArtists, setLoadingArtists] = useState(false);
   const [sort, setSort] = useState<{ field: 'name' | 'last' | 'avg'; dir: 'desc' | 'asc' }>({ field: 'last', dir: 'desc' });
 
-  // Tick down the pre-draft countdown locally
+  // Tick down the pre-draft countdown locally from the server-provided end time
   useEffect(() => {
     if (!state?.countdownEndsAt) return;
     const tick = () => {
@@ -185,71 +182,10 @@ export function DraftRoom() {
     </div>
   );
 
-  // Pre-draft countdown lobby
-  if (state.status === 'pre_draft') {
-    return (
-      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-4">
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/30 via-gray-950 to-purple-950/20 pointer-events-none" />
-
-        {/* Toast notifications */}
-        <div className="fixed top-4 right-4 z-50 space-y-2 max-w-xs">
-          {toasts.map(({ id, msg }) => (
-            <div key={id} className="flex items-start gap-2 bg-gray-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white shadow-xl animate-in slide-in-from-right">
-              <span className="flex-1">{msg}</span>
-              <button onClick={() => dismissToast(id)} className="shrink-0 text-gray-500 hover:text-white transition-colors mt-0.5">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ))}
-        </div>
-
-        <div className="relative w-full max-w-lg space-y-6">
-          <div className="text-center">
-            <h1 className="text-3xl font-bold text-white mb-1">Draft Lobby</h1>
-            <p className="text-gray-400 text-sm">Draft begins when the timer expires</p>
-          </div>
-
-          <Card className="p-8 text-center">
-            <CountdownRing seconds={countdownSeconds} />
-          </Card>
-
-          <Card className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Users className="w-4 h-4 text-gray-500" />
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Teams ({state.teams.length})
-              </h3>
-            </div>
-            <div className="space-y-2">
-              {state.teams.map((team) => (
-                <div key={team.id} className="flex items-center gap-3">
-                  <Avatar src={team.user?.avatarUrl ?? null} name={team.user?.username ?? team.name} size="sm" />
-                  <div>
-                    <div className="text-sm font-medium text-white">{team.name}</div>
-                    <div className="text-xs text-gray-500">{team.user?.username ?? ''}</div>
-                  </div>
-                  {team.draftPosition != null && (
-                    <span className="ml-auto text-xs text-gray-600 font-mono">#{team.draftPosition}</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <div className="text-center space-y-2">
-            <Button onClick={skipCountdown} className="w-full">
-              Start Draft Now
-            </Button>
-            <p className="text-xs text-gray-600">Commissioner only</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+  const isPreDraft = state.status === 'pre_draft';
   const onClockTeamId = state.pickOrder[state.currentPickIndex];
   const onClockTeam = state.teams.find((t) => t.id === onClockTeamId);
-  const isMyTurn = onClockTeam?.userId === user?.id;
+  const isMyTurn = !isPreDraft && onClockTeam?.userId === user?.id;
   const myTeam = state.teams.find((t) => t.userId === user?.id);
   const filledSlots = new Set(state.picks.filter((p) => p.teamId === myTeam?.id).map((p) => p.slot));
   const openSlots = ALL_SLOTS.filter((s) => !filledSlots.has(s));
@@ -280,20 +216,36 @@ export function DraftRoom() {
           {/* Left: timer + my slots */}
           <div className="col-span-12 lg:col-span-3 space-y-4">
             <Card className="p-4 text-center">
-              <div className="text-xs text-gray-500 mb-2">Round {round} · Pick {state.currentPickIndex + 1} of {totalPicks}</div>
-              <TimerRing seconds={secondsLeft} />
-              <div className="mt-3">
-                {state.isComplete ? (
-                  <p className="text-green-400 font-semibold text-sm">Draft Complete!</p>
-                ) : isMyTurn ? (
-                  <p className="text-indigo-400 font-semibold text-sm animate-pulse">Your pick!</p>
-                ) : (
-                  <p className="text-gray-400 text-sm">
-                    <span className="text-white font-medium">{onClockTeam?.name}</span>
-                    <br />is on the clock
-                  </p>
-                )}
-              </div>
+              {isPreDraft ? (
+                <>
+                  <div className="text-xs text-gray-500 mb-2">Draft starting in</div>
+                  <CountdownRing seconds={countdownSeconds} />
+                  <div className="mt-3 space-y-2">
+                    <p className="text-gray-400 text-xs">Browse artists while you wait</p>
+                    <Button size="sm" onClick={skipCountdown} className="w-full text-xs">
+                      Start Now
+                    </Button>
+                    <p className="text-xs text-gray-600">Commissioner only</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-xs text-gray-500 mb-2">Round {round} · Pick {state.currentPickIndex + 1} of {totalPicks}</div>
+                  <TimerRing seconds={secondsLeft} />
+                  <div className="mt-3">
+                    {state.isComplete ? (
+                      <p className="text-green-400 font-semibold text-sm">Draft Complete!</p>
+                    ) : isMyTurn ? (
+                      <p className="text-indigo-400 font-semibold text-sm animate-pulse">Your pick!</p>
+                    ) : (
+                      <p className="text-gray-400 text-sm">
+                        <span className="text-white font-medium">{onClockTeam?.name}</span>
+                        <br />is on the clock
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
             </Card>
 
             <Card className="p-4">
@@ -343,7 +295,6 @@ export function DraftRoom() {
                 {genres.map((g) => <option key={g} value={g}>{g}</option>)}
               </select>
             </div>
-
 
             <Card>
               {/* Sort header */}
@@ -423,27 +374,51 @@ export function DraftRoom() {
             </Card>
           </div>
 
-          {/* Right: recent picks feed */}
+          {/* Right: recent picks / team list during pre-draft */}
           <div className="col-span-12 lg:col-span-3">
             <Card className="p-4">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Recent Picks</h3>
-              <div className="space-y-2 max-h-[70vh] overflow-y-auto">
-                {[...state.picks].reverse().map((pick) => (
-                  <div key={pick.id} className="flex items-center gap-2 py-1.5 border-b border-white/5 last:border-0">
-                    <div className="shrink-0">
-                      <Avatar src={pick.artist?.imageUrl} name={pick.artist?.name ?? '?'} size="sm" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-medium text-white truncate">{pick.artist?.name}</div>
-                      <div className="text-xs text-gray-600">{pick.team?.name} · {pick.slot}</div>
-                    </div>
-                    <div className="text-xs text-gray-600 font-mono">#{pick.pickNumber}</div>
+              {isPreDraft ? (
+                <>
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                    Teams ({state.teams.length})
+                  </h3>
+                  <div className="space-y-2">
+                    {state.teams.map((team) => (
+                      <div key={team.id} className="flex items-center gap-2 py-1">
+                        <Avatar src={team.user?.avatarUrl ?? null} name={team.user?.username ?? team.name} size="sm" />
+                        <div className="min-w-0">
+                          <div className="text-xs font-medium text-white truncate">{team.name}</div>
+                          <div className="text-xs text-gray-600">{team.user?.username ?? ''}</div>
+                        </div>
+                        {team.draftPosition != null && (
+                          <span className="ml-auto text-xs text-gray-600 font-mono shrink-0">#{team.draftPosition}</span>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                ))}
-                {state.picks.length === 0 && (
-                  <p className="text-xs text-gray-600 text-center py-4">No picks yet</p>
-                )}
-              </div>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Recent Picks</h3>
+                  <div className="space-y-2 max-h-[70vh] overflow-y-auto">
+                    {[...state.picks].reverse().map((pick) => (
+                      <div key={pick.id} className="flex items-center gap-2 py-1.5 border-b border-white/5 last:border-0">
+                        <div className="shrink-0">
+                          <Avatar src={pick.artist?.imageUrl} name={pick.artist?.name ?? '?'} size="sm" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-medium text-white truncate">{pick.artist?.name}</div>
+                          <div className="text-xs text-gray-600">{pick.team?.name} · {pick.slot}</div>
+                        </div>
+                        <div className="text-xs text-gray-600 font-mono">#{pick.pickNumber}</div>
+                      </div>
+                    ))}
+                    {state.picks.length === 0 && (
+                      <p className="text-xs text-gray-600 text-center py-4">No picks yet</p>
+                    )}
+                  </div>
+                </>
+              )}
             </Card>
           </div>
         </div>
