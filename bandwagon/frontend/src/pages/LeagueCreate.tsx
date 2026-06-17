@@ -57,13 +57,22 @@ export function LeagueCreate() {
     e.preventDefault();
     setError('');
     setTeamSyncWarning('');
+    if (!draftTime) {
+      setError('A draft date & time is required');
+      return;
+    }
+    const minAllowed = new Date(Date.now() + 60 * 60_000);
+    if (new Date(draftTime) < minAllowed) {
+      setError('Draft time must be at least 1 hour from now');
+      return;
+    }
     setLoading(true);
     try {
       const league = await api.post<{ id: string; inviteCode: string }>('/leagues', {
         name,
         teamCount,
         privacy,
-        draftTime: draftTime ? new Date(draftTime).toISOString() : undefined,
+        draftTime: new Date(draftTime).toISOString(),
       });
       setInviteCode(league.inviteCode);
       setLeagueId(league.id);
@@ -213,15 +222,16 @@ export function LeagueCreate() {
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-gray-300">Draft Date & Time (optional)</label>
+              <label className="text-sm font-medium text-gray-300">Draft Date & Time</label>
               <input
                 type="datetime-local"
                 value={draftTime}
-                min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
+                min={new Date(Date.now() + 60 * 60_000).toISOString().slice(0, 16)}
                 onChange={(e) => setDraftTime(e.target.value)}
                 className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                required
               />
-              <p className="text-xs text-gray-500">Must be in the future — can also be set later in settings</p>
+              <p className="text-xs text-gray-500">Must be at least 1 hour from now</p>
             </div>
 
             {error && (

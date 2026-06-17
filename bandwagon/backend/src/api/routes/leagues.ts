@@ -22,7 +22,7 @@ const CreateLeagueSchema = z.object({
   name: z.string().min(1).max(50),
   teamCount: z.number().int().min(4).max(12).default(8),
   privacy: z.enum(['private', 'public']).default('private'),
-  draftTime: z.string().datetime().optional(),
+  draftTime: z.string().datetime(),
 });
 
 // Get user's leagues
@@ -89,6 +89,11 @@ router.get('/', requireAuth, async (req: AuthRequest, res, next) => {
 router.post('/', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const data = CreateLeagueSchema.parse(req.body);
+    const minAllowed = new Date(Date.now() + 60 * 60_000);
+    if (new Date(data.draftTime) < minAllowed) {
+      res.status(400).json({ error: 'Draft time must be at least 1 hour from now' });
+      return;
+    }
     let inviteCode = generateInviteCode();
     // Ensure unique
     while (await prisma.league.findUnique({ where: { inviteCode } })) {
@@ -173,9 +178,12 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res, next) => {
       return;
     }
 
-    if (data.draftTime && new Date(data.draftTime) <= new Date()) {
-      res.status(400).json({ error: 'Draft time must be in the future' });
-      return;
+    if (data.draftTime) {
+      const minAllowed = new Date(Date.now() + 60 * 60_000);
+      if (new Date(data.draftTime) < minAllowed) {
+        res.status(400).json({ error: 'Draft time must be at least 1 hour from now' });
+        return;
+      }
     }
     if (scoringLocked && data.scoringConfig !== undefined) {
       res.status(400).json({ error: 'Scoring settings can only be changed pre-draft or between seasons' });
