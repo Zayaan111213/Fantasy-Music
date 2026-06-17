@@ -5,6 +5,10 @@ const GENRE_COLORS: Record<string, string> = {
   'Pop': 'bg-pink-500/20 text-pink-300 border-pink-500/30',
   'Rock & Alternative': 'bg-orange-500/20 text-orange-300 border-orange-500/30',
   'Country': 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+  'Dance': 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
+  'Latin': 'bg-red-500/20 text-red-300 border-red-500/30',
+  'K-Pop': 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+  'Afrobeats': 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
   'Other': 'bg-teal-500/20 text-teal-300 border-teal-500/30',
 };
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { io, type Socket } from 'socket.io-client';
-import { Search, Clock, CheckCircle, Circle } from 'lucide-react';
+import { Search, Clock, CheckCircle, Circle, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Badge } from '../components/ui/Badge';
 import { Avatar } from '../components/ui/Avatar';
@@ -13,9 +13,13 @@ import { api } from '../api/client';
 
 const ALL_SLOTS = ['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country', 'Other', 'Flex', 'Bench-1', 'Bench-2', 'Bench-3'];
 
-function isEligibleClientSide(genre: string, slot: string): boolean {
-  if (slot.startsWith('Bench') || slot === 'Flex') return true;
-  return genre === slot;
+const MAIN_GENRES_DRAFT = new Set(['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country']);
+function hasEligibleSlot(genre: string, openSlots: string[]): boolean {
+  return openSlots.some((slot) => {
+    if (slot.startsWith('Bench') || slot === 'Flex') return true;
+    if (slot === 'Other') return !MAIN_GENRES_DRAFT.has(genre);
+    return genre === slot;
+  });
 }
 
 function TimerRing({ seconds, total = 60 }: { seconds: number; total?: number }) {
@@ -53,10 +57,10 @@ export function DraftRoom() {
   const [secondsLeft, setSecondsLeft] = useState(60);
   const [search, setSearch] = useState('');
   const [genreFilter, setGenreFilter] = useState('');
-  const [toasts, setToasts] = useState<string[]>([]);
+  const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([]);
+  const toastIdRef = useRef(0);
   const [availableArtists, setAvailableArtists] = useState<Artist[]>([]);
   const [loadingArtists, setLoadingArtists] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<string>('');
   const [sort, setSort] = useState<{ field: 'name' | 'last' | 'avg'; dir: 'desc' | 'asc' }>({ field: 'last', dir: 'desc' });
 
   useEffect(() => {
@@ -112,11 +116,17 @@ export function DraftRoom() {
   }
 
   function addToast(msg: string) {
-    setToasts((prev) => [msg, ...prev.slice(0, 4)]);
+    const id = ++toastIdRef.current;
+    setToasts((prev) => [{ id, msg }, ...prev.slice(0, 4)]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 10000);
   }
 
-  function makePick(artistId: string, slot: string) {
-    socketRef.current?.emit('draft:pick', { leagueId, artistId, slot, token });
+  function dismissToast(id: number) {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }
+
+  function makePick(artistId: string) {
+    socketRef.current?.emit('draft:pick', { leagueId, artistId, token });
   }
 
   if (!state) return (
@@ -146,9 +156,12 @@ export function DraftRoom() {
 
       {/* Toast notifications */}
       <div className="fixed top-4 right-4 z-50 space-y-2 max-w-xs">
-        {toasts.map((t, i) => (
-          <div key={i} className="bg-gray-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white shadow-xl animate-in slide-in-from-right">
-            {t}
+        {toasts.map(({ id, msg }) => (
+          <div key={id} className="flex items-start gap-2 bg-gray-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white shadow-xl animate-in slide-in-from-right">
+            <span className="flex-1">{msg}</span>
+            <button onClick={() => dismissToast(id)} className="shrink-0 text-gray-500 hover:text-white transition-colors mt-0.5">
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
         ))}
       </div>
@@ -222,20 +235,6 @@ export function DraftRoom() {
               </select>
             </div>
 
-            {isMyTurn && openSlots.length > 0 && (
-              <div className="flex gap-2 flex-wrap">
-                <span className="text-xs text-gray-500 self-center">Draft to:</span>
-                {openSlots.map((slot) => (
-                  <button
-                    key={slot}
-                    onClick={() => setSelectedSlot(slot === selectedSlot ? '' : slot)}
-                    className={`px-2 py-1 rounded text-xs font-medium transition-colors ${selectedSlot === slot ? 'bg-indigo-500 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}
-                  >
-                    {slot.startsWith('Bench') ? 'Bench' : slot}
-                  </button>
-                ))}
-              </div>
-            )}
 
             <Card>
               {/* Sort header */}
@@ -278,9 +277,9 @@ export function DraftRoom() {
                       return sort.dir === 'desc' ? -cmp : cmp;
                     })
                     .map((artist) => {
-                      const eligible = selectedSlot ? isEligibleClientSide(artist.primaryGenre, selectedSlot) : true;
+                      const canDraft = isMyTurn && hasEligibleSlot(artist.primaryGenre, openSlots);
                       return (
-                        <div key={artist.id} className={`grid grid-cols-12 items-center gap-1 p-3 hover:bg-white/5 transition-colors ${!eligible ? 'opacity-40' : ''}`}>
+                        <div key={artist.id} className="grid grid-cols-12 items-center gap-1 p-3 hover:bg-white/5 transition-colors">
                           <div className="col-span-5 flex items-center gap-2 min-w-0">
                             <Avatar src={artist.imageUrl} name={artist.name} size="sm" />
                             <div className="min-w-0">
@@ -293,13 +292,15 @@ export function DraftRoom() {
                           </div>
                           <div className="col-span-4 text-right flex items-center justify-end gap-2">
                             <span className="font-mono text-sm text-gray-400">{(artist.avgLast5Points ?? 0).toFixed(1)}</span>
-                            {isMyTurn && selectedSlot && eligible && (
-                              <Button size="sm" onClick={() => makePick(artist.id, selectedSlot)}>
+                            {isMyTurn && (
+                              <Button
+                                size="sm"
+                                disabled={!canDraft}
+                                onClick={() => makePick(artist.id)}
+                                title={!canDraft ? 'No eligible slot on your roster' : undefined}
+                              >
                                 Draft
                               </Button>
-                            )}
-                            {isMyTurn && !selectedSlot && (
-                              <span className="text-xs text-gray-600 whitespace-nowrap">Pick slot →</span>
                             )}
                           </div>
                         </div>

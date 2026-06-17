@@ -555,6 +555,7 @@ router.put('/:id/roster/lineup', requireAuth, async (req: AuthRequest, res, next
     if (!spotA || !spotB) { res.status(400).json({ error: 'Invalid slots' }); return; }
 
     // Validate eligibility: if moving to a non-Bench, non-Flex slot, genre must match
+    const MAIN_GENRES = new Set(['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country']);
     function slotGenre(slot: string) {
       if (slot.startsWith('Bench') || slot === 'Flex') return null;
       return slot;
@@ -562,6 +563,7 @@ router.put('/:id/roster/lineup', requireAuth, async (req: AuthRequest, res, next
     function artistEligibleForSlot(genre: string | null, slot: string): boolean {
       const required = slotGenre(slot);
       if (!required) return true;
+      if (required === 'Other') return genre !== null && !MAIN_GENRES.has(genre);
       return genre === required;
     }
 
@@ -588,6 +590,68 @@ router.put('/:id/roster/lineup', requireAuth, async (req: AuthRequest, res, next
     ]);
 
     res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/leagues/:id/roster/claim — pick up a free agent, dropping one of your own artists
+router.post('/:id/roster/claim', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const schema = z.object({ artistId: z.string(), dropSlot: z.string() });
+    const { artistId, dropSlot } = schema.parse(req.body);
+
+    const league = await prisma.league.findUnique({
+      where: { id: req.params.id },
+      include: { teams: true },
+    });
+    if (!league) { res.status(404).json({ error: 'League not found' }); return; }
+
+    const myTeam = league.teams.find((t) => t.userId === req.userId);
+    if (!myTeam) { res.status(403).json({ error: 'You are not in this league' }); return; }
+
+    if (league.status !== 'active') {
+      res.status(400).json({ error: 'Free agent claims are only available during the active season' });
+      return;
+    }
+
+    const artist = await prisma.artist.findUnique({ where: { id: artistId } });
+    if (!artist) { res.status(404).json({ error: 'Artist not found' }); return; }
+
+    // Confirm artist is a free agent (no roster spot with this artistId in this league)
+    const rostered = await prisma.rosterSpot.findFirst({
+      where: { artistId, team: { leagueId: req.params.id } },
+    });
+    if (rostered) { res.status(400).json({ error: `${artist.name} is already on a roster` }); return; }
+
+    // Confirm the drop slot exists on user's team and has a player
+    const dropSpot = await prisma.rosterSpot.findUnique({
+      where: { teamId_slot: { teamId: myTeam.id, slot: dropSlot } },
+      include: { artist: true },
+    });
+    if (!dropSpot) { res.status(400).json({ error: 'Invalid slot' }); return; }
+    if (!dropSpot.artistId) { res.status(400).json({ error: 'That slot is already empty' }); return; }
+
+    // Confirm new artist is eligible for the slot being freed
+    const MAIN_GENRES = new Set(['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country']);
+    function eligibleForSlot(genre: string, slot: string): boolean {
+      if (slot.startsWith('Bench') || slot === 'Flex') return true;
+      if (slot === 'Other') return !MAIN_GENRES.has(genre);
+      return genre === slot;
+    }
+    if (!eligibleForSlot(artist.primaryGenre, dropSlot)) {
+      res.status(400).json({ error: `${artist.name} is not eligible for the ${dropSlot} slot` });
+      return;
+    }
+
+    const droppedArtistId = dropSpot.artistId;
+
+    await prisma.rosterSpot.update({
+      where: { id: dropSpot.id },
+      data: { artistId },
+    });
+
+    res.json({ success: true, slot: dropSlot, droppedArtistId, addedArtistId: artistId });
   } catch (err) {
     next(err);
   }

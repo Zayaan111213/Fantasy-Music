@@ -5,6 +5,21 @@ import { makePick } from '../api/routes/draft';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'bandwagon-dev-secret';
 const PICK_SECONDS = 60;
+const ALL_SLOTS = ['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country', 'Other', 'Flex', 'Bench-1', 'Bench-2', 'Bench-3'];
+const MAIN_GENRES = new Set(['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country']);
+
+function findBestSlot(genre: string, openSlots: string[]): string | null {
+  const priority = [
+    genre,
+    ...(MAIN_GENRES.has(genre) ? [] : ['Other']),
+    'Flex',
+    'Bench-1', 'Bench-2', 'Bench-3',
+  ];
+  for (const slot of priority) {
+    if (openSlots.includes(slot)) return slot;
+  }
+  return null;
+}
 
 // Per-league timer state (in-memory)
 const leagueTimers = new Map<string, ReturnType<typeof setInterval>>();
@@ -39,8 +54,7 @@ async function fireAutoDraft(io: Server, leagueId: string) {
   if (!team) return;
 
   const filledSlots = new Set(team.rosterSpots.filter((s) => s.artistId).map((s) => s.slot));
-  const allSlots = ['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country', 'Other', 'Flex', 'Bench-1', 'Bench-2', 'Bench-3'];
-  const openSlots = allSlots.filter((s) => !filledSlots.has(s));
+  const openSlots = ALL_SLOTS.filter((s) => !filledSlots.has(s));
   if (openSlots.length === 0) return;
 
   const draftedIds = (await prisma.draftPick.findMany({ where: { leagueId }, select: { artistId: true } }))
@@ -48,6 +62,7 @@ async function fireAutoDraft(io: Server, leagueId: string) {
 
   function isEligible(genre: string, slot: string): boolean {
     if (slot.startsWith('Bench') || slot === 'Flex') return true;
+    if (slot === 'Other') return !MAIN_GENRES.has(genre);
     return genre === slot;
   }
 
@@ -147,12 +162,32 @@ export function registerDraftSocket(io: Server) {
       }
     });
 
-    socket.on('draft:pick', async ({ leagueId, artistId, slot, token }: {
-      leagueId: string; artistId: string; slot: string; token: string;
+    socket.on('draft:pick', async ({ leagueId, artistId, token }: {
+      leagueId: string; artistId: string; token: string;
     }) => {
       try {
         const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
         const userId = payload.userId;
+
+        // Resolve which team is picking and find their open slots
+        const draftState = await prisma.draftState.findUnique({ where: { leagueId } });
+        if (!draftState) { socket.emit('draft:error', 'Draft not found'); return; }
+
+        const onClockTeamId = draftState.pickOrder[draftState.currentPick];
+        const team = await prisma.team.findUnique({ where: { id: onClockTeamId }, include: { rosterSpots: true } });
+        if (!team) { socket.emit('draft:error', 'Team not found'); return; }
+
+        const filledSlots = new Set(team.rosterSpots.filter((s) => s.artistId).map((s) => s.slot));
+        const openSlots = ALL_SLOTS.filter((s) => !filledSlots.has(s));
+
+        const artist = await prisma.artist.findUnique({ where: { id: artistId } });
+        if (!artist) { socket.emit('draft:error', 'Artist not found'); return; }
+
+        const slot = findBestSlot(artist.primaryGenre, openSlots);
+        if (!slot) {
+          socket.emit('draft:error', `No eligible slot for ${artist.name}`);
+          return;
+        }
 
         const result = await makePick(leagueId, userId, artistId, slot, false);
 
