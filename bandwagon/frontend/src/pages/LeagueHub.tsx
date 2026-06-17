@@ -980,17 +980,26 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League })
       {isCommissioner && league.status === 'pending' && (
         <Card className="p-5">
           <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Draft</h3>
-          {league.draftTime ? (
-            <p className="text-sm text-gray-400">
-              Draft scheduled for{' '}
+          {league.draftTime && (
+            <p className="text-sm text-gray-400 mb-4">
+              Scheduled for{' '}
               <span className="text-white font-medium">{new Date(league.draftTime).toLocaleString()}</span>
-              . A 10-minute lobby will open automatically at that time.
-            </p>
-          ) : (
-            <p className="text-sm text-amber-400">
-              Set a draft date & time in the settings above to schedule the draft. All members will be able to join once it starts.
+              . Will start automatically if you don't start it early.
             </p>
           )}
+          <Button
+            onClick={async () => {
+              try {
+                await api.post(`/leagues/${leagueId}/draft/start`, {});
+                navigate(`/leagues/${leagueId}/draft`);
+              } catch (err) {
+                alert(err instanceof Error ? err.message : 'Failed to start draft');
+              }
+            }}
+            className="w-full"
+          >
+            Start Draft Now
+          </Button>
         </Card>
       )}
 
