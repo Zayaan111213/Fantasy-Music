@@ -37,6 +37,7 @@ export function LeagueJoin() {
   const { user } = useAuth();
 
   const [manualCode, setManualCode] = useState('');
+  const [resolvedCode, setResolvedCode] = useState('');
   const [preview, setPreview] = useState<LeaguePreview | null>(null);
   const [loading, setLoading] = useState(false);
   const [joining, setJoining] = useState(false);
@@ -59,6 +60,7 @@ export function LeagueJoin() {
   async function loadPreview(c: string) {
     setLoading(true);
     setError('');
+    setResolvedCode(c);
     try {
       const data = await api.get<LeaguePreview>(`/leagues/invite/${c}`);
       setPreview(data);
@@ -70,7 +72,7 @@ export function LeagueJoin() {
   }
 
   async function handleJoin() {
-    const c = code || manualCode.trim().toUpperCase();
+    const c = code || resolvedCode || manualCode.trim().toUpperCase();
     if (!c) return;
     setJoining(true);
     setError('');
