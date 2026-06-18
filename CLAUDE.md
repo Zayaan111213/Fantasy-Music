@@ -23,23 +23,23 @@ The app **must not** call data providers (Luminate, Billboard) directly from fea
 An artist's weekly score = streaming volume points + chart position points + chart movement points. Each signal has its own tier table (see §9 of PRD). Streaming tiers are **per-genre** to normalize smaller genres (country, Latin) against larger ones (hip-hop, pop) — store one threshold table per genre. Week boundaries align to Billboard/Luminate tracking week: Friday 00:00 – Thursday 23:59 US time.
 
 ### Roster & Eligibility
-9-artist rosters: 6 starters (Hip-Hop, Pop, Rock, Country, Niche, Flex slots) + 3 bench. Eligibility checks run at draft, on every add/drop, and on every trade. Multi-genre artists are classified by **primary genre only**. Any action leaving a roster slot-illegal must be rejected with a clear message.
+9-artist rosters: 6 starters (R&B/Hip-Hop, Pop, Rock & Alternative, Country, Other, Flex slots) + 3 bench. Eligibility checks run at draft, on every add/drop, and on every trade. Multi-genre artists are classified by **primary genre only**. Any action leaving a roster slot-illegal must be rejected with a clear message.
 
 ### Draft
-Live snake draft with a per-pick clock (default 60s). Auto-draft on expiry selects the best available eligible artist for an open slot based on most recent week's points. Draft ends when every team fills all 9 slots.
+Live snake draft with a per-pick clock (default 60s). Before picks begin, a 10-minute lobby countdown runs (`pre_draft` status) — all members can see the timer, commissioner can skip it. Auto-draft on per-pick expiry selects the best available eligible artist for an open slot based on most recent week's points. Draft ends when every team fills all 9 slots.
 
 ### Season Structure
 10-week regular season → round-robin head-to-head matchups → top 4 playoff (P1). Scores update on a daily provisional batch and finalize after each week closes.
 
 ### League Types
 - **Private leagues**: invite-link only, commissioner-controlled settings
-- **Public managed leagues**: system-created, auto-fill until full, auto-schedule draft (cold-start mitigation for friendless users)
+- **Public leagues**: listed on the join page, any user can join; commissioner still controls settings
 
 ### Key Domain Rules
 - Lineup lock occurs at the **start** of the scoring week; no changes affect the current week's score after lock
 - Waivers use rolling priority (claiming drops you to the bottom); adds require a corresponding drop
 - Trades must leave both rosters slot-legal; legality check is required before acceptance
-- Commissioner settings lock after the season starts (with narrow exceptions)
+- Commissioner settings lock after the season starts (with narrow exceptions); draft time locks once the league leaves `pending`
 - Matchup tiebreaker: highest-scoring single artist
 - Standings tiebreaker: total points-for
 
@@ -54,14 +54,16 @@ Live snake draft with a per-pick clock (default 60s). Auto-draft on expiry selec
 
 ### What's Built (P0 complete, P1 partial)
 - **Auth**: JWT-based login/register (`/api/auth`)
-- **Leagues**: create, join (invite code/link), settings, commissioner delete with member notifications
+- **Leagues**: create (requires draft time ≥1 hr from now), join via invite code/link or public list, settings, commissioner delete with member notifications
+- **Public leagues**: listed on the join page (`GET /leagues/public`); anyone can join an open public league
 - **Artist database**: genre-tagged, weekly scores seeded for 10 weeks, searchable/filterable
-- **Draft**: live snake draft via socket.io, 60s timer, auto-draft on expiry, slot selector UI
+- **Draft**: live snake draft via socket.io; 10-min pre-draft lobby (`pre_draft` status) with `CountdownRing`; 60s per-pick timer with `TimerRing`; commissioner can skip countdown; auto-draft on pick expiry; scheduled auto-start at `league.draftTime`
 - **Roster/lineup**: starter↔bench swap (My Team tab, the default tab), slot-legality enforced; Matchup tab is read-only (both rosters' scores side by side)
 - **Matchups & standings**: head-to-head, weekly scores, standings with playoff cutline
 - **Scoring**: seeded mock data; `streamingPoints + chartPositionPoints + chartMovementPoints = totalPoints`
 - **Player lists**: all lists show Name, Genre, Picture, Last Week score, 5W Avg; sortable by clicking headers (first click = high→low, second = low→high)
 - **Notifications**: DB-backed; currently used for league-deletion alerts shown on Home on next login
+- **Free agent claims**: add/drop from Players tab with rolling waiver priority
 
 ### Directory Layout
 ```
@@ -69,53 +71,75 @@ bandwagon/
   backend/
     prisma/
       schema.prisma       # DB schema
-      seed.ts             # Mock data (artists, weekly scores, demo league)
+      seed.ts             # Mock data (artists, weekly scores, demo league + public pending league)
       migrations/
     src/
-      server.ts           # Express + socket.io entry point
-      db/prisma.ts         # Shared PrismaClient singleton
+      server.ts           # Express + socket.io entry point; calls startDraftScheduler(io)
+      db/prisma.ts        # Shared PrismaClient singleton
       api/
         middleware/
-          auth.ts          # JWT signing + requireAuth middleware
+          auth.ts         # JWT signing + requireAuth middleware
           errorHandler.ts
         routes/
           auth.ts
-          leagues.ts        # League CRUD, standings, matchups, /players, lineup swap
+          leagues.ts      # League CRUD, standings, matchups, /players, lineup swap, /public
           artists.ts
-          draft.ts          # Draft lifecycle + makePick() (also used by sockets/draft.ts)
+          draft.ts        # Draft lifecycle + makePick() (also used by sockets/draft.ts)
           notifications.ts
       data/
-        provider.ts         # DataProvider interface (data-access-layer abstraction)
-        mock.ts             # MockDataProvider — only implementation today, seeded-random
+        provider.ts       # DataProvider interface (data-access-layer abstraction)
+        mock.ts           # MockDataProvider — deterministic per artistId/week via seeded hash
       scoring/
-        tiers.ts            # Pure scoring functions (chart position/movement/streaming tiers)
-        engine.ts           # scoreArtistWeek() / updateMatchupScores() orchestration
-      sockets/draft.ts      # Live draft socket handler + in-memory per-pick timers
+        tiers.ts          # Pure scoring functions (chart position/movement/streaming tiers)
+        engine.ts         # scoreArtistWeek() / updateMatchupScores() orchestration
+      sockets/draft.ts    # Live draft socket handler; pre-draft countdown + per-pick timers
   frontend/
     src/
       pages/
         Auth.tsx
-        Home.tsx           # Shows leagues + dismissible notifications
-        LeagueHub.tsx      # Tabs: My Team (default, lineup editing), Matchup (read-only), Standings, Players, Settings
-        DraftRoom.tsx      # Live draft room with artist pool
-        LeagueCreate.tsx
-        LeagueJoin.tsx
+        Home.tsx          # Shows leagues + dismissible notifications
+        LeagueHub.tsx     # Tabs: My Team (default), Matchup (read-only), Standings, Players, Settings
+        DraftRoom.tsx     # Live draft room; CountdownRing (pre_draft) + TimerRing (drafting)
+        LeagueCreate.tsx  # League creation form; draft time required (≥1 hr)
+        LeagueJoin.tsx    # Invite code entry + public league browser
         ArtistDetail.tsx
       context/AuthContext.tsx
       api/
-        client.ts          # fetch wrapper
-        types.ts           # shared TS interfaces
-      components/ui/       # Card, Badge, Avatar, Button, Input, Spinner
+        client.ts         # fetch wrapper
+        types.ts          # shared TS interfaces
+      components/ui/      # Card, Badge, Avatar, Button, Input, Spinner
 ```
 
 ## Backend Architecture Notes
 
 - **Data access layer**: `data/provider.ts` defines the `DataProvider` interface (`getWeeklyStreams`, `getBestChartPosition`, `getChartMovement`). `data/mock.ts`'s `MockDataProvider` is the only implementation today — it's deterministic per `artistId`/week via a seeded hash, not random per run. `scoring/engine.ts` is the only consumer; swapping in a real Luminate/Billboard provider means implementing the interface and passing it into `scoreArtistWeek`, no call-site changes elsewhere.
-- **Scoring engine**: `scoring/tiers.ts` holds pure, DB-free scoring functions. `scoring/engine.ts`'s `scoreArtistWeek` loads the genre's `GenreStreamingTier` rows, **falls back to `'Pop'` tiers if the artist's genre has none seeded**, then upserts a `WeeklyScore`. Any signal the provider returns `null` for is recorded in `WeeklyScore.dataMissing` (comma-joined) rather than failing the run — this is the PRD's "never hard-fail on a missing signal" requirement in practice.
-- **Auth**: `api/middleware/auth.ts` exports `requireAuth` (HTTP) for Express routes. `sockets/draft.ts` does **not** reuse that middleware — it verifies the JWT manually on every `draft:join`/`draft:pick` socket event because socket.io has no shared middleware chain with Express here.
-- **Draft concurrency**: per-pick countdown timers live in an in-memory `Map<leagueId, Interval>` inside `sockets/draft.ts` (`leagueTimers`) — they are not persisted. Restarting the backend mid-draft drops the running interval; the draft's logical state (`DraftState.currentPick`/`timerEndsAt`) survives in Postgres, but a client reconnect (`draft:join`) is what actually restarts the timer.
-- **Slot-eligibility logic is duplicated in three places** — keep them in sync if roster rules change: `api/routes/draft.ts` (`isEligible`, human picks), `sockets/draft.ts` (`isEligible`, auto-draft), and `api/routes/leagues.ts` (`artistEligibleForSlot`, starter↔bench lineup swap). All three encode "Niche = primary genre not in Hip-Hop/Pop/Rock/Country".
-- **Routing**: both `leagueRoutes` and `draftRoutes` are mounted at `/api/leagues` in `server.ts` — draft endpoints live under `/api/leagues/:id/draft*`, not a separate `/api/draft` prefix.
+- **Scoring engine**: `scoring/tiers.ts` holds pure, DB-free scoring functions. `scoring/engine.ts`'s `scoreArtistWeek` loads the genre's `GenreStreamingTier` rows, **falls back to `'Pop'` tiers if the artist's genre has none seeded**, then upserts a `WeeklyScore`. Any signal the provider returns `null` for is recorded in `WeeklyScore.dataMissing` (comma-joined) rather than failing the run.
+- **Auth**: `api/middleware/auth.ts` exports `requireAuth` (HTTP) for Express routes. `sockets/draft.ts` verifies the JWT manually on every `draft:join`/`draft:pick`/`draft:skip-countdown` socket event — socket.io has no shared middleware chain with Express here.
+- **Draft statuses**: `pending` → `pre_draft` → `drafting` → `active`/`complete`. `League.draftTime` stores the countdown-end timestamp during `pre_draft`. `League.status` is a plain String field — no migration needed to add new values.
+- **Draft timers**: two in-memory Maps in `sockets/draft.ts`:
+  - `countdownTimers: Map<leagueId, Timeout>` — fires once when the 10-min pre-draft countdown ends, calls `transitionToLiveDraft`
+  - `leagueTimers: Map<leagueId, Interval>` — per-pick 60s countdown, calls `fireAutoDraft` on expiry
+  - Neither is persisted. On server restart, `draft:join` reconnect restarts whichever timer is appropriate.
+- **Draft scheduler**: `startDraftScheduler(io)` runs a `setInterval` every 30s in `server.ts`. It queries for `pending` leagues with `draftTime <= now` and calls `scheduledDraftStart(io, leagueId)` to auto-transition them to `pre_draft`.
+- **Slot-eligibility logic is duplicated in three places** — keep them in sync if roster rules change: `api/routes/draft.ts` (`isEligible`, human picks), `sockets/draft.ts` (`isEligible`, auto-draft), and `api/routes/leagues.ts` (`artistEligibleForSlot`, starter↔bench swap). All three encode "Other slot = primary genre not in R&B/Hip-Hop/Pop/Rock & Alternative/Country".
+- **Route ordering**: `GET /leagues/public` **must** be registered before `GET /leagues/:id` in `leagues.ts`, or Express will match `"public"` as an id param.
+- **Routing**: both `leagueRoutes` and `draftRoutes` are mounted at `/api/leagues` in `server.ts` — draft endpoints live under `/api/leagues/:id/draft*`.
+- **datetime-local inputs** return strings without timezone (e.g. `"2026-06-18T10:00"`). Always convert to ISO before sending to the API: `new Date(value).toISOString()`. Zod's `.datetime()` rejects bare local strings.
+
+## Socket Events (draft)
+
+| Event | Direction | Description |
+|-------|-----------|-------------|
+| `draft:join` | client→server | Join room, receive current state |
+| `draft:state` | server→client | Full state snapshot (status, picks, teams, timers) |
+| `draft:tick` | server→client | Per-second countdown for current pick |
+| `draft:pick` | client→server | Make a pick |
+| `draft:pick-made` | server→client | Pick confirmed, broadcast to room |
+| `draft:skip-countdown` | client→server | Commissioner skips pre-draft lobby |
+| `draft:complete` | server→client | Draft finished |
+| `draft:error` | server→client | Error message |
+
+`draft:state` payload includes `countdownEndsAt` (ISO string or null) during `pre_draft`. Clients calculate remaining seconds locally from this timestamp.
 
 ## Commands
 
@@ -123,31 +147,37 @@ bandwagon/
 # Install everything (root + backend + frontend)
 npm run setup
 
-# Run backend + frontend together from repo root
-npm run dev
+# Run backend + frontend together — must run from bandwagon/ not repo root
+cd bandwagon && npm run dev
 
 # Or individually:
-cd bandwagon/backend && npm run dev     # tsx watch, port 3001, restart picks up code changes
-cd bandwagon/frontend && npm run dev    # Vite, port 5174 (see note below)
+cd bandwagon/backend && npm run dev     # tsx watch, port 3001
+cd bandwagon/frontend && npm run dev    # Vite, port 5173 (auto-increments if taken)
 
-# DB: migrate / seed / inspect (runnable from repo root or bandwagon/backend)
-npm run db:migrate
-npm run db:seed
-npm run db:studio
+# DB: migrate / seed / inspect
+cd bandwagon && npm run db:migrate
+cd bandwagon && npm run db:seed
+cd bandwagon && npm run db:studio
 
-# Typecheck / build (no test suite or lint config exists in this repo yet)
+# Typecheck / build (no test suite or lint config exists yet)
 cd bandwagon/backend && npm run build   # tsc
 cd bandwagon/frontend && npm run build  # tsc && vite build
 ```
 
 **Demo accounts** (created by seed, both use `password123`):
-- `demo1@bandwagon.app` — MusicMaven
+- `demo1@bandwagon.app` — MusicMaven (commissioner of demo league + public league)
 - `demo2@bandwagon.app` — ChartWatcher
+
+**Seed creates two leagues**:
+- `DEMO-LEAGUE-2026` — private, `active`, week 3, both demo users joined (for testing roster/matchup/standings)
+- `PUBLIC-DEMO-2026` — public, `pending`, 8-team cap, 1 member (for testing join flow)
 
 ## Key Implementation Notes
 
-- **Frontend dev port is 5174**, not the Vite-configured default of 5173 (`vite.config.ts` sets `server.port: 5173`). Vite auto-increments when 5173 is taken by another process on this machine; the proxy (`/api`, `/socket.io` → port 3001) works the same regardless of which port Vite lands on.
-- **DraftRoom socket state** does not include `rosterSpots`. Derive a team's filled slots from `state.picks.filter(p => p.teamId === myTeam.id).map(p => p.slot)` — do not access `myTeam.rosterSpots`.
+- **`npm run dev` must be run from `bandwagon/`**, not the repo root. The repo root has no `package.json`.
+- **Kill old backend before restarting**: `lsof -ti :3001 | xargs kill -9`
+- **Frontend dev port**: Vite is configured for 5173 but auto-increments to 5174 if 5173 is taken. The `/api` and `/socket.io` proxy works regardless of which port Vite lands on.
+- **DraftRoom socket state** does not include `rosterSpots`. Derive filled slots from `state.picks.filter(p => p.teamId === myTeam.id).map(p => p.slot)`.
 - **Weekly score data** only exists after running the seed. Without it, all score columns show `0.0`.
-- **Backend must be running** for the `/api/health` check and all data. Kill old process with `lsof -ti :3001 | xargs kill -9` before restarting.
 - **League deletion** cascades via Prisma to teams, roster spots, picks, and draft state. Members receive a `Notification` record (type: `league_deleted`) shown as a dismissible banner on Home.
+- **LeagueHub polls** the league query every 5s while `status === 'pending'` or `'pre_draft'` so all members see the "Go to Draft" button appear in real time.
