@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { api } from '../api/client';
+import { queryClient } from '../lib/queryClient';
 import type { User } from '../api/types';
 
 interface AuthContextType {
@@ -37,6 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('bw_token');
     setToken(null);
     setUser(null);
+    queryClient.clear();
   }
 
   function updateUser(u: User) {
