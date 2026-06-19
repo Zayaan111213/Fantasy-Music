@@ -270,6 +270,31 @@ router.delete('/:id', requireAuth, async (req: AuthRequest, res, next) => {
   }
 });
 
+// Leave league
+router.post('/:id/leave', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const league = await prisma.league.findUnique({
+      where: { id: req.params.id },
+      include: { teams: { where: { userId: req.userId! } } },
+    });
+    if (!league) { res.status(404).json({ error: 'League not found' }); return; }
+    if (league.commissionerId === req.userId) {
+      res.status(400).json({ error: 'Commissioners cannot leave their own league. Delete the league instead.' });
+      return;
+    }
+    const team = league.teams[0];
+    if (!team) { res.status(400).json({ error: 'You are not a member of this league' }); return; }
+    if (league.status !== 'pending') {
+      res.status(400).json({ error: 'You cannot leave a league after the draft has started' });
+      return;
+    }
+    await prisma.team.delete({ where: { id: team.id } });
+    res.json({ message: 'Left league' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Join league by invite code
 router.post('/join/:code', requireAuth, async (req: AuthRequest, res, next) => {
   try {

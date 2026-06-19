@@ -693,6 +693,9 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League })
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const [leaveError, setLeaveError] = useState('');
 
   const [chartPosition, setChartPosition] = useState<[number, number, number, number, number]>(
     league.scoringConfig?.chartPosition ?? DEFAULT_CHART_POSITION
@@ -709,6 +712,19 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League })
   const [scoringError, setScoringError] = useState('');
 
   const navigate = useNavigate();
+
+  async function handleLeave() {
+    setLeaving(true);
+    setLeaveError('');
+    try {
+      await api.post(`/leagues/${leagueId}/leave`, {});
+      queryClient.invalidateQueries({ queryKey: ['leagues'] });
+      navigate('/home');
+    } catch (err) {
+      setLeaveError(err instanceof Error ? err.message : 'Failed to leave league');
+      setLeaving(false);
+    }
+  }
 
   async function handleDelete() {
     setDeleting(true);
@@ -1028,6 +1044,37 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League })
                   {deleting ? 'Deleting…' : 'Yes, delete it'}
                 </Button>
                 <Button variant="secondary" className="flex-1" onClick={() => setConfirmDelete(false)} disabled={deleting}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {!isCommissioner && league.status === 'pending' && (
+        <Card className="p-5 border-red-500/20">
+          <h3 className="text-sm font-semibold text-red-400/70 uppercase tracking-wider mb-4">Leave League</h3>
+          {!confirmLeave ? (
+            <div>
+              <p className="text-sm text-gray-400 mb-4">
+                Remove yourself from this league. You will lose your team and draft position.
+              </p>
+              <Button variant="danger" className="w-full" onClick={() => setConfirmLeave(true)}>
+                Leave League
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-red-300">Are you sure? You will need to rejoin to get back in.</p>
+              {leaveError && (
+                <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg p-2">{leaveError}</div>
+              )}
+              <div className="flex gap-2">
+                <Button variant="danger" className="flex-1" onClick={handleLeave} disabled={leaving}>
+                  {leaving ? 'Leaving…' : 'Yes, leave it'}
+                </Button>
+                <Button variant="secondary" className="flex-1" onClick={() => setConfirmLeave(false)} disabled={leaving}>
                   Cancel
                 </Button>
               </div>
