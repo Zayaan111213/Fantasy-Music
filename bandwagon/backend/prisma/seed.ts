@@ -391,6 +391,12 @@ function generateMockWeekData(
 async function main() {
   console.log('🌱 Starting seed...');
 
+  const existingArtists = await prisma.artist.count();
+  if (existingArtists > 0) {
+    console.log('✅ Database already seeded, skipping.');
+    return;
+  }
+
   // Clear existing data in correct order
   await prisma.draftState.deleteMany();
   await prisma.draftPick.deleteMany();
