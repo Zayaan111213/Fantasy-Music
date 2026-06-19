@@ -388,12 +388,65 @@ function generateMockWeekData(
   return { streams, chartPosition, chartMovement, isNewEntry };
 }
 
+function buildTierMap() {
+  const tierMap = new Map<string, { minStreams: bigint; maxStreams: bigint | null; points: number }[]>();
+  for (const genreConfig of GENRE_STREAMING_TIERS) {
+    tierMap.set(genreConfig.genre, genreConfig.tiers);
+  }
+  return tierMap;
+}
+
+async function createWeeklyScores(
+  artists: { id: string; primaryGenre: string }[],
+  tierMap: Map<string, { minStreams: bigint; maxStreams: bigint | null; points: number }[]>
+) {
+  const rows: {
+    artistId: string; week: number; seasonYear: number;
+    streamingPoints: number; chartPositionPoints: number; chartMovementPoints: number; totalPoints: number;
+    weeklyStreams: bigint; bestChartPosition: number | null; chartMovement: number | null; isFinalized: boolean;
+  }[] = [];
+  for (const artist of artists) {
+    for (let week = 1; week <= TOTAL_WEEKS; week++) {
+      const { streams, chartPosition, chartMovement, isNewEntry } = generateMockWeekData(artist.id, week);
+      const sp = scoreStreamingForGenre(streams, artist.primaryGenre, tierMap);
+      const cp = scoreChartPosition(chartPosition);
+      const cm = scoreChartMovement(chartMovement, isNewEntry);
+      rows.push({
+        artistId: artist.id,
+        week,
+        seasonYear: SEASON_YEAR,
+        streamingPoints: sp,
+        chartPositionPoints: cp,
+        chartMovementPoints: cm,
+        totalPoints: sp + cp + cm,
+        weeklyStreams: BigInt(streams),
+        bestChartPosition: chartPosition,
+        chartMovement: isNewEntry ? null : chartMovement,
+        isFinalized: week < TOTAL_WEEKS,
+      });
+    }
+  }
+  await prisma.weeklyScore.createMany({ data: rows, skipDuplicates: true });
+}
+
 async function main() {
   console.log('🌱 Starting seed...');
 
-  const existingArtists = await prisma.artist.count();
-  if (existingArtists > 0) {
+  const [artistCount, weeklyScoreCount] = await Promise.all([
+    prisma.artist.count(),
+    prisma.weeklyScore.count(),
+  ]);
+
+  if (artistCount > 0 && weeklyScoreCount > 0) {
     console.log('✅ Database already seeded, skipping.');
+    return;
+  }
+
+  if (artistCount > 0 && weeklyScoreCount === 0) {
+    console.log('📈 Recovering partial seed: creating missing weekly scores...');
+    const artists = await prisma.artist.findMany();
+    await createWeeklyScores(artists, buildTierMap());
+    console.log('✅ Weekly scores seeded.');
     return;
   }
 
@@ -411,22 +464,14 @@ async function main() {
 
   // Seed genre streaming tiers
   console.log('📊 Seeding genre streaming tiers...');
-  const tierMap = new Map<string, { minStreams: bigint; maxStreams: bigint | null; points: number }[]>();
+  const tierMap = buildTierMap();
+  const tierRows: { genre: string; minStreams: bigint; maxStreams: bigint | null; points: number; sortOrder: number }[] = [];
   for (const genreConfig of GENRE_STREAMING_TIERS) {
-    tierMap.set(genreConfig.genre, genreConfig.tiers);
-    for (let i = 0; i < genreConfig.tiers.length; i++) {
-      const tier = genreConfig.tiers[i];
-      await prisma.genreStreamingTier.create({
-        data: {
-          genre: genreConfig.genre,
-          minStreams: tier.minStreams,
-          maxStreams: tier.maxStreams,
-          points: tier.points,
-          sortOrder: i,
-        },
-      });
-    }
+    genreConfig.tiers.forEach((tier, i) => {
+      tierRows.push({ genre: genreConfig.genre, minStreams: tier.minStreams, maxStreams: tier.maxStreams, points: tier.points, sortOrder: i });
+    });
   }
+  await prisma.genreStreamingTier.createMany({ data: tierRows });
 
   // Seed artists
   console.log('🎤 Seeding artists...');
@@ -445,32 +490,7 @@ async function main() {
 
   // Seed weekly scores for all artists for past 10 weeks
   console.log('📈 Seeding weekly scores...');
-  for (const artist of artists) {
-    for (let week = 1; week <= TOTAL_WEEKS; week++) {
-      const { streams, chartPosition, chartMovement, isNewEntry } = generateMockWeekData(artist.id, week);
-
-      const streamingPoints = scoreStreamingForGenre(streams, artist.primaryGenre, tierMap);
-      const chartPositionPoints = scoreChartPosition(chartPosition);
-      const chartMovementPoints = scoreChartMovement(chartMovement, isNewEntry);
-      const totalPoints = streamingPoints + chartPositionPoints + chartMovementPoints;
-
-      await prisma.weeklyScore.create({
-        data: {
-          artistId: artist.id,
-          week,
-          seasonYear: SEASON_YEAR,
-          streamingPoints,
-          chartPositionPoints,
-          chartMovementPoints,
-          totalPoints,
-          weeklyStreams: BigInt(streams),
-          bestChartPosition: chartPosition,
-          chartMovement: isNewEntry ? null : chartMovement,
-          isFinalized: week < TOTAL_WEEKS,
-        },
-      });
-    }
-  }
+  await createWeeklyScores(artists, tierMap);
 
   // Seed demo users
   console.log('👤 Seeding demo users...');
