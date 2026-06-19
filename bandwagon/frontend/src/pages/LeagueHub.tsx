@@ -64,7 +64,7 @@ function RosterRow({ spot, onSwapSelect, selectedSlot, readOnly = false, compact
             <Link to={`/artists/${spot.artist.id}${leagueId ? `?leagueId=${leagueId}` : ''}`} onClick={(e) => e.stopPropagation()} className={`font-medium text-white hover:text-indigo-400 transition-colors truncate block ${compact ? 'text-xs' : 'text-sm'}`}>
               {spot.artist.name}
             </Link>
-            {!compact && (spot.slot === 'Flex' || spot.slot.startsWith('Bench')) && (
+            {!compact && (spot.slot === 'Other' || spot.slot === 'Flex' || spot.slot.startsWith('Bench')) && (
               <Badge genre={spot.artist.primaryGenre} className="mt-0.5">{spot.artist.primaryGenre}</Badge>
             )}
           </div>
