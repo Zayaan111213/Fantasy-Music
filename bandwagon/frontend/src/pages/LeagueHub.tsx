@@ -1048,7 +1048,7 @@ export function LeagueHub() {
   const { data: league, isLoading } = useQuery({
     queryKey: ['league', id],
     queryFn: () => api.get<League & { teams: Team[]; commissioner: { id: string; username: string | null } }>(`/leagues/${id}`),
-    refetchInterval: (data) => (!data || data.status === 'pending' || data.status === 'pre_draft') ? 5000 : false,
+    refetchInterval: (query) => { const d = query.state.data; return (!d || d.status === 'pending' || d.status === 'pre_draft') ? 5000 : false; },
   });
 
   if (isLoading) return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><Spinner className="w-8 h-8" /></div>;
