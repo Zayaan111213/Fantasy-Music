@@ -8,7 +8,8 @@
     "setup": "npm install && npm install --prefix backend && npm install --prefix frontend",
     "db:migrate": "npm run db:migrate --prefix backend",
     "db:seed": "npm run db:seed --prefix backend",
-    "db:studio": "npm run db:studio --prefix backend"
+    "db:studio": "npm run db:studio --prefix backend",
+    "test": "npm run test --prefix backend && npm run test --prefix frontend"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

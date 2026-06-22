@@ -10,7 +10,10 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "db:generate": "prisma generate"
+    "db:generate": "prisma generate",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@prisma/client": "^5.14.0",
@@ -32,7 +35,11 @@
     "@types/jsonwebtoken": "^9.0.6",
     "@types/multer": "^2.1.0",
     "@types/node": "^20.14.2",
+    "@types/supertest": "^7.2.0",
+    "@vitest/coverage-v8": "^4.1.9",
     "prisma": "^5.14.0",
-    "typescript": "^5.4.5"
+    "supertest": "^7.2.2",
+    "typescript": "^5.4.5",
+    "vitest": "^4.1.9"
   }
 }
