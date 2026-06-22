@@ -1,0 +1,36 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            bandwagon/backend/package-lock.json
+            bandwagon/frontend/package-lock.json
+
+      - name: Install backend deps
+        run: npm ci
+        working-directory: bandwagon/backend
+
+      - name: Install frontend deps
+        run: npm ci
+        working-directory: bandwagon/frontend
+
+      - name: Backend tests
+        run: npm test
+        working-directory: bandwagon/backend
+
+      - name: Frontend tests
+        run: npm test
+        working-directory: bandwagon/frontend
