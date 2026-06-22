@@ -234,7 +234,12 @@ export function DraftRoom() {
                   <TimerRing seconds={secondsLeft} />
                   <div className="mt-3">
                     {state.isComplete ? (
-                      <p className="text-green-400 font-semibold text-sm">Draft Complete!</p>
+                      <div className="space-y-2">
+                        <p className="text-green-400 font-semibold text-sm">Draft Complete!</p>
+                        <Button size="sm" className="w-full text-xs" onClick={() => navigate(`/leagues/${leagueId}`)}>
+                          Go to My Team
+                        </Button>
+                      </div>
                     ) : isMyTurn ? (
                       <p className="text-indigo-400 font-semibold text-sm animate-pulse">Your pick!</p>
                     ) : (
