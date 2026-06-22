@@ -23,6 +23,9 @@ jobs:
         run: npm ci
         working-directory: bandwagon/backend
 
+      - name: Upgrade npm (fixes optional-deps EBADPLATFORM on npm ci)
+        run: npm install -g npm@latest
+
       - name: Install frontend deps
         run: npm ci
         working-directory: bandwagon/frontend
