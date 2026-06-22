@@ -320,7 +320,7 @@ export function DraftRoom() {
                     Last {sort.field === 'last' ? (sort.dir === 'desc' ? '↓' : '↑') : '↕'}
                   </button>
                 </div>
-                <div className="col-span-4 text-right">
+                <div className="col-span-2 text-right">
                   <button
                     onClick={() => setSort((p) => p.field === 'avg' ? { field: 'avg', dir: p.dir === 'desc' ? 'asc' : 'desc' } : { field: 'avg', dir: 'desc' })}
                     className={`flex items-center justify-end gap-1 w-full hover:text-white transition-colors ${sort.field === 'avg' ? 'text-indigo-400' : 'text-gray-500'}`}
@@ -328,6 +328,7 @@ export function DraftRoom() {
                     5W Avg {sort.field === 'avg' ? (sort.dir === 'desc' ? '↓' : '↑') : '↕'}
                   </button>
                 </div>
+                <div className="col-span-2" />
               </div>
               {loadingArtists ? (
                 <div className="flex justify-center py-8"><Spinner className="w-6 h-6" /></div>
@@ -355,8 +356,10 @@ export function DraftRoom() {
                           <div className="col-span-3 text-right font-mono text-sm text-gray-300">
                             {(artist.lastWeekPoints ?? 0).toFixed(1)}
                           </div>
-                          <div className="col-span-4 text-right flex items-center justify-end gap-2">
-                            <span className="font-mono text-sm text-gray-400">{(artist.avgLast5Points ?? 0).toFixed(1)}</span>
+                          <div className="col-span-2 text-right font-mono text-sm text-gray-400">
+                            {(artist.avgLast5Points ?? 0).toFixed(1)}
+                          </div>
+                          <div className="col-span-2 flex justify-end">
                             {isMyTurn && (
                               <Button
                                 size="sm"
