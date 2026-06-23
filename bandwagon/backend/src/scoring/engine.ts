@@ -1,6 +1,20 @@
 import { prisma } from '../db/prisma';
 import type { DataProvider } from '../data/provider';
-import { scoreChartPosition, scoreChartMovement, scoreStreaming, ScoringConfigSchema, CHART_POSITION_TIERS, type ScoringConfig } from './tiers';
+import {
+  scoreChartPosition,
+  scoreChartMovement,
+  scoreStreaming,
+  ScoringConfigSchema,
+  CHART_POSITION_TIERS,
+  ALBUM_CHART_POSITION_TIERS,
+  DEFAULT_SONG_MOVEMENT,
+  DEFAULT_ALBUM_MOVEMENT,
+  type ScoringConfig,
+} from './tiers';
+
+// ---------------------------------------------------------------------------
+// Mock-provider-based scoring (kept for seed / testing)
+// ---------------------------------------------------------------------------
 
 export async function scoreArtistWeek(
   artistId: string,
@@ -43,23 +57,15 @@ export async function scoreArtistWeek(
   await prisma.weeklyScore.upsert({
     where: { artistId_week_seasonYear: { artistId, week, seasonYear: year } },
     create: {
-      artistId,
-      week,
-      seasonYear: year,
-      streamingPoints,
-      chartPositionPoints,
-      chartMovementPoints,
-      totalPoints,
+      artistId, week, seasonYear: year,
+      streamingPoints, chartPositionPoints, chartMovementPoints, totalPoints,
       weeklyStreams: streams !== null ? BigInt(streams) : null,
       bestChartPosition: position,
       chartMovement: movement,
       dataMissing: missing.length ? missing.join(',') : null,
     },
     update: {
-      streamingPoints,
-      chartPositionPoints,
-      chartMovementPoints,
-      totalPoints,
+      streamingPoints, chartPositionPoints, chartMovementPoints, totalPoints,
       weeklyStreams: streams !== null ? BigInt(streams) : null,
       bestChartPosition: position,
       chartMovement: movement,
@@ -67,6 +73,129 @@ export async function scoreArtistWeek(
     },
   });
 }
+
+// ---------------------------------------------------------------------------
+// Chart-data-based scoring (reads ChartEntry / AlbumChartEntry)
+// ---------------------------------------------------------------------------
+
+function priorWeek(weekDate: Date): Date {
+  return new Date(weekDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+}
+
+export async function scoreArtistWeekFromCharts(
+  artistId: string,
+  week: number,
+  year: number,
+  weekDate: Date,
+): Promise<void> {
+  const prior = priorWeek(weekDate);
+
+  // --- Songs ---
+  const songs = await prisma.chartEntry.findMany({
+    where: { artistId, weekDate },
+    orderBy: { rank: 'asc' },
+  });
+  const bestSong = songs[0] ?? null;
+  const songPositionPoints = scoreChartPosition(bestSong?.rank ?? null);
+
+  let songMovementPoints = 0;
+  let songMovement: number | null = null;
+  if (bestSong) {
+    const priorSong = bestSong.appleSongId
+      ? await prisma.chartEntry.findFirst({
+          where: { weekDate: prior, chart: bestSong.chart, appleSongId: bestSong.appleSongId },
+        })
+      : await prisma.chartEntry.findFirst({
+          where: { weekDate: prior, chart: bestSong.chart, songTitle: bestSong.songTitle },
+        });
+    const isDebut = priorSong === null;
+    songMovement = priorSong !== null ? priorSong.rank - bestSong.rank : null;
+    songMovementPoints = scoreChartMovement(songMovement, isDebut, DEFAULT_SONG_MOVEMENT);
+  }
+
+  // --- Albums ---
+  const albums = await prisma.albumChartEntry.findMany({
+    where: { artistId, weekDate },
+    orderBy: { rank: 'asc' },
+  });
+  const bestAlbum = albums[0] ?? null;
+  const albumPositionPoints = scoreChartPosition(bestAlbum?.rank ?? null, ALBUM_CHART_POSITION_TIERS);
+
+  let albumMovementPoints = 0;
+  if (bestAlbum) {
+    const priorAlbum = bestAlbum.appleAlbumId
+      ? await prisma.albumChartEntry.findFirst({
+          where: { weekDate: prior, chart: bestAlbum.chart, appleAlbumId: bestAlbum.appleAlbumId },
+        })
+      : await prisma.albumChartEntry.findFirst({
+          where: { weekDate: prior, chart: bestAlbum.chart, albumTitle: bestAlbum.albumTitle },
+        });
+    const isDebut = priorAlbum === null;
+    const albumMovement = priorAlbum !== null ? priorAlbum.rank - bestAlbum.rank : null;
+    albumMovementPoints = scoreChartMovement(albumMovement, isDebut, DEFAULT_ALBUM_MOVEMENT);
+  }
+
+  const chartPositionPoints = songPositionPoints + albumPositionPoints;
+  const chartMovementPoints = songMovementPoints + albumMovementPoints;
+  const totalPoints = chartPositionPoints + chartMovementPoints;
+
+  await prisma.weeklyScore.upsert({
+    where: { artistId_week_seasonYear: { artistId, week, seasonYear: year } },
+    create: {
+      artistId, week, seasonYear: year,
+      streamingPoints: 0,
+      chartPositionPoints,
+      chartMovementPoints,
+      totalPoints,
+      bestChartPosition: bestSong?.rank ?? bestAlbum?.rank ?? null,
+      chartMovement: songMovement,
+      dataMissing: songs.length === 0 && albums.length === 0 ? 'charts' : null,
+    },
+    update: {
+      streamingPoints: 0,
+      chartPositionPoints,
+      chartMovementPoints,
+      totalPoints,
+      bestChartPosition: bestSong?.rank ?? bestAlbum?.rank ?? null,
+      chartMovement: songMovement,
+      dataMissing: songs.length === 0 && albums.length === 0 ? 'charts' : null,
+    },
+  });
+}
+
+export async function scoreAllArtistsForWeek(
+  week: number,
+  year: number,
+  weekDate: Date,
+): Promise<void> {
+  const [songRows, albumRows] = await Promise.all([
+    prisma.chartEntry.findMany({
+      where: { weekDate, artistId: { not: null } },
+      select: { artistId: true },
+      distinct: ['artistId'],
+    }),
+    prisma.albumChartEntry.findMany({
+      where: { weekDate, artistId: { not: null } },
+      select: { artistId: true },
+      distinct: ['artistId'],
+    }),
+  ]);
+
+  const artistIds = new Set([
+    ...songRows.map((r) => r.artistId!),
+    ...albumRows.map((r) => r.artistId!),
+  ]);
+
+  console.log(`Scoring ${artistIds.size} artists for week ${week}/${year} (${weekDate.toISOString().slice(0, 10)})...`);
+  for (const artistId of artistIds) {
+    await scoreArtistWeekFromCharts(artistId, week, year, weekDate);
+  }
+  console.log('Artist scoring complete.');
+}
+
+// ---------------------------------------------------------------------------
+// Custom-scoring override (league commissioner settings)
+// ---------------------------------------------------------------------------
 
 export function applyCustomScoringToWeeklyScore(
   ws: { weeklyStreams: bigint | null; bestChartPosition: number | null; chartMovement: number | null },
@@ -89,32 +218,29 @@ export function applyCustomScoringToWeeklyScore(
   return { streamingPoints, chartPositionPoints, chartMovementPoints, totalPoints: streamingPoints + chartPositionPoints + chartMovementPoints };
 }
 
+// ---------------------------------------------------------------------------
+// Matchup score rollup (reads WeeklyScore → writes Matchup.homeScore/awayScore)
+// ---------------------------------------------------------------------------
+
+const rosterInclude = {
+  rosterSpots: {
+    where: { slot: { not: { startsWith: 'Bench' } } },
+    include: { artist: { select: { primaryGenre: true } } },
+  },
+} as const;
+
 export async function updateMatchupScores(leagueId: string, week: number, year: number): Promise<void> {
-  const [matchup, leagueRow] = await Promise.all([
-    prisma.matchup.findFirst({
+  const [matchups, leagueRow] = await Promise.all([
+    prisma.matchup.findMany({
       where: { leagueId, week },
       include: {
-        homeTeam: {
-          include: {
-            rosterSpots: {
-              where: { slot: { not: { startsWith: 'Bench' } } },
-              include: { artist: { select: { primaryGenre: true } } },
-            },
-          },
-        },
-        awayTeam: {
-          include: {
-            rosterSpots: {
-              where: { slot: { not: { startsWith: 'Bench' } } },
-              include: { artist: { select: { primaryGenre: true } } },
-            },
-          },
-        },
+        homeTeam: { include: rosterInclude },
+        awayTeam: { include: rosterInclude },
       },
     }),
     prisma.league.findUnique({ where: { id: leagueId }, select: { scoringConfig: true } }),
   ]);
-  if (!matchup) return;
+  if (!matchups.length) return;
 
   const cfg = ScoringConfigSchema.safeParse(leagueRow?.scoringConfig).data ?? null;
   const genreTierCache = new Map<string, Awaited<ReturnType<typeof prisma.genreStreamingTier.findMany>>>();
@@ -132,8 +258,7 @@ export async function updateMatchupScores(leagueId: string, week: number, year: 
       const rows = await prisma.genreStreamingTier.findMany({ where: { genre: g }, orderBy: { sortOrder: 'asc' } });
       genreTierCache.set(g, rows.length ? rows : await prisma.genreStreamingTier.findMany({ where: { genre: 'Pop' }, orderBy: { sortOrder: 'asc' } }));
     }
-    const genreTiers = genreTierCache.get(g)!;
-    return applyCustomScoringToWeeklyScore(ws, g, genreTiers, cfg).totalPoints;
+    return applyCustomScoringToWeeklyScore(ws, g, genreTierCache.get(g)!, cfg).totalPoints;
   }
 
   async function teamScore(spots: { artistId: string | null; artist: { primaryGenre: string } | null }[]): Promise<number> {
@@ -142,10 +267,13 @@ export async function updateMatchupScores(leagueId: string, week: number, year: 
     return total;
   }
 
-  const [homeScore, awayScore] = await Promise.all([
-    teamScore(matchup.homeTeam.rosterSpots),
-    teamScore(matchup.awayTeam.rosterSpots),
-  ]);
-
-  await prisma.matchup.update({ where: { id: matchup.id }, data: { homeScore, awayScore } });
+  await Promise.all(
+    matchups.map(async (matchup) => {
+      const [homeScore, awayScore] = await Promise.all([
+        teamScore(matchup.homeTeam.rosterSpots),
+        teamScore(matchup.awayTeam.rosterSpots),
+      ]);
+      await prisma.matchup.update({ where: { id: matchup.id }, data: { homeScore, awayScore } });
+    })
+  );
 }
