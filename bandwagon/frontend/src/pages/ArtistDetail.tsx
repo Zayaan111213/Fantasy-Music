@@ -71,9 +71,6 @@ export function ArtistDetail() {
             <h1 className="text-2xl font-bold text-white mb-1">{artist.name}</h1>
             <div className="flex flex-wrap gap-1.5 mb-3">
               <Badge genre={artist.primaryGenre}>{artist.primaryGenre}</Badge>
-              {artist.secondaryGenres.map((g) => (
-                <Badge key={g} genre={g}>{g}</Badge>
-              ))}
             </div>
             <div className="flex gap-2">
               {artist.spotifyId && (

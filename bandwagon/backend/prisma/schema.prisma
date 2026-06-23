@@ -78,18 +78,52 @@ model Team {
 }
 
 model Artist {
-  id              String   @id @default(cuid())
-  name            String
-  primaryGenre    String
-  secondaryGenres String[]
-  imageUrl        String?
-  spotifyId       String?
-  appleMusicId    String?
-  createdAt       DateTime @default(now())
+  id             String   @id @default(cuid())
+  name           String
+  primaryGenre   String
+  imageUrl       String?
+  spotifyId      String?
+  appleMusicId   String?
+  appleArtistId  Int?     @unique
+  createdAt      DateTime @default(now())
 
-  weeklyScores WeeklyScore[]
-  rosterSpots  RosterSpot[]
-  draftPicks   DraftPick[]
+  weeklyScores      WeeklyScore[]
+  rosterSpots       RosterSpot[]
+  draftPicks        DraftPick[]
+  chartEntries      ChartEntry[]
+  albumChartEntries AlbumChartEntry[]
+}
+
+model ChartEntry {
+  id          String   @id @default(cuid())
+  weekDate    DateTime @db.Date
+  chart       String
+  rank        Int
+  songTitle   String
+  appleSongId Int?
+  artistId    String?
+  artist      Artist?  @relation(fields: [artistId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  @@unique([weekDate, chart, rank])
+  @@index([weekDate])
+  @@index([artistId])
+}
+
+model AlbumChartEntry {
+  id           String   @id @default(cuid())
+  weekDate     DateTime @db.Date
+  chart        String
+  rank         Int
+  albumTitle   String
+  appleAlbumId Int?
+  artistId     String?
+  artist       Artist?  @relation(fields: [artistId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+
+  @@unique([weekDate, chart, rank])
+  @@index([weekDate])
+  @@index([artistId])
 }
 
 model RosterSpot {

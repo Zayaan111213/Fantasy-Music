@@ -42,7 +42,6 @@ export interface Artist {
   id: string;
   name: string;
   primaryGenre: string;
-  secondaryGenres: string[];
   imageUrl: string | null;
   spotifyId: string | null;
   appleMusicId: string | null;
@@ -105,7 +104,6 @@ export interface PlayerEntry {
   id: string;
   name: string;
   primaryGenre: string;
-  secondaryGenres: string[];
   imageUrl: string | null;
   rosteredBy: { id: string; name: string } | null;
   lastWeekPoints: number;
