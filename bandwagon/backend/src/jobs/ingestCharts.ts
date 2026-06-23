@@ -18,9 +18,19 @@ export interface AppleFeedResponse {
 
 export function getCurrentWeekDate(): Date {
   const now = new Date();
-  // Lineup locks Monday midnight; scoring week is Tue–Sun. (getDay()+5)%7 = days since last Tuesday
-  const daysBack = (now.getDay() + 5) % 7;
-  return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - daysBack));
+  // Resolve today's calendar date in Pacific time (handles PDT/PST automatically)
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric', month: 'numeric', day: 'numeric',
+  }).formatToParts(now);
+  const ptYear  = parseInt(parts.find((p) => p.type === 'year')!.value);
+  const ptMonth = parseInt(parts.find((p) => p.type === 'month')!.value) - 1;
+  const ptDay   = parseInt(parts.find((p) => p.type === 'day')!.value);
+  // Day of week for that Pacific calendar date (0 = Sun … 6 = Sat)
+  const ptDow = new Date(Date.UTC(ptYear, ptMonth, ptDay)).getUTCDay();
+  // (ptDow + 5) % 7 = days since last Tuesday (Tue = 2, so (2+5)%7 = 0 ✓)
+  const daysBack = (ptDow + 5) % 7;
+  return new Date(Date.UTC(ptYear, ptMonth, ptDay - daysBack));
 }
 
 export function parseId(raw: string): bigint | null {

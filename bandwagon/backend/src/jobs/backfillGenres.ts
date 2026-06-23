@@ -7,7 +7,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function main() {
+export async function runBackfill(): Promise<void> {
   const artists = await prisma.artist.findMany({
     where: { genreEnrichedAt: null },
     orderBy: { createdAt: 'asc' },
@@ -51,6 +51,8 @@ async function main() {
   console.log('Genre backfill complete.');
 }
 
-main()
-  .catch((err) => { console.error(err); process.exit(1); })
-  .finally(() => prisma.$disconnect());
+if (require.main === module) {
+  runBackfill()
+    .catch((err) => { console.error(err); process.exit(1); })
+    .finally(() => prisma.$disconnect());
+}

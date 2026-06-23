@@ -14,6 +14,8 @@
     "ingest:charts": "tsx src/jobs/ingestCharts.ts",
     "backfill:genres": "tsx src/jobs/backfillGenres.ts",
     "seed:charts": "tsx src/jobs/seedHistoricalCharts.ts",
+    "pipeline:daily": "tsx src/jobs/dailyPipeline.ts",
+    "pipeline:finalize": "tsx src/jobs/finalizePipeline.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"

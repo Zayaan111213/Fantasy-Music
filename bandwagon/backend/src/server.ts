@@ -20,7 +20,6 @@ import draftRoutes from './api/routes/draft';
 import notificationRoutes from './api/routes/notifications';
 import { errorHandler, notFound } from './api/middleware/errorHandler';
 import { registerDraftSocket, startDraftScheduler } from './sockets/draft';
-import { startChartIngestionScheduler } from './jobs/chartScheduler';
 
 const app = express();
 const httpServer = createServer(app);
@@ -56,7 +55,6 @@ app.use(errorHandler);
 
 registerDraftSocket(io);
 startDraftScheduler(io);
-startChartIngestionScheduler();
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 httpServer.listen(PORT, () => {
