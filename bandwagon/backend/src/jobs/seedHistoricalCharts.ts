@@ -10,8 +10,8 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-function getLastMonday(date: Date): Date {
-  const daysBack = (date.getUTCDay() + 6) % 7;
+function getLastTuesday(date: Date): Date {
+  const daysBack = (date.getUTCDay() + 5) % 7;
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() - daysBack));
 }
 
@@ -43,7 +43,7 @@ async function queryCdx(feedPath: string, fromDate: Date): Promise<Map<string, s
   const byWeek = new Map<string, string>();
   for (const [ts] of rows.slice(1)) {
     const snapDate = tsToDate(ts);
-    const weekDate = getLastMonday(snapDate);
+    const weekDate = getLastTuesday(snapDate);
     const key = weekDate.toISOString().slice(0, 10);
     if (!byWeek.has(key)) byWeek.set(key, ts);
   }

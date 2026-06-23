@@ -18,8 +18,8 @@ export interface AppleFeedResponse {
 
 export function getCurrentWeekDate(): Date {
   const now = new Date();
-  // Lineup locks Monday; (getDay()+6)%7 = days since last Monday
-  const daysBack = (now.getDay() + 6) % 7;
+  // Lineup locks Monday midnight; scoring week is Tue–Sun. (getDay()+5)%7 = days since last Tuesday
+  const daysBack = (now.getDay() + 5) % 7;
   return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - daysBack));
 }
 
