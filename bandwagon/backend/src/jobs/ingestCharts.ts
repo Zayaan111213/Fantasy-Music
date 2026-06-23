@@ -18,8 +18,8 @@ export interface AppleFeedResponse {
 
 export function getCurrentWeekDate(): Date {
   const now = new Date();
-  // Billboard week starts Friday; (getDay()+2)%7 = days since last Friday
-  const daysBack = (now.getDay() + 2) % 7;
+  // Lineup locks Monday; (getDay()+6)%7 = days since last Monday
+  const daysBack = (now.getDay() + 6) % 7;
   return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - daysBack));
 }
 

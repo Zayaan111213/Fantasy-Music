@@ -10,8 +10,8 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-function getLastFriday(date: Date): Date {
-  const daysBack = (date.getUTCDay() + 2) % 7;
+function getLastMonday(date: Date): Date {
+  const daysBack = (date.getUTCDay() + 6) % 7;
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() - daysBack));
 }
 
@@ -27,15 +27,23 @@ function tsToDate(ts: string): Date {
 async function queryCdx(feedPath: string, fromDate: Date): Promise<Map<string, string>> {
   const from = fromDate.toISOString().replace(/-/g, '').slice(0, 8);
   const url = `${CDX_API}?url=${feedPath}&output=json&fl=timestamp&filter=statuscode:200&collapse=timestamp:8&from=${from}&limit=500`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`CDX API error: HTTP ${res.status}`);
-  const rows: string[][] = await res.json();
+
+  // Retry on transient 5xx errors
+  let res: Response | undefined;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    res = await fetch(url);
+    if (res.status < 500) break;
+    console.warn(`  CDX ${res.status}, retrying in ${(attempt + 1) * 3}s...`);
+    await sleep((attempt + 1) * 3000);
+  }
+  if (!res!.ok) throw new Error(`CDX API error: HTTP ${res!.status}`);
+  const rows = await res!.json() as string[][];
   if (!rows || rows.length <= 1) return new Map();
 
   const byWeek = new Map<string, string>();
   for (const [ts] of rows.slice(1)) {
     const snapDate = tsToDate(ts);
-    const weekDate = getLastFriday(snapDate);
+    const weekDate = getLastMonday(snapDate);
     const key = weekDate.toISOString().slice(0, 10);
     if (!byWeek.has(key)) byWeek.set(key, ts);
   }
