@@ -84,7 +84,7 @@ model Artist {
   imageUrl       String?
   spotifyId      String?
   appleMusicId   String?
-  appleArtistId  Int?     @unique
+  appleArtistId  BigInt?  @unique
   createdAt      DateTime @default(now())
 
   weeklyScores      WeeklyScore[]
@@ -100,7 +100,7 @@ model ChartEntry {
   chart       String
   rank        Int
   songTitle   String
-  appleSongId Int?
+  appleSongId BigInt?
   artistId    String?
   artist      Artist?  @relation(fields: [artistId], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
@@ -116,7 +116,7 @@ model AlbumChartEntry {
   chart        String
   rank         Int
   albumTitle   String
-  appleAlbumId Int?
+  appleAlbumId BigInt?
   artistId     String?
   artist       Artist?  @relation(fields: [artistId], references: [id], onDelete: SetNull)
   createdAt    DateTime @default(now())

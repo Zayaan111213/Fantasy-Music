@@ -23,9 +23,13 @@ function getCurrentWeekDate(): Date {
   return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - daysBack));
 }
 
-function parseId(raw: string): number | null {
-  const n = parseInt(raw, 10);
-  return isNaN(n) ? null : n;
+function parseId(raw: string): bigint | null {
+  if (!raw || raw.trim() === '') return null;
+  try {
+    return BigInt(raw.trim());
+  } catch {
+    return null;
+  }
 }
 
 async function fetchFeed(url: string): Promise<AppleFeedResponse> {
