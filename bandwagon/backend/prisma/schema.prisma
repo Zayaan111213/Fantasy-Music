@@ -84,8 +84,9 @@ model Artist {
   imageUrl       String?
   spotifyId      String?
   appleMusicId   String?
-  appleArtistId  BigInt?  @unique
-  createdAt      DateTime @default(now())
+  appleArtistId   BigInt?  @unique
+  createdAt       DateTime @default(now())
+  genreEnrichedAt DateTime?
 
   weeklyScores      WeeklyScore[]
   rosterSpots       RosterSpot[]
