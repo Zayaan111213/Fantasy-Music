@@ -1,7 +1,14 @@
 import { Router } from 'express';
 import { prisma } from '../../db/prisma';
 import { requireAuth } from '../middleware/auth';
-import { ScoringConfigSchema } from '../../scoring/tiers';
+import {
+  ScoringConfigSchema,
+  scoreChartPosition,
+  scoreChartMovement,
+  ALBUM_CHART_POSITION_TIERS,
+  DEFAULT_SONG_MOVEMENT,
+  DEFAULT_ALBUM_MOVEMENT,
+} from '../../scoring/tiers';
 import { applyCustomScoringToWeeklyScore } from '../../scoring/engine';
 
 const router = Router();
@@ -68,10 +75,71 @@ router.get('/:id', requireAuth, async (req, res, next) => {
     });
     if (!artist) { res.status(404).json({ error: 'Artist not found' }); return; }
 
+    // Build chart breakdown for the latest scored week (song + album, position + movement)
+    let chartBreakdown: {
+      song: { rank: number; title: string; movement: number | null; isDebut: boolean; positionPoints: number; movementPoints: number } | null;
+      album: { rank: number; title: string; movement: number | null; isDebut: boolean; positionPoints: number; movementPoints: number } | null;
+    } | null = null;
+
+    const [bestSong, bestAlbum] = await Promise.all([
+      prisma.chartEntry.findFirst({
+        where: { artistId: artist.id },
+        orderBy: [{ weekDate: 'desc' }, { rank: 'asc' }],
+      }),
+      prisma.albumChartEntry.findFirst({
+        where: { artistId: artist.id },
+        orderBy: [{ weekDate: 'desc' }, { rank: 'asc' }],
+      }),
+    ]);
+
+    if (bestSong || bestAlbum) {
+      const weekDate = (bestSong?.weekDate ?? bestAlbum!.weekDate) as Date;
+      const priorDate = new Date(weekDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+      let songMovement: number | null = null;
+      let songIsDebut = false;
+      if (bestSong) {
+        const priorSong = bestSong.appleSongId
+          ? await prisma.chartEntry.findFirst({ where: { weekDate: priorDate, chart: bestSong.chart, appleSongId: bestSong.appleSongId } })
+          : await prisma.chartEntry.findFirst({ where: { weekDate: priorDate, chart: bestSong.chart, songTitle: bestSong.songTitle } });
+        songIsDebut = priorSong === null;
+        songMovement = priorSong !== null ? priorSong.rank - bestSong.rank : null;
+      }
+
+      let albumMovement: number | null = null;
+      let albumIsDebut = false;
+      if (bestAlbum) {
+        const priorAlbum = bestAlbum.appleAlbumId
+          ? await prisma.albumChartEntry.findFirst({ where: { weekDate: priorDate, chart: bestAlbum.chart, appleAlbumId: bestAlbum.appleAlbumId } })
+          : await prisma.albumChartEntry.findFirst({ where: { weekDate: priorDate, chart: bestAlbum.chart, albumTitle: bestAlbum.albumTitle } });
+        albumIsDebut = priorAlbum === null;
+        albumMovement = priorAlbum !== null ? priorAlbum.rank - bestAlbum.rank : null;
+      }
+
+      chartBreakdown = {
+        song: bestSong ? {
+          rank: bestSong.rank,
+          title: bestSong.songTitle,
+          movement: songMovement,
+          isDebut: songIsDebut,
+          positionPoints: scoreChartPosition(bestSong.rank),
+          movementPoints: scoreChartMovement(songMovement, songIsDebut, DEFAULT_SONG_MOVEMENT),
+        } : null,
+        album: bestAlbum ? {
+          rank: bestAlbum.rank,
+          title: bestAlbum.albumTitle,
+          movement: albumMovement,
+          isDebut: albumIsDebut,
+          positionPoints: scoreChartPosition(bestAlbum.rank, ALBUM_CHART_POSITION_TIERS),
+          movementPoints: scoreChartMovement(albumMovement, albumIsDebut, DEFAULT_ALBUM_MOVEMENT),
+        } : null,
+      };
+    }
+
     const cfg = leagueRow ? ScoringConfigSchema.safeParse(leagueRow.scoringConfig).data ?? null : null;
 
     if (!cfg) {
-      res.json(artist);
+      res.json({ ...artist, chartBreakdown });
       return;
     }
 
@@ -85,7 +153,7 @@ router.get('/:id', requireAuth, async (req, res, next) => {
       return { ...ws, ...adjusted };
     });
 
-    res.json({ ...artist, weeklyScores: adjustedWeeklyScores });
+    res.json({ ...artist, weeklyScores: adjustedWeeklyScores, chartBreakdown });
   } catch (err) {
     next(err);
   }

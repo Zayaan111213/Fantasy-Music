@@ -1,13 +1,13 @@
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ExternalLink, Music2, BarChart2, TrendingUp, Radio, Clock } from 'lucide-react';
+import { ChevronLeft, ExternalLink, Music2, BarChart2, TrendingUp, Radio } from 'lucide-react';
 import { api } from '../api/client';
 import { Badge } from '../components/ui/Badge';
 import { Card } from '../components/ui/Card';
 import { Spinner } from '../components/ui/Spinner';
-import type { Artist, WeeklyScore } from '../api/types';
+import type { Artist, WeeklyScore, ChartBreakdown } from '../api/types';
 
-type ArtistWithScores = Artist & { weeklyScores: WeeklyScore[] };
+type ArtistWithScores = Artist & { weeklyScores: WeeklyScore[]; chartBreakdown?: ChartBreakdown | null };
 
 function ScoreBar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
   const pct = max > 0 ? (value / max) * 100 : 0;
@@ -98,18 +98,42 @@ export function ArtistDetail() {
               {!latestScore.isFinalized && <span className="text-xs text-yellow-500 font-normal ml-auto">Provisional</span>}
             </h2>
             <div className="space-y-4">
-              <ScoreBar
-                label={`Chart Position${latestScore.bestChartPosition ? ` · #${latestScore.bestChartPosition}` : ''}`}
-                value={latestScore.chartPositionPoints}
-                max={50}
-                color="bg-indigo-500"
-              />
-              <ScoreBar
-                label={`Chart Movement${latestScore.chartMovement !== null ? ` · ${latestScore.chartMovement > 0 ? '+' : ''}${latestScore.chartMovement}` : ''}`}
-                value={Math.max(0, latestScore.chartMovementPoints)}
-                max={30}
-                color="bg-pink-500"
-              />
+              {artist.chartBreakdown?.song ? (
+                <>
+                  <ScoreBar
+                    label={`Song Position · #${artist.chartBreakdown.song.rank}${artist.chartBreakdown.song.title ? ` · ${artist.chartBreakdown.song.title}` : ''}`}
+                    value={artist.chartBreakdown.song.positionPoints}
+                    max={25}
+                    color="bg-indigo-500"
+                  />
+                  <ScoreBar
+                    label={`Song Movement · ${artist.chartBreakdown.song.isDebut ? 'New Entry' : artist.chartBreakdown.song.movement !== null ? `${artist.chartBreakdown.song.movement > 0 ? '+' : ''}${artist.chartBreakdown.song.movement}` : 'No change'}`}
+                    value={Math.max(0, artist.chartBreakdown.song.movementPoints)}
+                    max={15}
+                    color="bg-pink-500"
+                  />
+                </>
+              ) : (
+                <p className="text-xs text-gray-500 italic">No song chart entry this week</p>
+              )}
+              {artist.chartBreakdown?.album ? (
+                <>
+                  <ScoreBar
+                    label={`Album Position · #${artist.chartBreakdown.album.rank}${artist.chartBreakdown.album.title ? ` · ${artist.chartBreakdown.album.title}` : ''}`}
+                    value={artist.chartBreakdown.album.positionPoints}
+                    max={25}
+                    color="bg-violet-500"
+                  />
+                  <ScoreBar
+                    label={`Album Movement · ${artist.chartBreakdown.album.isDebut ? 'New Entry' : artist.chartBreakdown.album.movement !== null ? `${artist.chartBreakdown.album.movement > 0 ? '+' : ''}${artist.chartBreakdown.album.movement}` : 'No change'}`}
+                    value={Math.max(0, artist.chartBreakdown.album.movementPoints)}
+                    max={15}
+                    color="bg-fuchsia-500"
+                  />
+                </>
+              ) : (
+                <p className="text-xs text-gray-500 italic">No album chart entry this week</p>
+              )}
               <ScoreBar
                 label="Longevity"
                 value={latestScore.longevityPoints ?? 0}

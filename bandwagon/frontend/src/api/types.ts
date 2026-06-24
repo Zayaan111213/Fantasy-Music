@@ -66,6 +66,20 @@ export interface WeeklyScore {
   dataMissing: string | null;
 }
 
+export interface ChartBreakdownEntry {
+  rank: number;
+  title: string;
+  movement: number | null;
+  isDebut: boolean;
+  positionPoints: number;
+  movementPoints: number;
+}
+
+export interface ChartBreakdown {
+  song: ChartBreakdownEntry | null;
+  album: ChartBreakdownEntry | null;
+}
+
 export interface RosterSpot {
   id: string;
   teamId: string;
