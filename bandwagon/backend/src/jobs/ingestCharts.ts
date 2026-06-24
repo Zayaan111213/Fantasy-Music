@@ -10,6 +10,7 @@ export interface AppleFeedEntry {
   artistName: string;
   artistId: string;
   genres: Array<{ name: string; genreId: string }>;
+  artworkUrl100: string;
 }
 
 export interface AppleFeedResponse {
@@ -51,26 +52,42 @@ export async function fetchFeed(url: string): Promise<AppleFeedResponse> {
 export async function upsertArtist(entry: AppleFeedEntry): Promise<Artist | null> {
   const appleArtistId = parseId(entry.artistId);
   const genre = entry.genres[0]?.name ?? 'Other';
+  const imageUrl = entry.artworkUrl100
+    ? entry.artworkUrl100.replace('100x100bb', '300x300bb')
+    : undefined;
 
   try {
     if (appleArtistId !== null) {
       const byId = await prisma.artist.findUnique({ where: { appleArtistId } });
-      if (byId) return byId;
+      if (byId) {
+        if (byId.imageUrl === null && imageUrl) {
+          return prisma.artist.update({ where: { id: byId.id }, data: { imageUrl } });
+        }
+        return byId;
+      }
 
       const byName = await prisma.artist.findFirst({ where: { name: entry.artistName } });
       if (byName) {
-        return prisma.artist.update({ where: { id: byName.id }, data: { appleArtistId } });
+        return prisma.artist.update({
+          where: { id: byName.id },
+          data: { appleArtistId, ...(byName.imageUrl === null && imageUrl ? { imageUrl } : {}) },
+        });
       }
 
       return prisma.artist.create({
-        data: { name: entry.artistName, primaryGenre: genre, appleArtistId },
+        data: { name: entry.artistName, primaryGenre: genre, appleArtistId, imageUrl },
       });
     } else {
       const byName = await prisma.artist.findFirst({ where: { name: entry.artistName } });
-      if (byName) return byName;
+      if (byName) {
+        if (byName.imageUrl === null && imageUrl) {
+          return prisma.artist.update({ where: { id: byName.id }, data: { imageUrl } });
+        }
+        return byName;
+      }
 
       return prisma.artist.create({
-        data: { name: entry.artistName, primaryGenre: genre },
+        data: { name: entry.artistName, primaryGenre: genre, imageUrl },
       });
     }
   } catch (err) {

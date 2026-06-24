@@ -1,6 +1,7 @@
 import { prisma } from '../db/prisma';
 import { getCurrentWeekDate, fetchFeed, ingestSongsFromFeed, ingestAlbumsFromFeed } from './ingestCharts';
 import { runBackfill } from './backfillGenres';
+import { runImageBackfill } from './backfillArtistImages';
 import { scoreAllArtistsForWeek, updateMatchupScores } from '../scoring/engine';
 
 const SONGS_URL  = 'https://rss.marketingtools.apple.com/api/v2/us/music/most-played/100/songs.json';
@@ -10,15 +11,18 @@ async function main(): Promise<void> {
   const weekDate = getCurrentWeekDate();
   console.log(`[daily] week of ${weekDate.toISOString().slice(0, 10)}`);
 
-  console.log('[daily] 1/3 chart ingest');
+  console.log('[daily] 1/4 chart ingest');
   const [songs, albums] = await Promise.all([fetchFeed(SONGS_URL), fetchFeed(ALBUMS_URL)]);
   await ingestSongsFromFeed(songs, weekDate);
   await ingestAlbumsFromFeed(albums, weekDate);
 
-  console.log('[daily] 2/3 genre enrichment');
+  console.log('[daily] 2/4 genre enrichment');
   await runBackfill();
 
-  console.log('[daily] 3/3 score');
+  console.log('[daily] 3/4 image backfill');
+  await runImageBackfill();
+
+  console.log('[daily] 4/4 score');
   const leagues = await prisma.league.findMany({
     where: { status: 'active' },
     select: { id: true, currentWeek: true, seasonYear: true },

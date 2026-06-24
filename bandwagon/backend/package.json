@@ -13,6 +13,7 @@
     "db:generate": "prisma generate",
     "ingest:charts": "tsx src/jobs/ingestCharts.ts",
     "backfill:genres": "tsx src/jobs/backfillGenres.ts",
+    "backfill:images": "tsx src/jobs/backfillArtistImages.ts",
     "seed:charts": "tsx src/jobs/seedHistoricalCharts.ts",
     "pipeline:daily": "tsx src/jobs/dailyPipeline.ts",
     "pipeline:finalize": "tsx src/jobs/finalizePipeline.ts",
