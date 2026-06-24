@@ -43,15 +43,29 @@ router.get('/:id', requireAuth, async (req, res, next) => {
   try {
     const leagueId = req.query.leagueId as string | undefined;
 
-    const [artist, leagueRow] = await Promise.all([
-      prisma.artist.findUnique({
-        where: { id: req.params.id },
-        include: { weeklyScores: { orderBy: { week: 'desc' } } },
-      }),
-      leagueId
-        ? prisma.league.findUnique({ where: { id: leagueId }, select: { scoringConfig: true } })
-        : Promise.resolve(null),
-    ]);
+    const leagueRow = leagueId
+      ? await prisma.league.findUnique({
+          where: { id: leagueId },
+          select: { scoringConfig: true, currentWeek: true, seasonYear: true },
+        })
+      : null;
+
+    const seasonYear = leagueRow?.seasonYear ?? 2026;
+    // Without a league, find the latest week with real chart-based scores (streamingPoints=0 means pipeline-scored)
+    const currentWeek = leagueRow?.currentWeek ?? (await prisma.weeklyScore.aggregate({
+      where: { seasonYear, streamingPoints: 0, chartPositionPoints: { gt: 0 } },
+      _max: { week: true },
+    }))._max.week ?? 1;
+
+    const artist = await prisma.artist.findUnique({
+      where: { id: req.params.id },
+      include: {
+        weeklyScores: {
+          where: { seasonYear, week: { lte: currentWeek } },
+          orderBy: { week: 'desc' },
+        },
+      },
+    });
     if (!artist) { res.status(404).json({ error: 'Artist not found' }); return; }
 
     const cfg = leagueRow ? ScoringConfigSchema.safeParse(leagueRow.scoringConfig).data ?? null : null;

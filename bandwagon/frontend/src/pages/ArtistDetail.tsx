@@ -99,12 +99,6 @@ export function ArtistDetail() {
             </h2>
             <div className="space-y-4">
               <ScoreBar
-                label={`Streaming${latestScore.weeklyStreams ? ` · ${(Number(latestScore.weeklyStreams) / 1_000_000).toFixed(1)}M streams` : ''}`}
-                value={latestScore.streamingPoints}
-                max={40}
-                color="bg-purple-500"
-              />
-              <ScoreBar
                 label={`Chart Position${latestScore.bestChartPosition ? ` · #${latestScore.bestChartPosition}` : ''}`}
                 value={latestScore.chartPositionPoints}
                 max={50}
