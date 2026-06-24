@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs';
 import { prisma } from '../db/prisma';
 import { updateMatchupScores } from '../scoring/engine';
 
@@ -12,12 +13,20 @@ async function main() {
   const deleted = await prisma.league.deleteMany();
   console.log(`Deleted ${deleted.count} league(s)`);
 
-  // 2. Get demo users
+  // 2. Ensure demo users exist
+  const passwordHash = await bcrypt.hash('password123', 10);
   const [user1, user2] = await Promise.all([
-    prisma.user.findUnique({ where: { email: 'demo1@bandwagon.app' } }),
-    prisma.user.findUnique({ where: { email: 'demo2@bandwagon.app' } }),
+    prisma.user.upsert({
+      where: { email: 'demo1@bandwagon.app' },
+      create: { email: 'demo1@bandwagon.app', username: 'MusicMaven', passwordHash },
+      update: {},
+    }),
+    prisma.user.upsert({
+      where: { email: 'demo2@bandwagon.app' },
+      create: { email: 'demo2@bandwagon.app', username: 'ChartWatcher', passwordHash },
+      update: {},
+    }),
   ]);
-  if (!user1 || !user2) throw new Error('Demo users not found — run db:seed first');
 
   // 3. Find artists with real chart data for this week
   const [songRows, albumRows] = await Promise.all([
