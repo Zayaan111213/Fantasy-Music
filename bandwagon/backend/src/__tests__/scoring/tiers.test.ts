@@ -142,20 +142,20 @@ describe('scoreChartPosition — ALBUM_CHART_POSITION_TIERS', () => {
   it('returns 25 for rank 1', () => {
     expect(scoreChartPosition(1, ALBUM_CHART_POSITION_TIERS)).toBe(25);
   });
-  it('returns 18 for rank 5', () => {
-    expect(scoreChartPosition(5, ALBUM_CHART_POSITION_TIERS)).toBe(18);
+  it('returns 18 for rank 10', () => {
+    expect(scoreChartPosition(10, ALBUM_CHART_POSITION_TIERS)).toBe(18);
   });
-  it('returns 12 for rank 15', () => {
-    expect(scoreChartPosition(15, ALBUM_CHART_POSITION_TIERS)).toBe(12);
+  it('returns 12 for rank 25', () => {
+    expect(scoreChartPosition(25, ALBUM_CHART_POSITION_TIERS)).toBe(12);
   });
-  it('returns 8 for rank 25', () => {
-    expect(scoreChartPosition(25, ALBUM_CHART_POSITION_TIERS)).toBe(8);
+  it('returns 8 for rank 50', () => {
+    expect(scoreChartPosition(50, ALBUM_CHART_POSITION_TIERS)).toBe(8);
   });
-  it('returns 4 for rank 50', () => {
-    expect(scoreChartPosition(50, ALBUM_CHART_POSITION_TIERS)).toBe(4);
+  it('returns 4 for rank 100', () => {
+    expect(scoreChartPosition(100, ALBUM_CHART_POSITION_TIERS)).toBe(4);
   });
-  it('returns 0 for rank 51 (out of tier)', () => {
-    expect(scoreChartPosition(51, ALBUM_CHART_POSITION_TIERS)).toBe(0);
+  it('returns 0 for rank 101 (out of tier)', () => {
+    expect(scoreChartPosition(101, ALBUM_CHART_POSITION_TIERS)).toBe(0);
   });
   it('returns 0 for null', () => {
     expect(scoreChartPosition(null, ALBUM_CHART_POSITION_TIERS)).toBe(0);

@@ -9,11 +9,11 @@ export const CHART_POSITION_TIERS = [
 ] as const;
 
 export const ALBUM_CHART_POSITION_TIERS = [
-  { maxPos: 1,  points: 25 },
-  { maxPos: 5,  points: 18 },
-  { maxPos: 15, points: 12 },
-  { maxPos: 25, points: 8  },
-  { maxPos: 50, points: 4  },
+  { maxPos: 1,   points: 25 },
+  { maxPos: 10,  points: 18 },
+  { maxPos: 25,  points: 12 },
+  { maxPos: 50,  points: 8  },
+  { maxPos: 100, points: 4  },
 ] as const;
 
 export const DEFAULT_SONG_MOVEMENT  = { newEntryBonus: 10, maxGain: 15, maxDrop: 10 };

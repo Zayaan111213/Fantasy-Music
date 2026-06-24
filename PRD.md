@@ -173,10 +173,10 @@ An artist's weekly score \= sum of the signals below. All signals are derived fr
 | Best Album Rank | Points |
 | :---: | :---: |
 | 1 | 25 |
-| 2–5 | 18 |
-| 6–15 | 12 |
-| 16–25 | 8 |
-| 26–50 | 4 |
+| 2–10 | 18 |
+| 11–25 | 12 |
+| 26–50 | 8 |
+| 51–100 | 4 |
 | Not on chart | 0 |
 
 **(c) Longevity.** Rewards staying power on the chart, measured as consecutive weeks the artist has held a song on the Top 100\. **\[TUNE\]**
