@@ -459,26 +459,32 @@ router.get('/:id/players', requireAuth, async (req: AuthRequest, res, next) => {
     const q = (req.query.q as string) || '';
     const genre = req.query.genre as string | undefined;
 
-    const [artists, leagueRow] = await Promise.all([
-      prisma.artist.findMany({
-        where: {
-          ...(q && { name: { contains: q, mode: 'insensitive' } }),
-          ...(genre && { primaryGenre: genre }),
+    const leagueRow = await prisma.league.findUnique({
+      where: { id: req.params.id },
+      select: { scoringConfig: true, currentWeek: true, seasonYear: true },
+    });
+
+    const artists = await prisma.artist.findMany({
+      where: {
+        ...(q && { name: { contains: q, mode: 'insensitive' } }),
+        ...(genre && { primaryGenre: genre }),
+      },
+      include: {
+        rosterSpots: {
+          where: { team: { leagueId: req.params.id } },
+          include: { team: { select: { id: true, name: true } } },
         },
-        include: {
-          rosterSpots: {
-            where: { team: { leagueId: req.params.id } },
-            include: { team: { select: { id: true, name: true } } },
+        weeklyScores: {
+          where: {
+            seasonYear: leagueRow?.seasonYear,
+            week: { lte: leagueRow?.currentWeek ?? 10 },
           },
-          weeklyScores: {
-            orderBy: { week: 'desc' },
-            take: 5,
-          },
+          orderBy: { week: 'desc' },
+          take: 5,
         },
-        orderBy: { name: 'asc' },
-      }),
-      prisma.league.findUnique({ where: { id: req.params.id }, select: { scoringConfig: true } }),
-    ]);
+      },
+      orderBy: { name: 'asc' },
+    });
 
     const cfg = ScoringConfigSchema.safeParse(leagueRow?.scoringConfig).data ?? null;
 
