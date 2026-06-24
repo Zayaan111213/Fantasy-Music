@@ -17,6 +17,7 @@
     "seed:charts": "tsx src/jobs/seedHistoricalCharts.ts",
     "pipeline:daily": "tsx src/jobs/dailyPipeline.ts",
     "pipeline:finalize": "tsx src/jobs/finalizePipeline.ts",
+    "leagues:reset": "tsx src/jobs/resetLeagues.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
