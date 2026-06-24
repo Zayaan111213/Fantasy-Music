@@ -3,6 +3,7 @@ import {
   scoreChartPosition,
   scoreChartMovement,
   scoreStreaming,
+  scoreLongevity,
   CHART_POSITION_TIERS,
   ALBUM_CHART_POSITION_TIERS,
   DEFAULT_SONG_MOVEMENT,
@@ -138,20 +139,20 @@ describe('scoreStreaming', () => {
 });
 
 describe('scoreChartPosition — ALBUM_CHART_POSITION_TIERS', () => {
-  it('returns 20 for rank 1', () => {
-    expect(scoreChartPosition(1, ALBUM_CHART_POSITION_TIERS)).toBe(20);
+  it('returns 25 for rank 1', () => {
+    expect(scoreChartPosition(1, ALBUM_CHART_POSITION_TIERS)).toBe(25);
   });
-  it('returns 14 for rank 5', () => {
-    expect(scoreChartPosition(5, ALBUM_CHART_POSITION_TIERS)).toBe(14);
+  it('returns 18 for rank 5', () => {
+    expect(scoreChartPosition(5, ALBUM_CHART_POSITION_TIERS)).toBe(18);
   });
-  it('returns 9 for rank 10', () => {
-    expect(scoreChartPosition(10, ALBUM_CHART_POSITION_TIERS)).toBe(9);
+  it('returns 12 for rank 15', () => {
+    expect(scoreChartPosition(15, ALBUM_CHART_POSITION_TIERS)).toBe(12);
   });
-  it('returns 5 for rank 25', () => {
-    expect(scoreChartPosition(25, ALBUM_CHART_POSITION_TIERS)).toBe(5);
+  it('returns 8 for rank 25', () => {
+    expect(scoreChartPosition(25, ALBUM_CHART_POSITION_TIERS)).toBe(8);
   });
-  it('returns 2 for rank 50', () => {
-    expect(scoreChartPosition(50, ALBUM_CHART_POSITION_TIERS)).toBe(2);
+  it('returns 4 for rank 50', () => {
+    expect(scoreChartPosition(50, ALBUM_CHART_POSITION_TIERS)).toBe(4);
   });
   it('returns 0 for rank 51 (out of tier)', () => {
     expect(scoreChartPosition(51, ALBUM_CHART_POSITION_TIERS)).toBe(0);
@@ -162,35 +163,53 @@ describe('scoreChartPosition — ALBUM_CHART_POSITION_TIERS', () => {
 });
 
 describe('DEFAULT_SONG_MOVEMENT', () => {
-  it('debut bonus is 8', () => {
-    expect(scoreChartMovement(null, true, DEFAULT_SONG_MOVEMENT)).toBe(8);
+  it('debut bonus is 10', () => {
+    expect(scoreChartMovement(null, true, DEFAULT_SONG_MOVEMENT)).toBe(10);
   });
-  it('caps gain at 12', () => {
-    expect(scoreChartMovement(20, false, DEFAULT_SONG_MOVEMENT)).toBe(12);
-    expect(scoreChartMovement(12, false, DEFAULT_SONG_MOVEMENT)).toBe(12);
+  it('caps gain at 15', () => {
+    expect(scoreChartMovement(20, false, DEFAULT_SONG_MOVEMENT)).toBe(15);
+    expect(scoreChartMovement(15, false, DEFAULT_SONG_MOVEMENT)).toBe(15);
   });
   it('passes through gain under cap', () => {
     expect(scoreChartMovement(5, false, DEFAULT_SONG_MOVEMENT)).toBe(5);
   });
-  it('caps drop at -8', () => {
-    expect(scoreChartMovement(-15, false, DEFAULT_SONG_MOVEMENT)).toBe(-8);
-    expect(scoreChartMovement(-8, false, DEFAULT_SONG_MOVEMENT)).toBe(-8);
+  it('caps drop at -10', () => {
+    expect(scoreChartMovement(-15, false, DEFAULT_SONG_MOVEMENT)).toBe(-10);
+    expect(scoreChartMovement(-10, false, DEFAULT_SONG_MOVEMENT)).toBe(-10);
   });
 });
 
 describe('DEFAULT_ALBUM_MOVEMENT', () => {
-  it('debut bonus is 6', () => {
-    expect(scoreChartMovement(null, true, DEFAULT_ALBUM_MOVEMENT)).toBe(6);
+  it('debut bonus is 10', () => {
+    expect(scoreChartMovement(null, true, DEFAULT_ALBUM_MOVEMENT)).toBe(10);
   });
-  it('caps gain at 8', () => {
-    expect(scoreChartMovement(20, false, DEFAULT_ALBUM_MOVEMENT)).toBe(8);
-    expect(scoreChartMovement(8, false, DEFAULT_ALBUM_MOVEMENT)).toBe(8);
+  it('caps gain at 15', () => {
+    expect(scoreChartMovement(20, false, DEFAULT_ALBUM_MOVEMENT)).toBe(15);
+    expect(scoreChartMovement(15, false, DEFAULT_ALBUM_MOVEMENT)).toBe(15);
   });
   it('passes through gain under cap', () => {
     expect(scoreChartMovement(3, false, DEFAULT_ALBUM_MOVEMENT)).toBe(3);
   });
-  it('caps drop at -5', () => {
-    expect(scoreChartMovement(-10, false, DEFAULT_ALBUM_MOVEMENT)).toBe(-5);
-    expect(scoreChartMovement(-5, false, DEFAULT_ALBUM_MOVEMENT)).toBe(-5);
+  it('caps drop at -10', () => {
+    expect(scoreChartMovement(-15, false, DEFAULT_ALBUM_MOVEMENT)).toBe(-10);
+    expect(scoreChartMovement(-10, false, DEFAULT_ALBUM_MOVEMENT)).toBe(-10);
+  });
+});
+
+describe('scoreLongevity', () => {
+  it('returns 0 for 0 consecutive weeks (not on chart)', () => {
+    expect(scoreLongevity(0)).toBe(0);
+  });
+  it('returns 2 for 1 consecutive week', () => {
+    expect(scoreLongevity(1)).toBe(2);
+  });
+  it('returns 6 for 3 consecutive weeks', () => {
+    expect(scoreLongevity(3)).toBe(6);
+  });
+  it('caps at 12 for 6 consecutive weeks', () => {
+    expect(scoreLongevity(6)).toBe(12);
+  });
+  it('still returns 12 for more than 6 weeks', () => {
+    expect(scoreLongevity(10)).toBe(12);
   });
 });

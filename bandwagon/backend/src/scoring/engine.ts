@@ -4,6 +4,7 @@ import {
   scoreChartPosition,
   scoreChartMovement,
   scoreStreaming,
+  scoreLongevity,
   ScoringConfigSchema,
   CHART_POSITION_TIERS,
   ALBUM_CHART_POSITION_TIERS,
@@ -137,7 +138,23 @@ export async function scoreArtistWeekFromCharts(
 
   const chartPositionPoints = songPositionPoints + albumPositionPoints;
   const chartMovementPoints = songMovementPoints + albumMovementPoints;
-  const totalPoints = chartPositionPoints + chartMovementPoints;
+
+  // Longevity: count consecutive weeks this artist has been on either chart
+  const onChartThisWeek = songs.length > 0 || albums.length > 0;
+  let consecutiveWeeks = onChartThisWeek ? 1 : 0;
+  if (onChartThisWeek) {
+    for (let w = 1; w <= 5; w++) {
+      const priorDate = new Date(weekDate.getTime() - w * 7 * 24 * 60 * 60 * 1000);
+      const [sc, ac] = await Promise.all([
+        prisma.chartEntry.count({ where: { artistId, weekDate: priorDate } }),
+        prisma.albumChartEntry.count({ where: { artistId, weekDate: priorDate } }),
+      ]);
+      if (sc + ac > 0) { consecutiveWeeks++; } else { break; }
+    }
+  }
+  const longevityPoints = scoreLongevity(consecutiveWeeks);
+
+  const totalPoints = chartPositionPoints + chartMovementPoints + longevityPoints;
 
   await prisma.weeklyScore.upsert({
     where: { artistId_week_seasonYear: { artistId, week, seasonYear: year } },
@@ -146,6 +163,7 @@ export async function scoreArtistWeekFromCharts(
       streamingPoints: 0,
       chartPositionPoints,
       chartMovementPoints,
+      longevityPoints,
       totalPoints,
       bestChartPosition: bestSong?.rank ?? bestAlbum?.rank ?? null,
       chartMovement: songMovement,
@@ -155,6 +173,7 @@ export async function scoreArtistWeekFromCharts(
       streamingPoints: 0,
       chartPositionPoints,
       chartMovementPoints,
+      longevityPoints,
       totalPoints,
       bestChartPosition: bestSong?.rank ?? bestAlbum?.rank ?? null,
       chartMovement: songMovement,
@@ -198,11 +217,11 @@ export async function scoreAllArtistsForWeek(
 // ---------------------------------------------------------------------------
 
 export function applyCustomScoringToWeeklyScore(
-  ws: { weeklyStreams: bigint | null; bestChartPosition: number | null; chartMovement: number | null },
+  ws: { weeklyStreams: bigint | null; bestChartPosition: number | null; chartMovement: number | null; longevityPoints?: number },
   genre: string,
   genreTiers: { minStreams: bigint; maxStreams: bigint | null; points: number }[],
   cfg: ScoringConfig
-): { streamingPoints: number; chartPositionPoints: number; chartMovementPoints: number; totalPoints: number } {
+): { streamingPoints: number; chartPositionPoints: number; chartMovementPoints: number; longevityPoints: number; totalPoints: number } {
   const customPts = cfg.streaming[genre] ?? cfg.streaming['Pop'];
   const tiersWithCustomPts = genreTiers.map((t, i) => ({
     minStreams: t.minStreams,
@@ -215,7 +234,8 @@ export function applyCustomScoringToWeeklyScore(
   const chartPositionPoints = scoreChartPosition(ws.bestChartPosition, customChartTiers);
   const isNewEntry = ws.chartMovement === null && ws.bestChartPosition !== null;
   const chartMovementPoints = scoreChartMovement(ws.chartMovement, isNewEntry, cfg.chartMovement);
-  return { streamingPoints, chartPositionPoints, chartMovementPoints, totalPoints: streamingPoints + chartPositionPoints + chartMovementPoints };
+  const longevityPoints = ws.longevityPoints ?? 0;
+  return { streamingPoints, chartPositionPoints, chartMovementPoints, longevityPoints, totalPoints: streamingPoints + chartPositionPoints + chartMovementPoints + longevityPoints };
 }
 
 // ---------------------------------------------------------------------------

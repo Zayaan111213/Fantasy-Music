@@ -57,6 +57,7 @@ export interface WeeklyScore {
   streamingPoints: number;
   chartPositionPoints: number;
   chartMovementPoints: number;
+  longevityPoints: number;
   totalPoints: number;
   weeklyStreams: string | null;
   bestChartPosition: number | null;

@@ -147,6 +147,7 @@ model WeeklyScore {
   streamingPoints     Float    @default(0)
   chartPositionPoints Float    @default(0)
   chartMovementPoints Float    @default(0)
+  longevityPoints     Float    @default(0)
   totalPoints         Float    @default(0)
   weeklyStreams        BigInt?
   bestChartPosition   Int?

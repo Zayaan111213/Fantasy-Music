@@ -1,6 +1,6 @@
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ExternalLink, Music2, BarChart2, TrendingUp, Radio } from 'lucide-react';
+import { ChevronLeft, ExternalLink, Music2, BarChart2, TrendingUp, Radio, Clock } from 'lucide-react';
 import { api } from '../api/client';
 import { Badge } from '../components/ui/Badge';
 import { Card } from '../components/ui/Card';
@@ -107,14 +107,20 @@ export function ArtistDetail() {
               <ScoreBar
                 label={`Chart Position${latestScore.bestChartPosition ? ` · #${latestScore.bestChartPosition}` : ''}`}
                 value={latestScore.chartPositionPoints}
-                max={25}
+                max={50}
                 color="bg-indigo-500"
               />
               <ScoreBar
                 label={`Chart Movement${latestScore.chartMovement !== null ? ` · ${latestScore.chartMovement > 0 ? '+' : ''}${latestScore.chartMovement}` : ''}`}
                 value={Math.max(0, latestScore.chartMovementPoints)}
-                max={15}
+                max={30}
                 color="bg-pink-500"
+              />
+              <ScoreBar
+                label="Longevity"
+                value={latestScore.longevityPoints ?? 0}
+                max={12}
+                color="bg-amber-500"
               />
               <div className="flex justify-between items-center pt-3 border-t border-white/10">
                 <span className="font-semibold text-white">Total</span>
