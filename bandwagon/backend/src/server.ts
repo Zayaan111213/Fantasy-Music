@@ -24,12 +24,15 @@ import { registerDraftSocket, startDraftScheduler } from './sockets/draft';
 const app = express();
 const httpServer = createServer(app);
 
+const isProd = process.env.NODE_ENV === 'production';
+const corsOrigin = process.env.FRONTEND_URL || (isProd ? true : 'http://localhost:5173');
+
 const io = new Server(httpServer, {
-  cors: { origin: process.env.FRONTEND_URL || 'http://localhost:5173', credentials: true },
+  cors: { origin: corsOrigin, credentials: true },
 });
 
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173', credentials: true }));
+app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use(express.json());
 
 fs.mkdirSync(path.join(__dirname, '../uploads/avatars'), { recursive: true });
