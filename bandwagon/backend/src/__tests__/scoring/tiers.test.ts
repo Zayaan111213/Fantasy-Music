@@ -4,6 +4,9 @@ import {
   scoreChartMovement,
   scoreStreaming,
   CHART_POSITION_TIERS,
+  ALBUM_CHART_POSITION_TIERS,
+  DEFAULT_SONG_MOVEMENT,
+  DEFAULT_ALBUM_MOVEMENT,
 } from '../../scoring/tiers';
 
 describe('scoreChartPosition', () => {
@@ -131,5 +134,63 @@ describe('scoreStreaming', () => {
 
   it('returns 0 for empty tiers array', () => {
     expect(scoreStreaming(1_000_000, [])).toBe(0);
+  });
+});
+
+describe('scoreChartPosition — ALBUM_CHART_POSITION_TIERS', () => {
+  it('returns 20 for rank 1', () => {
+    expect(scoreChartPosition(1, ALBUM_CHART_POSITION_TIERS)).toBe(20);
+  });
+  it('returns 14 for rank 5', () => {
+    expect(scoreChartPosition(5, ALBUM_CHART_POSITION_TIERS)).toBe(14);
+  });
+  it('returns 9 for rank 10', () => {
+    expect(scoreChartPosition(10, ALBUM_CHART_POSITION_TIERS)).toBe(9);
+  });
+  it('returns 5 for rank 25', () => {
+    expect(scoreChartPosition(25, ALBUM_CHART_POSITION_TIERS)).toBe(5);
+  });
+  it('returns 2 for rank 50', () => {
+    expect(scoreChartPosition(50, ALBUM_CHART_POSITION_TIERS)).toBe(2);
+  });
+  it('returns 0 for rank 51 (out of tier)', () => {
+    expect(scoreChartPosition(51, ALBUM_CHART_POSITION_TIERS)).toBe(0);
+  });
+  it('returns 0 for null', () => {
+    expect(scoreChartPosition(null, ALBUM_CHART_POSITION_TIERS)).toBe(0);
+  });
+});
+
+describe('DEFAULT_SONG_MOVEMENT', () => {
+  it('debut bonus is 8', () => {
+    expect(scoreChartMovement(null, true, DEFAULT_SONG_MOVEMENT)).toBe(8);
+  });
+  it('caps gain at 12', () => {
+    expect(scoreChartMovement(20, false, DEFAULT_SONG_MOVEMENT)).toBe(12);
+    expect(scoreChartMovement(12, false, DEFAULT_SONG_MOVEMENT)).toBe(12);
+  });
+  it('passes through gain under cap', () => {
+    expect(scoreChartMovement(5, false, DEFAULT_SONG_MOVEMENT)).toBe(5);
+  });
+  it('caps drop at -8', () => {
+    expect(scoreChartMovement(-15, false, DEFAULT_SONG_MOVEMENT)).toBe(-8);
+    expect(scoreChartMovement(-8, false, DEFAULT_SONG_MOVEMENT)).toBe(-8);
+  });
+});
+
+describe('DEFAULT_ALBUM_MOVEMENT', () => {
+  it('debut bonus is 6', () => {
+    expect(scoreChartMovement(null, true, DEFAULT_ALBUM_MOVEMENT)).toBe(6);
+  });
+  it('caps gain at 8', () => {
+    expect(scoreChartMovement(20, false, DEFAULT_ALBUM_MOVEMENT)).toBe(8);
+    expect(scoreChartMovement(8, false, DEFAULT_ALBUM_MOVEMENT)).toBe(8);
+  });
+  it('passes through gain under cap', () => {
+    expect(scoreChartMovement(3, false, DEFAULT_ALBUM_MOVEMENT)).toBe(3);
+  });
+  it('caps drop at -5', () => {
+    expect(scoreChartMovement(-10, false, DEFAULT_ALBUM_MOVEMENT)).toBe(-5);
+    expect(scoreChartMovement(-5, false, DEFAULT_ALBUM_MOVEMENT)).toBe(-5);
   });
 });
