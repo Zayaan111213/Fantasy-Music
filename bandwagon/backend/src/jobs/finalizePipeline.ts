@@ -1,4 +1,5 @@
 import { prisma } from '../db/prisma';
+import { getCurrentWeekDate } from './ingestCharts';
 
 async function bestArtistScore(teamId: string, week: number, year: number): Promise<number> {
   const spots = await prisma.rosterSpot.findMany({
@@ -37,37 +38,43 @@ async function resolveWinner(
 }
 
 async function main(): Promise<void> {
+  // Single-source week boundary: same Pacific Tue function used by dailyPipeline.
+  // At Mon 0:01 AM Pacific (finalize cron time), this returns last Tuesday = week just ended.
+  const weekDate = getCurrentWeekDate();
+  console.log(`[finalize] week boundary ${weekDate.toISOString().slice(0, 10)} (Tue 0:00 Pacific start)`);
+
   const leagues = await prisma.league.findMany({
     where: { status: 'active' },
     select: { id: true, currentWeek: true, seasonYear: true },
   });
 
   for (const { id: leagueId, currentWeek: week, seasonYear: year } of leagues) {
-    const matchups = await prisma.matchup.findMany({
+    // Atomic gate: Postgres serializes concurrent UPDATEs, so a second concurrent run
+    // gets count=0 here and skips the winnerId loop and currentWeek advance entirely.
+    const { count } = await prisma.matchup.updateMany({
       where: { leagueId, week, isFinalized: false },
+      data: { isFinalized: true },
     });
 
-    let finalizedCount = 0;
+    if (count === 0) {
+      console.log(`[finalize] league ${leagueId} week ${week} — already finalized, skipped`);
+      continue;
+    }
+
+    // winnerId varies per matchup so loop after the bulk isFinalized flip.
+    // Scores are frozen at this point; same inputs → same winner on any retry of this block.
+    const matchups = await prisma.matchup.findMany({ where: { leagueId, week } });
     for (const m of matchups) {
       const winnerId = await resolveWinner(
         m.homeTeamId, m.awayTeamId, m.homeScore, m.awayScore, week, year,
       );
-      await prisma.matchup.update({
-        where: { id: m.id },
-        data: { isFinalized: true, winnerId },
-      });
+      await prisma.matchup.update({ where: { id: m.id }, data: { winnerId } });
       console.log(`[finalize] matchup ${m.id} → winner ${winnerId ?? 'tie'}`);
-      finalizedCount++;
     }
 
-    if (finalizedCount > 0) {
-      // Cap at 10 for regular season
-      const nextWeek = Math.min(week + 1, 10);
-      await prisma.league.update({ where: { id: leagueId }, data: { currentWeek: nextWeek } });
-      console.log(`[finalize] league ${leagueId} week ${week} → ${nextWeek}`);
-    } else {
-      console.log(`[finalize] league ${leagueId} week ${week} — already finalized, skipped`);
-    }
+    const nextWeek = Math.min(week + 1, 10);
+    await prisma.league.update({ where: { id: leagueId }, data: { currentWeek: nextWeek } });
+    console.log(`[finalize] league ${leagueId} week ${week} → ${nextWeek}`);
   }
 
   console.log('[finalize] done');
