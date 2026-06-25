@@ -1,4 +1,4 @@
-import { useParams, Link, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ExternalLink, Music2, BarChart2, TrendingUp, Radio } from 'lucide-react';
 import { api } from '../api/client';
@@ -26,6 +26,7 @@ function ScoreBar({ label, value, max, color }: { label: string; value: number; 
 
 export function ArtistDetail() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const leagueId = searchParams.get('leagueId');
 
@@ -52,9 +53,9 @@ export function ArtistDetail() {
 
       <header className="relative border-b border-white/10">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
-          <Link to={-1 as unknown as string} className="text-gray-400 hover:text-white transition-colors">
+          <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-white transition-colors">
             <ChevronLeft className="w-5 h-5" />
-          </Link>
+          </button>
           <Music2 className="w-4 h-4 text-indigo-400" />
         </div>
       </header>
