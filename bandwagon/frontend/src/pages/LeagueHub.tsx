@@ -1,7 +1,7 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Music2, ChevronLeft, Trophy, Users, Settings, Swords, Search, ArrowUpDown, User, Pencil, X, Check } from 'lucide-react';
+import { Music2, ChevronLeft, Trophy, Users, Settings, Swords, Search, ArrowUpDown, User, Pencil, X, Check, Lock } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/ui/Card';
@@ -16,6 +16,14 @@ type Tab = 'myteam' | 'matchup' | 'standings' | 'players' | 'settings';
 const ALL_STARTER_SLOTS = ['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country', 'Other', 'Flex'];
 const ALL_BENCH_SLOTS = ['Bench-1', 'Bench-2', 'Bench-3'];
 
+type WeekPhase = 'pre_season' | 'adjustment' | 'scoring';
+
+function getWeekPhase(league: League): WeekPhase {
+  if (league.status !== 'active') return 'pre_season';
+  const day = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/Los_Angeles' });
+  return day === 'Monday' ? 'adjustment' : 'scoring';
+}
+
 function SlotLabel({ slot }: { slot: string }) {
   const colors: Record<string, string> = {
     'R&B/Hip-Hop': 'text-purple-400', 'Pop': 'text-pink-400', 'Rock & Alternative': 'text-orange-400',
@@ -29,7 +37,7 @@ function SlotLabel({ slot }: { slot: string }) {
   return <span className={`text-xs font-semibold uppercase tracking-wider ${colors[slot] || 'text-gray-400'}`}>{display}</span>;
 }
 
-function RosterRow({ spot, onSwapSelect, selectedSlot, readOnly = false, compact = false, reverse = false, leagueId }: {
+function RosterRow({ spot, onSwapSelect, selectedSlot, readOnly = false, compact = false, reverse = false, leagueId, prevScore }: {
   spot: RosterSpot;
   onSwapSelect?: (slot: string) => void;
   selectedSlot?: string | null;
@@ -37,6 +45,7 @@ function RosterRow({ spot, onSwapSelect, selectedSlot, readOnly = false, compact
   compact?: boolean;
   reverse?: boolean;
   leagueId?: string;
+  prevScore?: number | null;
 }) {
   const score = spot.artist?.weeklyScores?.[0];
   const isBench = spot.slot.startsWith('Bench');
@@ -69,10 +78,16 @@ function RosterRow({ spot, onSwapSelect, selectedSlot, readOnly = false, compact
             )}
           </div>
           <div className="text-right shrink-0">
-            <div className={`font-bold ${compact ? 'text-sm' : 'text-base'} ${isBench ? 'text-gray-500' : 'text-white'}`}>
-              {score ? score.totalPoints.toFixed(1) : '—'}
-            </div>
-            {!compact && <div className="text-xs text-gray-600">pts</div>}
+            {prevScore != null ? (
+              <div className={`font-bold ${compact ? 'text-sm' : 'text-base'} text-gray-500`}>
+                {prevScore.toFixed(1)}
+              </div>
+            ) : (
+              <div className={`font-bold ${compact ? 'text-sm' : 'text-base'} ${isBench ? 'text-gray-500' : 'text-white'}`}>
+                {score ? score.totalPoints.toFixed(1) : '—'}
+              </div>
+            )}
+            {!compact && <div className="text-xs text-gray-600">{prevScore != null ? 'prev' : 'pts'}</div>}
           </div>
         </>
       ) : (
@@ -93,20 +108,22 @@ function getRosterSpot(roster: RosterSpot[], slot: string): RosterSpot {
   return roster.find((s) => s.slot === slot) ?? { id: '', teamId: '', artistId: null, slot, artist: null };
 }
 
-function TeamRosterCard({ title, roster, reverse = false, leagueId }: { title: string; roster: RosterSpot[]; reverse?: boolean; leagueId?: string }) {
+function TeamRosterCard({ title, roster, reverse = false, leagueId, prevScoreMap }: { title: string; roster: RosterSpot[]; reverse?: boolean; leagueId?: string; prevScoreMap?: Record<string, number> }) {
   return (
     <Card className="p-3">
       <h3 className={`text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 truncate ${reverse ? 'text-right' : ''}`}>{title}</h3>
       <div className="space-y-1">
-        {ALL_STARTER_SLOTS.map((slot) => (
-          <RosterRow key={slot} spot={getRosterSpot(roster, slot)} readOnly compact reverse={reverse} leagueId={leagueId} />
-        ))}
+        {ALL_STARTER_SLOTS.map((slot) => {
+          const spot = getRosterSpot(roster, slot);
+          return <RosterRow key={slot} spot={spot} readOnly compact reverse={reverse} leagueId={leagueId} prevScore={prevScoreMap && spot.artistId ? prevScoreMap[spot.artistId] : undefined} />;
+        })}
       </div>
       <div className={`text-xs font-semibold text-gray-500 uppercase tracking-wider mt-2 mb-1 ${reverse ? 'text-right' : ''}`}>Bench</div>
       <div className="space-y-1">
-        {ALL_BENCH_SLOTS.map((slot) => (
-          <RosterRow key={slot} spot={getRosterSpot(roster, slot)} readOnly compact reverse={reverse} leagueId={leagueId} />
-        ))}
+        {ALL_BENCH_SLOTS.map((slot) => {
+          const spot = getRosterSpot(roster, slot);
+          return <RosterRow key={slot} spot={spot} readOnly compact reverse={reverse} leagueId={leagueId} prevScore={prevScoreMap && spot.artistId ? prevScoreMap[spot.artistId] : undefined} />;
+        })}
       </div>
     </Card>
   );
@@ -115,7 +132,7 @@ function TeamRosterCard({ title, roster, reverse = false, leagueId }: { title: s
 const MAX_LOGO_SIZE = 5 * 1024 * 1024;
 const ALLOWED_LOGO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
-function MyTeamTab({ leagueId, league }: { leagueId: string; league: League }) {
+function MyTeamTab({ leagueId, league, phase }: { leagueId: string; league: League; phase: WeekPhase }) {
   const queryClient = useQueryClient();
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
 
@@ -196,7 +213,10 @@ function MyTeamTab({ leagueId, league }: { leagueId: string; league: League }) {
     }
   }
 
+  const isLocked = phase === 'scoring';
+
   function handleSlotClick(slot: string) {
+    if (isLocked) return;
     if (!selectedSlot) { setSelectedSlot(slot); return; }
     if (selectedSlot === slot) { setSelectedSlot(null); return; }
     swapMutation.mutate({ slotA: selectedSlot, slotB: slot });
@@ -276,7 +296,14 @@ function MyTeamTab({ leagueId, league }: { leagueId: string; league: League }) {
         )}
       </Card>
 
-      {selectedSlot && (
+      {isLocked && (
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-sm text-amber-400 flex items-center gap-2">
+          <Lock className="w-4 h-4 shrink-0" />
+          Lineup locked until Monday
+        </div>
+      )}
+
+      {!isLocked && selectedSlot && (
         <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-lg p-3 text-sm text-indigo-300 flex items-center justify-between">
           <span>Select a second slot to swap with <strong>{selectedSlot}</strong></span>
           <button onClick={() => setSelectedSlot(null)} className="text-indigo-400 hover:text-white text-xs">Cancel</button>
@@ -293,14 +320,21 @@ function MyTeamTab({ leagueId, league }: { leagueId: string; league: League }) {
       <Card className="p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Starters</h3>
-          <div className="flex items-center gap-1 text-xs text-gray-600">
-            <ArrowUpDown className="w-3 h-3" />
-            Tap two slots to swap
-          </div>
+          {isLocked ? (
+            <div className="flex items-center gap-1 text-xs text-amber-500">
+              <Lock className="w-3 h-3" />
+              Locked
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 text-xs text-gray-600">
+              <ArrowUpDown className="w-3 h-3" />
+              Tap two slots to swap
+            </div>
+          )}
         </div>
         <div className="space-y-1">
           {ALL_STARTER_SLOTS.map((slot) => (
-            <RosterRow key={slot} spot={getSpot(slot)} onSwapSelect={handleSlotClick} selectedSlot={selectedSlot} leagueId={leagueId} />
+            <RosterRow key={slot} spot={getSpot(slot)} onSwapSelect={isLocked ? undefined : handleSlotClick} selectedSlot={selectedSlot} readOnly={isLocked} leagueId={leagueId} />
           ))}
         </div>
       </Card>
@@ -310,7 +344,7 @@ function MyTeamTab({ leagueId, league }: { leagueId: string; league: League }) {
         <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Bench</h3>
         <div className="space-y-1">
           {ALL_BENCH_SLOTS.map((slot) => (
-            <RosterRow key={slot} spot={getSpot(slot)} onSwapSelect={handleSlotClick} selectedSlot={selectedSlot} leagueId={leagueId} />
+            <RosterRow key={slot} spot={getSpot(slot)} onSwapSelect={isLocked ? undefined : handleSlotClick} selectedSlot={selectedSlot} readOnly={isLocked} leagueId={leagueId} />
           ))}
         </div>
       </Card>
@@ -318,33 +352,155 @@ function MyTeamTab({ leagueId, league }: { leagueId: string; league: League }) {
   );
 }
 
-function MatchupTab({ leagueId, league }: { leagueId: string; league: League }) {
+function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: League; phase: WeekPhase }) {
   const { user } = useAuth();
+  const [showResultPopup, setShowResultPopup] = useState(false);
 
   const { data: matchup, isLoading } = useQuery({
     queryKey: ['matchup', leagueId, 'current'],
     queryFn: () => api.get<Matchup | null>(`/leagues/${leagueId}/matchups/current`),
   });
 
-  if (isLoading) return <div className="flex justify-center py-12"><Spinner className="w-8 h-8" /></div>;
-  if (!matchup) return (
-    <div className="text-center py-12 text-gray-400">
-      {(league.status === 'pending' || league.status === 'pre_draft') ? 'Season hasn\'t started yet. Draft a team first!' : 'No matchup this week.'}
-    </div>
-  );
+  const { data: prevMatchup } = useQuery({
+    queryKey: ['matchup', leagueId, 'previous'],
+    queryFn: () => api.get<Matchup | null>(`/leagues/${leagueId}/matchups/previous`),
+    enabled: phase === 'adjustment' && league.currentWeek > 1,
+  });
 
-  const isHome = matchup.homeTeam?.user && 'id' in (matchup.homeTeam ?? {}) && matchup.homeTeamId && matchup.homeTeam &&
-    matchup.homeTeam.userId === user?.id;
+  useEffect(() => {
+    if (!prevMatchup?.isFinalized || !prevMatchup?.winnerId || phase !== 'adjustment') return;
+    const key = `bw_result_${leagueId}_w${prevMatchup.week}`;
+    if (!localStorage.getItem(key)) setShowResultPopup(true);
+  }, [prevMatchup?.isFinalized, prevMatchup?.winnerId, prevMatchup?.week, phase, leagueId]);
+
+  if (isLoading) return <div className="flex justify-center py-12"><Spinner className="w-8 h-8" /></div>;
+
+  if (phase === 'pre_season' || !matchup) {
+    return (
+      <div className="text-center py-12 text-gray-400">
+        {phase === 'pre_season' ? 'Your matchup will appear here after the draft.' : 'No matchup this week.'}
+      </div>
+    );
+  }
+
+  const isHome = matchup.homeTeam?.userId === user?.id;
   const myTeamData = isHome ? matchup.homeTeam : matchup.awayTeam;
   const oppTeamData = isHome ? matchup.awayTeam : matchup.homeTeam;
   const myScore = isHome ? matchup.homeScore : matchup.awayScore;
   const oppScore = isHome ? matchup.awayScore : matchup.homeScore;
 
+  // Build map: artistId → prev week totalPoints (from both rosters in previous matchup)
+  const prevScoreMap: Record<string, number> = {};
+  if (prevMatchup) {
+    for (const spot of [...(prevMatchup.homeTeam?.rosterSpots ?? []), ...(prevMatchup.awayTeam?.rosterSpots ?? [])]) {
+      if (spot.artistId && spot.artist?.weeklyScores?.[0] != null) {
+        prevScoreMap[spot.artistId] = spot.artist.weeklyScores[0].totalPoints;
+      }
+    }
+  }
+  const hasPrevScores = Object.keys(prevScoreMap).length > 0;
+
+  // Previous week result info for popup
+  const prevIsHome = prevMatchup?.homeTeam?.userId === user?.id;
+  const prevMyTeamId = prevIsHome ? prevMatchup?.homeTeamId : prevMatchup?.awayTeamId;
+  const wonPrev = prevMatchup?.winnerId === prevMyTeamId;
+  const prevMyScore = prevIsHome ? (prevMatchup?.homeScore ?? 0) : (prevMatchup?.awayScore ?? 0);
+  const prevOppScore = prevIsHome ? (prevMatchup?.awayScore ?? 0) : (prevMatchup?.homeScore ?? 0);
+  const prevMyTeamName = (prevIsHome ? prevMatchup?.homeTeam?.name : prevMatchup?.awayTeam?.name) ?? 'Your Team';
+  const prevOppTeamName = (prevIsHome ? prevMatchup?.awayTeam?.name : prevMatchup?.homeTeam?.name) ?? 'Opponent';
+
+  function dismissPopup() {
+    if (prevMatchup) localStorage.setItem(`bw_result_${leagueId}_w${prevMatchup.week}`, 'seen');
+    setShowResultPopup(false);
+  }
+
+  if (phase === 'adjustment') {
+    return (
+      <div className="space-y-4">
+        {/* Win/loss result popup */}
+        {showResultPopup && prevMatchup && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
+            <div className="bg-gray-900 border border-white/10 rounded-xl w-full max-w-sm shadow-2xl p-6 text-center">
+              <div className="text-5xl mb-3">{wonPrev ? '🏆' : '😤'}</div>
+              <h2 className={`text-2xl font-bold mb-1 ${wonPrev ? 'text-green-400' : 'text-red-400'}`}>
+                {wonPrev ? 'You Won!' : 'You Lost'}
+              </h2>
+              <p className="text-gray-500 text-sm mb-5">Week {prevMatchup.week} final result</p>
+              <div className="flex items-center justify-center gap-8 mb-6">
+                <div className="text-center">
+                  <div className="text-xs text-gray-500 mb-1 truncate max-w-[80px]">{prevMyTeamName}</div>
+                  <div className={`text-2xl font-bold ${wonPrev ? 'text-green-400' : 'text-white'}`}>{prevMyScore.toFixed(1)}</div>
+                </div>
+                <div className="text-gray-600 text-sm">vs</div>
+                <div className="text-center">
+                  <div className="text-xs text-gray-500 mb-1 truncate max-w-[80px]">{prevOppTeamName}</div>
+                  <div className={`text-2xl font-bold ${!wonPrev ? 'text-green-400' : 'text-white'}`}>{prevOppScore.toFixed(1)}</div>
+                </div>
+              </div>
+              <button
+                onClick={dismissPopup}
+                className="w-full px-4 py-2.5 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-white font-medium transition-colors"
+              >
+                Set Lineup for Week {league.currentWeek}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Adjustment banner */}
+        <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3 flex items-center gap-2 text-sm text-green-400">
+          <ArrowUpDown className="w-4 h-4 shrink-0" />
+          Lineup open · adjust on My Team before Tuesday
+        </div>
+
+        {/* H2H header — scores are 0, week hasn't started */}
+        <Card className="p-5">
+          <div className="text-center text-xs text-gray-500 mb-3">Week {league.currentWeek} · starts Tuesday</div>
+          <div className="flex items-center justify-center gap-6">
+            <div className="text-center">
+              <div className="font-semibold text-white mb-1">{myTeamData?.name ?? 'Your Team'}</div>
+              <div className="text-3xl font-bold text-gray-600">{myScore.toFixed(1)}</div>
+            </div>
+            <div className="text-gray-600 text-lg font-light">vs</div>
+            <div className="text-center">
+              <div className="font-semibold text-white mb-1">{oppTeamData?.name ?? 'Opponent'}</div>
+              <div className="text-3xl font-bold text-gray-600">{oppScore.toFixed(1)}</div>
+            </div>
+          </div>
+        </Card>
+
+        {/* Rosters — show prev week scores in gray */}
+        <div className="grid grid-cols-2 gap-2">
+          <TeamRosterCard
+            title={myTeamData?.name ?? 'Your Team'}
+            roster={myTeamData?.rosterSpots ?? []}
+            leagueId={leagueId}
+            prevScoreMap={hasPrevScores ? prevScoreMap : undefined}
+          />
+          <TeamRosterCard
+            title={oppTeamData?.name ?? 'Opponent'}
+            roster={oppTeamData?.rosterSpots ?? []}
+            reverse
+            leagueId={leagueId}
+            prevScoreMap={hasPrevScores ? prevScoreMap : undefined}
+          />
+        </div>
+        {hasPrevScores && (
+          <p className="text-xs text-center text-gray-600">Scores shown are from Week {league.currentWeek - 1}</p>
+        )}
+      </div>
+    );
+  }
+
+  // Scoring phase — live scores, lineup locked
   return (
     <div className="space-y-4">
-      {/* Head-to-head header */}
       <Card className="p-5">
-        <div className="text-center text-xs text-gray-500 mb-3">Week {league.currentWeek} · updates daily</div>
+        <div className="text-center text-xs text-gray-500 mb-1">Week {league.currentWeek}</div>
+        <div className="flex items-center justify-center gap-1.5 mb-3">
+          <Lock className="w-3 h-3 text-amber-500" />
+          <span className="text-xs text-amber-500">Lineup locked · updates daily</span>
+        </div>
         <div className="flex items-center justify-center gap-6">
           <div className="text-center">
             <div className="font-semibold text-white mb-1">{myTeamData?.name ?? 'Your Team'}</div>
@@ -1102,6 +1258,7 @@ export function LeagueHub() {
   if (!league) return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-400">League not found</div>;
 
   const isCommissioner = league.commissionerId === user?.id;
+  const phase = getWeekPhase(league);
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: 'myteam', label: 'My Team', icon: <User className="w-4 h-4" /> },
@@ -1158,8 +1315,8 @@ export function LeagueHub() {
       </header>
 
       <main className="relative max-w-3xl mx-auto px-4 py-6">
-        {tab === 'myteam' && <MyTeamTab leagueId={id!} league={league} />}
-        {tab === 'matchup' && <MatchupTab leagueId={id!} league={league} />}
+        {tab === 'myteam' && <MyTeamTab leagueId={id!} league={league} phase={phase} />}
+        {tab === 'matchup' && <MatchupTab leagueId={id!} league={league} phase={phase} />}
         {tab === 'standings' && <StandingsTab leagueId={id!} league={league} />}
         {tab === 'players' && <PlayersTab leagueId={id!} league={league} />}
         {tab === 'settings' && <SettingsTab leagueId={id!} league={league} />}
