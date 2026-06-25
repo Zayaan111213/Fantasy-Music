@@ -436,6 +436,67 @@ router.get('/:id/matchups/current', requireAuth, async (req: AuthRequest, res, n
   }
 });
 
+// Previous week matchup for the requesting user (for win/loss popup + prev-score reference)
+router.get('/:id/matchups/previous', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const league = await prisma.league.findUnique({ where: { id: req.params.id } });
+    if (!league) { res.status(404).json({ error: 'League not found' }); return; }
+    if (league.currentWeek <= 1) { res.json(null); return; }
+
+    const myTeam = await prisma.team.findFirst({
+      where: { leagueId: req.params.id, userId: req.userId! },
+    });
+    if (!myTeam) { res.status(403).json({ error: 'Not a member' }); return; }
+
+    const prevWeek = league.currentWeek - 1;
+    const matchup = await prisma.matchup.findFirst({
+      where: {
+        leagueId: req.params.id,
+        week: prevWeek,
+        OR: [{ homeTeamId: myTeam.id }, { awayTeamId: myTeam.id }],
+      },
+      include: {
+        homeTeam: {
+          include: {
+            user: { select: { username: true, avatarUrl: true } },
+            rosterSpots: {
+              include: {
+                artist: {
+                  include: {
+                    weeklyScores: {
+                      where: { week: prevWeek, seasonYear: league.seasonYear },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        awayTeam: {
+          include: {
+            user: { select: { username: true, avatarUrl: true } },
+            rosterSpots: {
+              include: {
+                artist: {
+                  include: {
+                    weeklyScores: {
+                      where: { week: prevWeek, seasonYear: league.seasonYear },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    res.json(matchup ?? null);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // All matchups for the league
 router.get('/:id/matchups', requireAuth, async (req: AuthRequest, res, next) => {
   try {
@@ -612,6 +673,15 @@ router.put('/:id/roster/lineup', requireAuth, async (req: AuthRequest, res, next
 
     const league = await prisma.league.findUnique({ where: { id: req.params.id } });
     if (!league) { res.status(404).json({ error: 'League not found' }); return; }
+
+    // Enforce lineup lock: swaps only allowed on Monday (Pacific time)
+    if (league.status === 'active') {
+      const day = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/Los_Angeles' });
+      if (day !== 'Monday') {
+        res.status(403).json({ error: 'Lineup is locked during the scoring week (Tuesday–Sunday).' });
+        return;
+      }
+    }
 
     const myTeam = await prisma.team.findFirst({
       where: { leagueId: req.params.id, userId: req.userId! },
