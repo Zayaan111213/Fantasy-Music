@@ -200,16 +200,19 @@ describe('scoreLongevity', () => {
   it('returns 0 for 0 consecutive weeks (not on chart)', () => {
     expect(scoreLongevity(0)).toBe(0);
   });
-  it('returns 2 for 1 consecutive week', () => {
-    expect(scoreLongevity(1)).toBe(2);
+  it('returns 0 for 1 consecutive week', () => {
+    expect(scoreLongevity(1)).toBe(0);
   });
-  it('returns 6 for 3 consecutive weeks', () => {
-    expect(scoreLongevity(3)).toBe(6);
+  it('returns 2 for 2 consecutive weeks', () => {
+    expect(scoreLongevity(2)).toBe(2);
   });
-  it('caps at 12 for 6 consecutive weeks', () => {
-    expect(scoreLongevity(6)).toBe(12);
+  it('returns 6 for 4 consecutive weeks', () => {
+    expect(scoreLongevity(4)).toBe(6);
   });
-  it('still returns 12 for more than 6 weeks', () => {
-    expect(scoreLongevity(10)).toBe(12);
+  it('caps at 10 for 6 consecutive weeks', () => {
+    expect(scoreLongevity(6)).toBe(10);
+  });
+  it('still returns 10 for more than 6 weeks', () => {
+    expect(scoreLongevity(10)).toBe(10);
   });
 });

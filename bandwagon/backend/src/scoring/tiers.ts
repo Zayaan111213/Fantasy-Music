@@ -73,9 +73,9 @@ export function scoreChartMovement(
   return Math.max(movement, -config.maxDrop);
 }
 
-// +2 per consecutive week on chart, capped at +12 (6 weeks)
+// 0 for first week; +2 per consecutive week starting at week 2, capped at +10
 export function scoreLongevity(consecutiveWeeks: number): number {
-  return Math.min(consecutiveWeeks * 2, 12);
+  return Math.min(Math.max(consecutiveWeeks - 1, 0) * 2, 10);
 }
 
 export function scoreStreaming(streams: number, tiers: { minStreams: bigint; maxStreams: bigint | null; points: number }[]): number {
