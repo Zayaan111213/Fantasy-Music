@@ -674,12 +674,26 @@ router.put('/:id/roster/lineup', requireAuth, async (req: AuthRequest, res, next
     const league = await prisma.league.findUnique({ where: { id: req.params.id } });
     if (!league) { res.status(404).json({ error: 'League not found' }); return; }
 
-    // Enforce lineup lock: swaps only allowed on Monday (Pacific time)
+    // Enforce lineup lock: swaps only allowed on Monday (PT), or during the week-1 pre-game window
     if (league.status === 'active') {
-      const day = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/Los_Angeles' });
-      if (day !== 'Monday') {
-        res.status(403).json({ error: 'Lineup is locked during the scoring week (Tuesday–Sunday).' });
-        return;
+      const dayPT = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/Los_Angeles' });
+      if (dayPT !== 'Monday') {
+        let isPreFirstGame = false;
+        if (league.currentWeek === 1 && league.draftTime) {
+          const draft = new Date(league.draftTime);
+          const dowNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+          const draftDow = dowNames.indexOf(draft.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/Los_Angeles' }));
+          const daysToTuesday = draftDow === 2 ? 7 : (2 - draftDow + 7) % 7;
+          const firstTuesdayApprox = new Date(draft);
+          firstTuesdayApprox.setDate(draft.getDate() + daysToTuesday);
+          const todayPT = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+          const firstTuesdayPT = firstTuesdayApprox.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+          isPreFirstGame = todayPT < firstTuesdayPT;
+        }
+        if (!isPreFirstGame) {
+          res.status(403).json({ error: 'Lineup is locked during the scoring week (Tuesday–Sunday).' });
+          return;
+        }
       }
     }
 
