@@ -181,7 +181,7 @@ An artist's weekly score \= sum of the signals below. All signals are derived fr
 
 **(c) Longevity.** Rewards staying power on the chart, measured as consecutive weeks the artist has held a song on the Top 100\. **\[TUNE\]**
 
-* \+2 points per consecutive week on the chart, **capped at \+12** (i.e., from the 6th consecutive week onward, no additional longevity points).
+* 0 points for week 1; \+2 points per consecutive week starting from week 2, **capped at \+10** (i.e., from the 6th consecutive week onward, no additional longevity points).
 
 **(d) Chart movement.** Change in the artist's best chart rank vs. the prior week. **\[TUNE\]**
 
