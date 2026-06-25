@@ -676,7 +676,9 @@ router.put('/:id/roster/lineup', requireAuth, async (req: AuthRequest, res, next
 
     // Enforce lineup lock: swaps only allowed on Monday (PT), or during the week-1 pre-game window
     if (league.status === 'active') {
-      const dayPT = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/Los_Angeles' });
+      const dayPT = process.env.NODE_ENV === 'test' && process.env.TEST_OVERRIDE_DAY
+        ? process.env.TEST_OVERRIDE_DAY
+        : new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/Los_Angeles' });
       if (dayPT !== 'Monday') {
         let isPreFirstGame = false;
         if (league.currentWeek === 1 && league.draftTime) {

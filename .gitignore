@@ -6,3 +6,6 @@ bandwagon/backend/uploads/
 .env.*.local
 *.log
 .DS_Store
+bandwagon/.env.test
+bandwagon/e2e-report/
+bandwagon/test-results/

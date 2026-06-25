@@ -45,6 +45,12 @@ app.use('/api/artists', artistRoutes);
 app.use('/api/leagues', draftRoutes);
 app.use('/api/notifications', notificationRoutes);
 
+if (process.env.NODE_ENV === 'test') {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const testHelperRoutes = require('./api/routes/testHelperRoutes').default;
+  app.use('/api/test', testHelperRoutes);
+}
+
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 
 const frontendDist = path.join(__dirname, '../../frontend/dist');
