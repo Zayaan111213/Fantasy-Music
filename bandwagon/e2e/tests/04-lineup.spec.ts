@@ -33,21 +33,24 @@ test.describe('Lineup management', () => {
     await page.locator('text=Flex').first().click();
     await expect(page.getByText(/Select a second slot/)).toBeVisible({ timeout: 3_000 });
 
-    // Click first Bench slot and wait for the swap PUT to complete.
+    // Register all three waits concurrently with the click so neither response is missed.
     // nth(0) = the <h3>Bench</h3> section heading; nth(1) = first bench slot label span.
     // Clicking the label span bubbles up to the parent row's onClick handler.
-    const [swapResponse] = await Promise.all([
+    const [putResponse] = await Promise.all([
       page.waitForResponse(
-        (res) => res.url().includes('/roster/lineup') && res.request().method() === 'PUT'
+        (res) => res.url().includes('/roster/lineup') && res.request().method() === 'PUT',
+        { timeout: 15_000 }
+      ),
+      page.waitForResponse(
+        // Matches GET /leagues/{id}/roster (not /roster/lineup)
+        (res) => /\/leagues\/[^/]+\/roster$/.test(res.url()) && res.request().method() === 'GET',
+        { timeout: 15_000 }
       ),
       page.locator('text=Bench').nth(1).click(),
     ]);
-    expect(swapResponse.status()).toBe(200);
+    expect(putResponse.status()).toBe(200);
 
-    // Wait for the roster GET to refetch after query invalidation, then check the row changed
-    await page.waitForResponse(
-      (res) => res.url().includes('/roster') && res.request().method() === 'GET' && res.status() === 200
-    );
+    // Flex row content should have changed after re-render
     const flexTextAfter = await flexRow.textContent();
     expect(flexTextAfter).not.toBe(flexTextBefore);
 
