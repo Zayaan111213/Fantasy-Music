@@ -12,6 +12,8 @@
     "test": "npm run test --prefix backend && npm run test --prefix frontend",
     "test:e2e": "playwright test --config e2e/playwright.config.ts",
     "test:e2e:fast": "playwright test --config e2e/playwright.config.ts --project=fast",
+    "test:e2e:headed": "playwright test --config e2e/playwright.config.ts --headed --slowMo=200",
+    "test:e2e:fast:headed": "playwright test --config e2e/playwright.config.ts --project=fast --headed --slowMo=200",
     "test:e2e:ui": "playwright test --config e2e/playwright.config.ts --ui",
     "test:e2e:report": "playwright show-report e2e-report",
     "install:hooks": "bash scripts/install-hooks.sh"

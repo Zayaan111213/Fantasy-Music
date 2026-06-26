@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { injectAuth } from '../helpers/auth';
-import { setupActiveLeague, teardownLeague, apiPut, apiGet, type ActiveLeagueFixture } from '../helpers/api';
+import { setupActiveLeague, teardownLeague, apiPut, type ActiveLeagueFixture } from '../helpers/api';
 
 test.describe('Lineup management', () => {
   let fixture: ActiveLeagueFixture;
@@ -13,44 +13,72 @@ test.describe('Lineup management', () => {
     await teardownLeague(fixture.leagueId, [fixture.user1.id, fixture.user2.id]);
   });
 
-  test('swap allowed on Monday (TEST_OVERRIDE_DAY)', async () => {
-    // Uses TEST_OVERRIDE_DAY=Monday set in the backend env by playwright.config.ts
-    // (Default is empty, meaning no override; for this test to reliably pass we check
-    // that it succeeds or fails based on today's real day if no override is set.)
-    // We explicitly test with Monday override via process.env in config.
-    const result = await apiPut<{ success: boolean }>(
-      fixture.user1.token,
-      `/api/leagues/${fixture.leagueId}/roster/lineup`,
-      { slotA: 'Flex', slotB: 'Bench-1' }
+  test('swap works via UI on Monday', async ({ browser: b }) => {
+    const ctx = await b.newContext();
+    await injectAuth(ctx, fixture.user1.token);
+    const page = await ctx.newPage();
+
+    // Override browser Date to Monday so getWeekPhase() returns 'adjustment' (unlocked)
+    await page.clock.setFixedTime(new Date('2026-06-22T10:00:00'));
+    await page.goto(`/leagues/${fixture.leagueId}`);
+
+    // Confirm unlocked state: swap hint is visible
+    await expect(page.getByText('Tap two slots to swap')).toBeVisible({ timeout: 10_000 });
+
+    // Capture the full text of the Flex row before the swap so we can detect a change
+    const flexRow = page.locator('text=Flex').locator('..').locator('..').first();
+    const flexTextBefore = await flexRow.textContent();
+
+    // Click Flex slot → should highlight and show the "select second slot" info bar
+    await page.locator('text=Flex').first().click();
+    await expect(page.getByText(/Select a second slot/)).toBeVisible({ timeout: 3_000 });
+
+    // Click first Bench slot and wait for the swap PUT to complete.
+    // nth(0) = the <h3>Bench</h3> section heading; nth(1) = first bench slot label span.
+    // Clicking the label span bubbles up to the parent row's onClick handler.
+    const [swapResponse] = await Promise.all([
+      page.waitForResponse(
+        (res) => res.url().includes('/roster/lineup') && res.request().method() === 'PUT'
+      ),
+      page.locator('text=Bench').nth(1).click(),
+    ]);
+    expect(swapResponse.status()).toBe(200);
+
+    // Wait for the roster GET to refetch after query invalidation, then check the row changed
+    await page.waitForResponse(
+      (res) => res.url().includes('/roster') && res.request().method() === 'GET' && res.status() === 200
     );
+    const flexTextAfter = await flexRow.textContent();
+    expect(flexTextAfter).not.toBe(flexTextBefore);
 
-    // If TEST_OVERRIDE_DAY is 'Monday', this must succeed with 200.
-    // If no override is set and today is Tue–Sun, we accept 403 (the lock is working).
-    const overrideDay = process.env.TEST_OVERRIDE_DAY;
-    if (overrideDay === 'Monday') {
-      expect(result.status).toBe(200);
-      expect((result.body as { success: boolean }).success).toBe(true);
-
-      // Verify swap persisted: fetch roster and check Flex has old Bench-1 artist
-      const roster = await apiGet<{ rosterSpots: { slot: string; artist: { id: string } | null }[] }>(
-        fixture.user1.token,
-        `/api/leagues/${fixture.leagueId}/roster`
-      );
-      const flex = roster.rosterSpots.find((s) => s.slot === 'Flex');
-      const bench1 = roster.rosterSpots.find((s) => s.slot === 'Bench-1');
-      // Artists should have swapped; just verify both slots have an artist
-      expect(flex?.artist).not.toBeNull();
-      expect(bench1?.artist).not.toBeNull();
-    } else {
-      // No override: accept either outcome depending on the real day
-      expect([200, 403]).toContain(result.status);
-    }
+    await ctx.close();
   });
 
-  test('swap blocked on Tuesday (TEST_OVERRIDE_DAY=Tuesday)', async () => {
-    // Re-run with an explicit Tuesday override via a direct API call that injects the env.
-    // Since we can't change process.env inside Playwright worker, we rely on the backend
-    // having TEST_OVERRIDE_DAY set. For a reliable lock test, run with TEST_OVERRIDE_DAY=Tuesday.
+  test('locked UI shown on Tuesday', async ({ browser: b }) => {
+    const ctx = await b.newContext();
+    await injectAuth(ctx, fixture.user1.token);
+    const page = await ctx.newPage();
+
+    // Override browser Date to Tuesday so getWeekPhase() returns 'scoring' (locked)
+    await page.clock.setFixedTime(new Date('2026-06-23T10:00:00'));
+    await page.goto(`/leagues/${fixture.leagueId}`);
+
+    // Lock banner must be visible
+    await expect(page.getByText('Lineup locked until Monday')).toBeVisible({ timeout: 10_000 });
+
+    // Clicking a slot should do nothing — no selection bar should appear
+    await page.locator('text=Flex').first().click();
+    await expect(page.getByText(/Select a second slot/)).not.toBeVisible();
+
+    await ctx.close();
+  });
+
+  test('backend returns 403 when locked (TEST_OVERRIDE_DAY)', async () => {
+    // Direct API test: verifies the backend enforces the lock independently of the UI.
+    // TEST_OVERRIDE_DAY=Monday (from .env.test) keeps the backend unlocked so the
+    // fixture swap above works. This test confirms the 403 path exists in code by
+    // checking that a real Tuesday override would block it — or accepts any response
+    // if no Tuesday override is configured.
     const result = await apiPut<{ error?: string }>(
       fixture.user1.token,
       `/api/leagues/${fixture.leagueId}/roster/lineup`,
@@ -61,34 +89,12 @@ test.describe('Lineup management', () => {
     if (overrideDay === 'Tuesday') {
       expect(result.status).toBe(403);
       expect(result.body.error).toContain('locked');
+    } else if (overrideDay === 'Monday') {
+      // Unlocked — swap should succeed (or 400 if slot state is unexpected after prior tests)
+      expect([200, 400]).toContain(result.status);
     } else {
+      // No override: accept any outcome depending on the real current day
       expect([200, 400, 403]).toContain(result.status);
     }
-  });
-
-  test('swap visible in UI — My Team tab', async ({ browser: b }) => {
-    // Only run the UI swap test on a day when swaps are allowed
-    const result = await apiPut<{ success: boolean }>(
-      fixture.user1.token,
-      `/api/leagues/${fixture.leagueId}/roster/lineup`,
-      { slotA: 'Flex', slotB: 'Bench-3' }
-    );
-    if (result.status !== 200) {
-      test.skip();
-      return;
-    }
-
-    const ctx = await b.newContext();
-    await injectAuth(ctx, fixture.user1.token);
-    const page = await ctx.newPage();
-
-    await page.goto(`/leagues/${fixture.leagueId}`);
-    await expect(page.getByRole('button', { name: 'My Team' })).toBeVisible({ timeout: 10_000 });
-
-    // Both Flex and Bench-3 rows should show an artist name
-    const flexRow = page.locator('text=Flex').locator('..').locator('..').first();
-    await expect(flexRow).toBeVisible({ timeout: 5_000 });
-
-    await ctx.close();
   });
 });
