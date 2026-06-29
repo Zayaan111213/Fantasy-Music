@@ -21,7 +21,7 @@ export function generateInviteCode(): string {
 const CreateLeagueSchema = z.object({
   name: z.string().min(1).max(50),
   teamCount: z.number().int().min(4).max(12).default(8),
-  privacy: z.enum(['private', 'public']).default('private'),
+  isPrivate: z.boolean().default(true),
   draftTime: z.string().datetime(),
 });
 
@@ -67,7 +67,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res, next) => {
           name: team.league.name,
           status: team.league.status,
           currentWeek,
-          privacy: team.league.privacy,
+          isPrivate: team.league.isPrivate,
           teamCount: team.league.teamCount,
           isCommissioner: team.league.commissionerId === req.userId,
           myTeam: { id: team.id, name: team.name, logoUrl: team.logoUrl, wins: team.wins, losses: team.losses },
@@ -105,7 +105,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res, next) => {
         name: data.name,
         commissionerId: req.userId!,
         teamCount: data.teamCount,
-        privacy: data.privacy,
+        isPrivate: data.isPrivate,
         draftTime: data.draftTime ? new Date(data.draftTime) : null,
         inviteCode,
         status: 'pending',
@@ -134,7 +134,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res, next) => {
 router.get('/public', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const leagues = await prisma.league.findMany({
-      where: { privacy: 'public', status: 'pending' },
+      where: { isPrivate: false, status: 'pending' },
       include: {
         teams: { select: { id: true } },
         commissioner: { select: { username: true } },
@@ -194,7 +194,7 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res, next) => {
     const schema = z.object({
       name: z.string().min(1).max(50).optional(),
       teamCount: z.number().int().min(4).max(12).optional(),
-      privacy: z.enum(['private', 'public']).optional(),
+      isPrivate: z.boolean().optional(),
       draftTime: z.string().datetime().optional().nullable(),
       scoringConfig: ScoringConfigSchema.optional().nullable(),
     });
@@ -203,7 +203,7 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res, next) => {
     const settingsLocked = league.status !== 'pending';
     const scoringLocked = league.status !== 'pending' && league.status !== 'complete';
 
-    if (settingsLocked && (data.name !== undefined || data.draftTime !== undefined || data.teamCount !== undefined || data.privacy !== undefined)) {
+    if (settingsLocked && (data.name !== undefined || data.draftTime !== undefined || data.teamCount !== undefined || data.isPrivate !== undefined)) {
       res.status(400).json({ error: 'League settings are locked once the season starts' });
       return;
     }
@@ -225,7 +225,7 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res, next) => {
       data: {
         ...(data.name && { name: data.name }),
         ...(data.teamCount && { teamCount: data.teamCount }),
-        ...(data.privacy && { privacy: data.privacy }),
+        ...(data.isPrivate !== undefined && { isPrivate: data.isPrivate }),
         ...(data.draftTime !== undefined && { draftTime: data.draftTime ? new Date(data.draftTime) : null }),
         ...(data.scoringConfig !== undefined && { scoringConfig: data.scoringConfig ?? Prisma.DbNull }),
       },

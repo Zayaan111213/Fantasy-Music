@@ -20,7 +20,7 @@ test.describe('Live draft', () => {
     const league = await apiPost<{ id: string; inviteCode: string }>(commissioner.token, '/api/leagues', {
       name: 'E2E Draft League',
       teamCount: 4,
-      privacy: 'private',
+      isPrivate: true,
       draftTime,
     });
     leagueId = league.id;

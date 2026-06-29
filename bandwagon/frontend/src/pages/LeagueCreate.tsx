@@ -19,7 +19,7 @@ export function LeagueCreate() {
   const [step, setStep] = useState<Step>('form');
   const [name, setName] = useState('');
   const [teamCount, setTeamCount] = useState(8);
-  const [privacy, setPrivacy] = useState<'private' | 'public'>('private');
+  const [isPrivate, setIsPrivate] = useState(true);
   const [draftTime, setDraftTime] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -71,7 +71,7 @@ export function LeagueCreate() {
       const league = await api.post<{ id: string; inviteCode: string }>('/leagues', {
         name,
         teamCount,
-        privacy,
+        isPrivate,
         draftTime: new Date(draftTime).toISOString(),
       });
       setInviteCode(league.inviteCode);
@@ -205,19 +205,19 @@ export function LeagueCreate() {
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-gray-300">Privacy</label>
               <div className="flex gap-2">
-                {(['private', 'public'] as const).map((p) => (
+                {([true, false] as const).map((p) => (
                   <button
-                    key={p}
+                    key={String(p)}
                     type="button"
-                    onClick={() => setPrivacy(p)}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${privacy === p ? 'bg-indigo-500 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}
+                    onClick={() => setIsPrivate(p)}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${isPrivate === p ? 'bg-indigo-500 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}
                   >
-                    {p === 'private' ? '🔒 Private' : '🌐 Public'}
+                    {p ? '🔒 Private' : '🌐 Public'}
                   </button>
                 ))}
               </div>
               <p className="text-xs text-gray-500">
-                {privacy === 'private' ? 'Join by invite link only' : 'Anyone can join until full'}
+                {isPrivate ? 'Join by invite link only' : 'Anyone can join until full'}
               </p>
             </div>
 

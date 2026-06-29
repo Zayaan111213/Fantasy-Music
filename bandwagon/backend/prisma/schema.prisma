@@ -38,7 +38,7 @@ model League {
   commissionerId String
   commissioner   User      @relation("Commissioner", fields: [commissionerId], references: [id])
   teamCount      Int       @default(8)
-  privacy        String    @default("private")
+  isPrivate      Boolean   @default(true)
   draftTime      DateTime?
   status         String    @default("pending")
   inviteCode     String    @unique

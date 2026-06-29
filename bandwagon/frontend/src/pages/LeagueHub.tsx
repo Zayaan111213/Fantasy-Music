@@ -1025,7 +1025,7 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League })
             </div>
             <div className="flex justify-between">
               <span className="text-gray-500">Privacy</span>
-              <span className="text-white capitalize">{league.privacy}</span>
+              <span className="text-white">{league.isPrivate ? 'Private' : 'Public'}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-500">Teams</span>

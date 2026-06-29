@@ -16,7 +16,7 @@ export interface League {
   name: string;
   commissionerId: string;
   teamCount: number;
-  privacy: 'private' | 'public';
+  isPrivate: boolean;
   draftTime: string | null;
   status: 'pending' | 'pre_draft' | 'drafting' | 'active' | 'complete';
   inviteCode: string;
@@ -163,7 +163,7 @@ export interface LeagueCard {
   name: string;
   status: string;
   currentWeek: number;
-  privacy: string;
+  isPrivate: boolean;
   teamCount: number;
   isCommissioner: boolean;
   myTeam: { id: string; name: string; logoUrl: string | null; wins: number; losses: number };

@@ -42,7 +42,7 @@ router.post('/active-league', async (req, res, next) => {
         name: `E2E League ${ts}`,
         commissionerId: user1.id,
         teamCount: 2,
-        privacy: 'private',
+        isPrivate: true,
         status: 'active',
         inviteCode,
         currentWeek: 1,
