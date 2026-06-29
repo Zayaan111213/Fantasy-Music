@@ -134,9 +134,26 @@ async function main() {
     ],
   });
 
-  await prisma.matchup.create({
-    data: { leagueId: league.id, week: WEEK, homeTeamId: team1.id, awayTeamId: team2.id },
-  });
+  // Create all 10 weeks of matchups (2-team league: same pairing every week)
+  for (let w = 1; w <= 10; w++) {
+    const isFinalized = w < WEEK;
+    // Fabricate alternating winners for past weeks so the history looks realistic
+    const homeWon = w % 2 === 1; // week 1: home wins, week 2: away wins
+    await prisma.matchup.create({
+      data: {
+        leagueId: league.id,
+        week: w,
+        homeTeamId: team1.id,
+        awayTeamId: team2.id,
+        ...(isFinalized && {
+          homeScore: homeWon ? 78.5 + w : 61.0 + w,
+          awayScore: homeWon ? 61.0 + w : 78.5 + w,
+          winnerId: homeWon ? team1.id : team2.id,
+          isFinalized: true,
+        }),
+      },
+    });
+  }
 
   await updateMatchupScores(league.id, WEEK, YEAR);
 

@@ -376,6 +376,69 @@ router.get('/:id/standings', requireAuth, async (req: AuthRequest, res, next) =>
   }
 });
 
+// Any week matchup for the requesting user
+router.get('/:id/matchups/week/:week', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const week = parseInt(req.params.week, 10);
+    if (isNaN(week) || week < 1) { res.status(400).json({ error: 'Invalid week' }); return; }
+
+    const league = await prisma.league.findUnique({ where: { id: req.params.id } });
+    if (!league) { res.status(404).json({ error: 'League not found' }); return; }
+
+    const myTeam = await prisma.team.findFirst({
+      where: { leagueId: req.params.id, userId: req.userId! },
+    });
+    if (!myTeam) { res.status(403).json({ error: 'Not a member' }); return; }
+
+    const matchup = await prisma.matchup.findFirst({
+      where: {
+        leagueId: req.params.id,
+        week,
+        OR: [{ homeTeamId: myTeam.id }, { awayTeamId: myTeam.id }],
+      },
+      include: {
+        homeTeam: {
+          include: {
+            user: { select: { username: true, avatarUrl: true } },
+            rosterSpots: {
+              include: {
+                artist: {
+                  include: {
+                    weeklyScores: {
+                      where: { week, seasonYear: league.seasonYear },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        awayTeam: {
+          include: {
+            user: { select: { username: true, avatarUrl: true } },
+            rosterSpots: {
+              include: {
+                artist: {
+                  include: {
+                    weeklyScores: {
+                      where: { week, seasonYear: league.seasonYear },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!matchup) { res.json(null); return; }
+    res.json(matchup);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Current week matchup for the requesting user
 router.get('/:id/matchups/current', requireAuth, async (req: AuthRequest, res, next) => {
   try {

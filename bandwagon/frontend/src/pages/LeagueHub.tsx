@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Music2, ChevronLeft, Trophy, Users, Settings, Swords, Search, ArrowUpDown, User, Pencil, X, Check, Lock } from 'lucide-react';
+import { Music2, ChevronLeft, Trophy, Users, Settings, Swords, Search, ArrowUpDown, User, Pencil, X, Check, Lock, ChevronRight } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/ui/Card';
@@ -370,17 +370,23 @@ function MyTeamTab({ leagueId, league, phase }: { leagueId: string; league: Leag
 
 function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: League; phase: WeekPhase }) {
   const { user } = useAuth();
+  const [viewWeek, setViewWeek] = useState(league.currentWeek);
   const [showResultPopup, setShowResultPopup] = useState(false);
 
+  const isCurrentWeek = viewWeek === league.currentWeek;
+  const isPastWeek = viewWeek < league.currentWeek;
+  const isFutureWeek = viewWeek > league.currentWeek;
+
   const { data: matchup, isLoading } = useQuery({
-    queryKey: ['matchup', leagueId, 'current'],
-    queryFn: () => api.get<Matchup | null>(`/leagues/${leagueId}/matchups/current`),
+    queryKey: ['matchup', leagueId, 'week', viewWeek],
+    queryFn: () => api.get<Matchup | null>(`/leagues/${leagueId}/matchups/week/${viewWeek}`),
+    enabled: phase !== 'pre_season',
   });
 
   const { data: prevMatchup } = useQuery({
     queryKey: ['matchup', leagueId, 'previous'],
     queryFn: () => api.get<Matchup | null>(`/leagues/${leagueId}/matchups/previous`),
-    enabled: phase === 'adjustment' && league.currentWeek > 1,
+    enabled: isCurrentWeek && phase === 'adjustment' && league.currentWeek > 1,
   });
 
   useEffect(() => {
@@ -389,12 +395,65 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
     if (!localStorage.getItem(key)) setShowResultPopup(true);
   }, [prevMatchup?.isFinalized, prevMatchup?.winnerId, prevMatchup?.week, phase, leagueId]);
 
-  if (isLoading) return <div className="flex justify-center py-12"><Spinner className="w-8 h-8" /></div>;
+  // Keep viewWeek in sync if league advances
+  useEffect(() => {
+    setViewWeek(league.currentWeek);
+  }, [league.currentWeek]);
 
-  if (phase === 'pre_season' || !matchup) {
+  if (phase === 'pre_season') {
     return (
       <div className="text-center py-12 text-gray-400">
-        {phase === 'pre_season' ? 'Your matchup will appear here after the draft.' : 'No matchup this week.'}
+        Your matchup will appear here after the draft.
+      </div>
+    );
+  }
+
+  const TOTAL_WEEKS = 10;
+
+  function WeekNav() {
+    return (
+      <div className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-2">
+        <button
+          onClick={() => setViewWeek((w) => Math.max(1, w - 1))}
+          disabled={viewWeek <= 1}
+          className="p-1 rounded text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-white">Week {viewWeek}</span>
+          {isCurrentWeek && (
+            <span className="text-xs bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded px-1.5 py-0.5">Current</span>
+          )}
+          {isPastWeek && matchup?.isFinalized && (
+            <span className="text-xs bg-gray-700/50 text-gray-400 rounded px-1.5 py-0.5">Final</span>
+          )}
+        </div>
+        <button
+          onClick={() => setViewWeek((w) => Math.min(TOTAL_WEEKS, w + 1))}
+          disabled={viewWeek >= TOTAL_WEEKS}
+          className="p-1 rounded text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+    );
+  }
+
+  if (isLoading) return (
+    <div className="space-y-4">
+      <WeekNav />
+      <div className="flex justify-center py-12"><Spinner className="w-8 h-8" /></div>
+    </div>
+  );
+
+  if (!matchup) {
+    return (
+      <div className="space-y-4">
+        <WeekNav />
+        <div className="text-center py-12 text-gray-400">
+          {isFutureWeek ? `Week ${viewWeek} matchup hasn't been played yet.` : 'No matchup found for this week.'}
+        </div>
       </div>
     );
   }
@@ -404,6 +463,9 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
   const oppTeamData = isHome ? matchup.awayTeam : matchup.homeTeam;
   const myScore = isHome ? matchup.homeScore : matchup.awayScore;
   const oppScore = isHome ? matchup.awayScore : matchup.homeScore;
+  const myTeamId = isHome ? matchup.homeTeamId : matchup.awayTeamId;
+  const iWon = matchup.isFinalized && matchup.winnerId === myTeamId;
+  const iLost = matchup.isFinalized && matchup.winnerId != null && matchup.winnerId !== myTeamId;
 
   // Build map: artistId → prev week totalPoints (from both rosters in previous matchup)
   const prevScoreMap: Record<string, number> = {};
@@ -430,6 +492,62 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
     setShowResultPopup(false);
   }
 
+  // Past week — show final result
+  if (isPastWeek) {
+    return (
+      <div className="space-y-4">
+        <WeekNav />
+        <Card className="p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-xs text-gray-500">Week {viewWeek} · Final</div>
+            {iWon && <span className="text-xs font-semibold text-green-400 bg-green-400/10 rounded px-2 py-0.5">Win</span>}
+            {iLost && <span className="text-xs font-semibold text-red-400 bg-red-400/10 rounded px-2 py-0.5">Loss</span>}
+            {!iWon && !iLost && <span className="text-xs text-gray-500">Not finalized</span>}
+          </div>
+          <div className="flex items-center justify-center gap-6">
+            <div className="text-center">
+              <div className="font-semibold text-white mb-1">{myTeamData?.name ?? 'Your Team'}</div>
+              <div className={`text-3xl font-bold ${iWon ? 'text-green-400' : 'text-white'}`}>{myScore.toFixed(1)}</div>
+            </div>
+            <div className="text-gray-600 text-lg font-light">vs</div>
+            <div className="text-center">
+              <div className="font-semibold text-white mb-1">{oppTeamData?.name ?? 'Opponent'}</div>
+              <div className={`text-3xl font-bold ${iLost ? 'text-green-400' : 'text-white'}`}>{oppScore.toFixed(1)}</div>
+            </div>
+          </div>
+        </Card>
+        <div className="grid grid-cols-2 gap-2">
+          <TeamRosterCard title={myTeamData?.name ?? 'Your Team'} roster={myTeamData?.rosterSpots ?? []} leagueId={leagueId} />
+          <TeamRosterCard title={oppTeamData?.name ?? 'Opponent'} roster={oppTeamData?.rosterSpots ?? []} reverse leagueId={leagueId} />
+        </div>
+      </div>
+    );
+  }
+
+  // Future week — show upcoming matchup (no scores yet)
+  if (isFutureWeek) {
+    return (
+      <div className="space-y-4">
+        <WeekNav />
+        <Card className="p-5">
+          <div className="text-center text-xs text-gray-500 mb-3">Week {viewWeek} · Upcoming</div>
+          <div className="flex items-center justify-center gap-6">
+            <div className="text-center">
+              <div className="font-semibold text-white mb-1">{myTeamData?.name ?? 'Your Team'}</div>
+              <div className="text-3xl font-bold text-gray-600">—</div>
+            </div>
+            <div className="text-gray-600 text-lg font-light">vs</div>
+            <div className="text-center">
+              <div className="font-semibold text-white mb-1">{oppTeamData?.name ?? 'Opponent'}</div>
+              <div className="text-3xl font-bold text-gray-600">—</div>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  // Current week — existing phase-based logic
   if (phase === 'adjustment') {
     return (
       <div className="space-y-4">
@@ -462,6 +580,8 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
             </div>
           </div>
         )}
+
+        <WeekNav />
 
         {/* Adjustment banner */}
         <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3 flex items-center gap-2 text-sm text-green-400">
@@ -511,6 +631,7 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
   // Scoring phase — live scores, lineup locked
   return (
     <div className="space-y-4">
+      <WeekNav />
       <Card className="p-5">
         <div className="text-center text-xs text-gray-500 mb-1">Week {league.currentWeek}</div>
         <div className="flex items-center justify-center gap-1.5 mb-3">
