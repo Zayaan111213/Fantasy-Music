@@ -220,6 +220,30 @@ describe('draft:skip-countdown', () => {
       expect.objectContaining({ status: 'drafting' })
     );
   });
+
+  it('updates draftTime to now when commissioner skips countdown', async () => {
+    const before = Date.now();
+    mockJwtVerify.mockReturnValue({ userId: 'user-1' } as any);
+    pm.league.findUnique
+      .mockResolvedValueOnce({ id: 'l1', commissionerId: 'user-1', status: 'pre_draft' })
+      .mockResolvedValueOnce({
+        id: 'l1', status: 'drafting',
+        draftState: { currentPick: 0, pickOrder: ['t1'], timerEndsAt: new Date() },
+        teams: [], draftPicks: [],
+      });
+    pm.league.update.mockResolvedValue({});
+    pm.draftState.update.mockResolvedValue({});
+    const { handlers } = connect();
+
+    await handlers['draft:skip-countdown']({ leagueId: 'l1', token: 'valid' });
+    const after = Date.now();
+
+    const [[updateArgs]] = pm.league.update.mock.calls;
+    const writtenDraftTime: Date = updateArgs.data.draftTime;
+    expect(writtenDraftTime).toBeInstanceOf(Date);
+    expect(writtenDraftTime.getTime()).toBeGreaterThanOrEqual(before);
+    expect(writtenDraftTime.getTime()).toBeLessThanOrEqual(after);
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -18,7 +18,7 @@ vi.mock('../../jobs/ingestCharts', () => ({
 }));
 
 import { prisma } from '../../db/prisma';
-import { resolveWinner, finalizeLeagueWeek } from '../../jobs/finalizePipeline';
+import { resolveWinner, finalizeLeagueWeek, firstScoringTuesdayPT } from '../../jobs/finalizePipeline';
 
 const rosterFindMany = vi.mocked(prisma.rosterSpot.findMany);
 const scoreFindUnique = vi.mocked(prisma.weeklyScore.findUnique);
@@ -136,5 +136,90 @@ describe('finalizeLeagueWeek', () => {
 
     expect(prisma.matchup.findMany).not.toHaveBeenCalled();
     expect(prisma.team.update).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// firstScoringTuesdayPT — first Tuesday after the draft
+// All draft times are noon UTC so PT date == UTC date (PDT is UTC-7 in summer).
+// ---------------------------------------------------------------------------
+describe('firstScoringTuesdayPT', () => {
+  // Whole week of July 1–7, 2026:  Wed / Thu / Fri / Sat / Sun / Mon all land on July 7;
+  // a Tuesday draft skips to the following Tuesday (July 14).
+  it('Wednesday draft → next Tuesday (+6 days)', () => {
+    expect(firstScoringTuesdayPT(new Date('2026-07-01T12:00:00Z'))).toBe('2026-07-07');
+  });
+
+  it('Thursday draft → next Tuesday (+5 days)', () => {
+    expect(firstScoringTuesdayPT(new Date('2026-07-02T12:00:00Z'))).toBe('2026-07-07');
+  });
+
+  it('Friday draft → next Tuesday (+4 days)', () => {
+    expect(firstScoringTuesdayPT(new Date('2026-07-03T12:00:00Z'))).toBe('2026-07-07');
+  });
+
+  it('Saturday draft → next Tuesday (+3 days)', () => {
+    expect(firstScoringTuesdayPT(new Date('2026-07-04T12:00:00Z'))).toBe('2026-07-07');
+  });
+
+  it('Sunday draft → next Tuesday (+2 days)', () => {
+    expect(firstScoringTuesdayPT(new Date('2026-07-05T12:00:00Z'))).toBe('2026-07-07');
+  });
+
+  it('Monday draft → next day (Tuesday, +1 day)', () => {
+    expect(firstScoringTuesdayPT(new Date('2026-07-06T12:00:00Z'))).toBe('2026-07-07');
+  });
+
+  it('Tuesday draft → 7 days later, not the same Tuesday', () => {
+    // Week-1 exception: a Tuesday draft means the first FULL scoring week starts
+    // the following Tuesday, so lineups opened that Tuesday have a full week ahead.
+    expect(firstScoringTuesdayPT(new Date('2026-07-07T12:00:00Z'))).toBe('2026-07-14');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Week 1 finalization gate
+// The finalize pipeline skips a Week-1 league until the Monday after the
+// first full scoring week (firstScoringTuesdayPT + 6 days).
+// ---------------------------------------------------------------------------
+describe('Week 1 finalization gate', () => {
+  // Helper mirrors the main() skip check so we can assert the exact cutoff date.
+  function firstFinalizeMondayPT(draftTime: Date): string {
+    const tuesdayStr = firstScoringTuesdayPT(draftTime);
+    const tuesdayDate = new Date(tuesdayStr + 'T12:00:00Z');
+    const monday = new Date(tuesdayDate);
+    monday.setUTCDate(tuesdayDate.getUTCDate() + 6);
+    return monday.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+  }
+
+  // Wednesday July 1 draft → first scoring Tuesday = July 7 → first finalize Monday = July 13
+  const wednesdayDraft = new Date('2026-07-01T12:00:00Z');
+
+  it('first finalize Monday is 13 days after a Wednesday draft', () => {
+    expect(firstFinalizeMondayPT(wednesdayDraft)).toBe('2026-07-13');
+  });
+
+  it('should skip on the first scoring Tuesday (week has not ended yet)', () => {
+    const firstTuesdayPT = firstScoringTuesdayPT(wednesdayDraft); // '2026-07-07'
+    const firstMondayPT = firstFinalizeMondayPT(wednesdayDraft);  // '2026-07-13'
+    expect(firstTuesdayPT < firstMondayPT).toBe(true);            // July 7 < July 13 → skip
+  });
+
+  it('should skip on the Sunday before the first finalize Monday', () => {
+    const todayPT = '2026-07-12'; // Sunday before July 13
+    const firstMondayPT = firstFinalizeMondayPT(wednesdayDraft);
+    expect(todayPT < firstMondayPT).toBe(true);
+  });
+
+  it('should finalize on the first Monday after the first scoring week', () => {
+    const todayPT = '2026-07-13'; // Monday — first scoring week Tue-Sun is complete
+    const firstMondayPT = firstFinalizeMondayPT(wednesdayDraft);
+    expect(todayPT < firstMondayPT).toBe(false);
+  });
+
+  it('Tuesday draft: first finalize Monday is 20 days later', () => {
+    // Tuesday July 7 draft → first scoring Tuesday = July 14 → first finalize Monday = July 20
+    const tuesdayDraft = new Date('2026-07-07T12:00:00Z');
+    expect(firstFinalizeMondayPT(tuesdayDraft)).toBe('2026-07-20');
   });
 });

@@ -77,7 +77,7 @@ export async function finalizeLeagueWeek(leagueId: string, week: number, year: n
 
 // Returns the PT calendar date (YYYY-MM-DD) of the first scoring Tuesday after the draft.
 // Matches the same logic used by isLineupLocked() in leagues.ts.
-function firstScoringTuesdayPT(draftTime: Date): string {
+export function firstScoringTuesdayPT(draftTime: Date): string {
   const dowNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const draftDow = dowNames.indexOf(
     draftTime.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/Los_Angeles' }),
