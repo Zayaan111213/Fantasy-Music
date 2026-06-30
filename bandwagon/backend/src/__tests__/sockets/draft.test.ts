@@ -5,7 +5,7 @@ vi.mock('../../db/prisma', () => ({
     league: { findUnique: vi.fn(), update: vi.fn() },
     draftState: { findUnique: vi.fn(), update: vi.fn() },
     team: { findUnique: vi.fn() },
-    artist: { findUnique: vi.fn() },
+    artist: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn() },
     draftPick: { findMany: vi.fn() },
     $transaction: vi.fn().mockResolvedValue([{}, {}]),
   },
@@ -30,7 +30,11 @@ const pm = prisma as unknown as {
   league: { findUnique: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
   draftState: { findUnique: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
   team: { findUnique: ReturnType<typeof vi.fn> };
-  artist: { findUnique: ReturnType<typeof vi.fn> };
+  artist: {
+    findUnique: ReturnType<typeof vi.fn>;
+    findFirst: ReturnType<typeof vi.fn>;
+    findMany: ReturnType<typeof vi.fn>;
+  };
   draftPick: { findMany: ReturnType<typeof vi.fn> };
   $transaction: ReturnType<typeof vi.fn>;
 };
@@ -319,5 +323,108 @@ describe('draft:pick', () => {
     expect(socket.emit).toHaveBeenCalledWith('draft:error',
       expect.stringContaining('No eligible slot')
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fireAutoDraft — timer expiry after 60 seconds
+// ---------------------------------------------------------------------------
+
+// Each test uses a distinct leagueId because the module-level `leagueTimers` Map
+// persists between tests; re-using the same id would prevent the second test from
+// starting a new timer (it would see the stale Map entry from the previous test).
+
+describe('fireAutoDraft — timer expiry', () => {
+  const TEAM_AUTOD = {
+    id: 'team-autod',
+    userId: 'user-autod',
+    rosterSpots: [],
+  };
+
+  const POP_ARTIST = {
+    id: 'auto-artist-1',
+    name: 'Auto Pop Star',
+    primaryGenre: 'Pop',
+    weeklyScores: [{ totalPoints: 40 }],
+  };
+
+  function setupAutodrftMocks(leagueId: string) {
+    const draftState = {
+      isComplete: false, currentPick: 0, pickOrder: ['team-autod'], timerEndsAt: null,
+    };
+    mockJwtVerify.mockReturnValue({ userId: 'user-autod' } as any);
+    pm.league.findUnique.mockResolvedValue({
+      id: leagueId, status: 'drafting', draftTime: null,
+      draftState,
+      teams: [{ id: 'team-autod', userId: 'user-autod', draftPosition: 1 }],
+      draftPicks: [],
+    });
+    pm.draftState.findUnique.mockResolvedValue(draftState);
+    pm.team.findUnique.mockResolvedValue(TEAM_AUTOD);
+    pm.draftPick.findMany.mockResolvedValue([]);
+    pm.artist.findFirst.mockResolvedValue(POP_ARTIST);
+    pm.artist.findMany.mockResolvedValue([POP_ARTIST]);
+  }
+
+  it('emits draft:tick each second until the clock runs out', async () => {
+    const leagueId = 'league-autod-tick';
+    setupAutodrftMocks(leagueId);
+    mockMakePick.mockResolvedValue({
+      pick: { id: 'auto-pick-1', artistId: 'auto-artist-1' },
+      isComplete: false,
+    });
+
+    const { handlers } = connect();
+    await handlers['draft:join']({ leagueId, token: 'valid' });
+
+    // Advance 30 seconds — should have emitted 30 tick events
+    await vi.advanceTimersByTimeAsync(30_000);
+    const tickCalls = roomEmit.mock.calls.filter((c) => c[0] === 'draft:tick');
+    expect(tickCalls.length).toBe(30);
+    expect(tickCalls[0][1]).toBe(59); // first tick: 60 - 1 = 59
+  });
+
+  it('calls makePick with isAutoDraft=true and emits draft:pick-made when clock expires', async () => {
+    const leagueId = 'league-autod-pick';
+    setupAutodrftMocks(leagueId);
+    mockMakePick.mockResolvedValue({
+      pick: { id: 'auto-pick-1', artistId: 'auto-artist-1' },
+      isComplete: false,
+    });
+
+    const { handlers } = connect();
+    await handlers['draft:join']({ leagueId, token: 'valid' });
+
+    // Advance the full 60 seconds to trigger fireAutoDraft
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(mockMakePick).toHaveBeenCalledWith(
+      leagueId,
+      'user-autod',
+      'auto-artist-1',
+      expect.any(String), // slot name (first open slot)
+      true                // isAutoDraft = true
+    );
+
+    expect(roomEmit).toHaveBeenCalledWith('draft:pick-made',
+      expect.objectContaining({ id: 'auto-pick-1', isAutoDraft: true })
+    );
+  });
+
+  it('emits draft:complete when auto-draft fills the last slot (isComplete=true)', async () => {
+    const leagueId = 'league-autod-complete';
+    setupAutodrftMocks(leagueId);
+    mockMakePick.mockResolvedValue({
+      pick: { id: 'auto-pick-last', artistId: 'auto-artist-1' },
+      isComplete: true,
+    });
+
+    const { handlers } = connect();
+    await handlers['draft:join']({ leagueId, token: 'valid' });
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(roomEmit).toHaveBeenCalledWith('draft:pick-made', expect.any(Object));
+    expect(roomEmit).toHaveBeenCalledWith('draft:complete');
   });
 });

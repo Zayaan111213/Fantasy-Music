@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 
@@ -9,10 +9,9 @@ vi.mock('../../../db/prisma', () => ({
     league: { findUnique: vi.fn() },
     team: { findMany: vi.fn(), findFirst: vi.fn() },
     matchup: { findFirst: vi.fn() },
-    artist: { findMany: vi.fn() },
+    artist: { findUnique: vi.fn(), findMany: vi.fn() },
     genreStreamingTier: { findMany: vi.fn() },
     rosterSpot: { findUnique: vi.fn(), update: vi.fn() },
-    artist: { findUnique: vi.fn(), findMany: vi.fn() },
     $transaction: vi.fn(),
   },
 }));
@@ -36,8 +35,10 @@ const pm = prisma as unknown as {
   league: { findUnique: ReturnType<typeof vi.fn> };
   team: { findMany: ReturnType<typeof vi.fn>; findFirst: ReturnType<typeof vi.fn> };
   matchup: { findFirst: ReturnType<typeof vi.fn> };
-  artist: { findMany: ReturnType<typeof vi.fn> };
+  artist: { findUnique: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> };
   genreStreamingTier: { findMany: ReturnType<typeof vi.fn> };
+  rosterSpot: { findUnique: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
+  $transaction: ReturnType<typeof vi.fn>;
 };
 
 const app = express();
@@ -268,5 +269,105 @@ describe('GET /leagues/:id/players', () => {
     expect(res.status).toBe(200);
     expect(res.body[0].lastWeekPoints).toBe(0);
     expect(res.body[0].avgLast5Points).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PUT /leagues/:id/roster/lineup — lineup swap
+// ---------------------------------------------------------------------------
+
+describe('PUT /leagues/:id/roster/lineup', () => {
+  afterEach(() => {
+    delete process.env.TEST_OVERRIDE_DAY;
+  });
+
+  it('returns 404 when league not found', async () => {
+    pm.league.findUnique.mockResolvedValue(null);
+
+    const res = await request(app)
+      .put('/leagues/bad/roster/lineup')
+      .send({ slotA: 'Flex', slotB: 'Bench-1' });
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('League not found');
+  });
+
+  it('returns 403 when lineup is locked on Tuesday (active league)', async () => {
+    process.env.TEST_OVERRIDE_DAY = 'Tuesday';
+    pm.league.findUnique.mockResolvedValue({
+      id: 'l1', status: 'active', currentWeek: 2, draftTime: null,
+    });
+
+    const res = await request(app)
+      .put('/leagues/l1/roster/lineup')
+      .send({ slotA: 'Flex', slotB: 'Bench-1' });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/locked/i);
+  });
+
+  it('returns 403 when user is not a member', async () => {
+    pm.league.findUnique.mockResolvedValue({ id: 'l1', status: 'pending', currentWeek: 1, draftTime: null });
+    pm.team.findFirst.mockResolvedValue(null);
+
+    const res = await request(app)
+      .put('/leagues/l1/roster/lineup')
+      .send({ slotA: 'Flex', slotB: 'Bench-1' });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/member/i);
+  });
+
+  it('returns 400 when a slot does not exist on the team', async () => {
+    pm.league.findUnique.mockResolvedValue({ id: 'l1', status: 'pending', currentWeek: 1, draftTime: null });
+    pm.team.findFirst.mockResolvedValue({ id: 'my-team' });
+    pm.rosterSpot.findUnique
+      .mockResolvedValueOnce({ id: 'spot-a', artistId: 'a1', slot: 'Flex' })
+      .mockResolvedValueOnce(null); // spotB not found
+
+    const res = await request(app)
+      .put('/leagues/l1/roster/lineup')
+      .send({ slotA: 'Flex', slotB: 'Bench-1' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/invalid slots/i);
+  });
+
+  it('returns 400 when the swapped artist does not fit the destination slot', async () => {
+    // Country artist in Bench-1 trying to move to Pop slot — ineligible
+    pm.league.findUnique.mockResolvedValue({ id: 'l1', status: 'pending', currentWeek: 1, draftTime: null });
+    pm.team.findFirst.mockResolvedValue({ id: 'my-team' });
+    pm.rosterSpot.findUnique
+      .mockResolvedValueOnce({ id: 'spot-bench', artistId: 'artist-country', slot: 'Bench-1' }) // slotA
+      .mockResolvedValueOnce({ id: 'spot-pop', artistId: 'artist-pop', slot: 'Pop' });          // slotB
+    pm.artist.findUnique
+      .mockResolvedValueOnce({ id: 'artist-country', name: 'Country Star', primaryGenre: 'Country' }) // artistA
+      .mockResolvedValueOnce({ id: 'artist-pop',     name: 'Pop Star',     primaryGenre: 'Pop' });    // artistB
+
+    // artistA (Country) → slotB (Pop): ineligible
+    const res = await request(app)
+      .put('/leagues/l1/roster/lineup')
+      .send({ slotA: 'Bench-1', slotB: 'Pop' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Country Star/);
+  });
+
+  it('returns 200 and performs the swap for a valid eligible exchange', async () => {
+    pm.league.findUnique.mockResolvedValue({ id: 'l1', status: 'pending', currentWeek: 1, draftTime: null });
+    pm.team.findFirst.mockResolvedValue({ id: 'my-team' });
+    pm.rosterSpot.findUnique
+      .mockResolvedValueOnce({ id: 'spot-flex',  artistId: 'artist-a', slot: 'Flex' })    // slotA
+      .mockResolvedValueOnce({ id: 'spot-bench', artistId: 'artist-b', slot: 'Bench-1' }); // slotB
+    pm.artist.findUnique
+      .mockResolvedValueOnce({ id: 'artist-a', name: 'Pop Star A', primaryGenre: 'Pop' }) // artistA
+      .mockResolvedValueOnce({ id: 'artist-b', name: 'Pop Star B', primaryGenre: 'Pop' }); // artistB
+    // Both Pop artists fit in either Flex or Bench-1
+
+    const res = await request(app)
+      .put('/leagues/l1/roster/lineup')
+      .send({ slotA: 'Flex', slotB: 'Bench-1' });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    // $transaction should have been called to perform the 3-step swap
+    expect(pm.$transaction).toHaveBeenCalledTimes(1);
+    // rosterSpot.update called 3 times: null out slotA, set slotB→artistA, set slotA→artistB
+    expect(pm.rosterSpot.update).toHaveBeenCalledTimes(3);
   });
 });
