@@ -213,7 +213,7 @@ describe('draft:skip-countdown', () => {
 
     // Should have updated league to drafting status
     expect(pm.league.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { status: 'drafting' } })
+      expect.objectContaining({ data: expect.objectContaining({ status: 'drafting' }) })
     );
     // Should broadcast new state to the room
     expect(roomEmit).toHaveBeenCalledWith('draft:state',

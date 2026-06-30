@@ -57,7 +57,7 @@ async function transitionToLiveDraft(io: Server, leagueId: string) {
   const timerEndsAt = new Date(Date.now() + 60_000);
 
   await prisma.$transaction([
-    prisma.league.update({ where: { id: leagueId }, data: { status: 'drafting' } }),
+    prisma.league.update({ where: { id: leagueId }, data: { status: 'drafting', draftTime: new Date() } }),
     prisma.draftState.update({ where: { leagueId }, data: { timerEndsAt } }),
   ]);
 
