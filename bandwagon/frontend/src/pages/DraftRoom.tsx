@@ -147,7 +147,7 @@ export function DraftRoom() {
   async function fetchArtists() {
     setLoadingArtists(true);
     try {
-      const data = await api.get<Artist[]>(`/artists?q=${search}&genre=${genreFilter}&limit=500`);
+      const data = await api.get<Artist[]>(`/artists?q=${search}&genre=${genreFilter}&limit=5000`);
       const draftedIds = new Set(state?.picks.map((p) => p.artistId) ?? []);
       setAvailableArtists(data.filter((a) => !draftedIds.has(a.id)));
     } finally {

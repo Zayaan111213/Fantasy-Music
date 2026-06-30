@@ -18,7 +18,7 @@ router.get('/', requireAuth, async (req, res, next) => {
     const q = (req.query.q as string) || '';
     const genre = req.query.genre as string | undefined;
     const page = parseInt((req.query.page as string) || '1', 10);
-    const limit = Math.min(parseInt((req.query.limit as string) || '40', 10), 500);
+    const limit = Math.min(parseInt((req.query.limit as string) || '40', 10), 5000);
 
     const artists = await prisma.artist.findMany({
       where: {
