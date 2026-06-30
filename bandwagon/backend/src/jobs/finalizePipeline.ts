@@ -75,18 +75,51 @@ export async function finalizeLeagueWeek(leagueId: string, week: number, year: n
   console.log(`[finalize] league ${leagueId} week ${week} → ${nextWeek}`);
 }
 
+// Returns the PT calendar date (YYYY-MM-DD) of the first scoring Tuesday after the draft.
+// Matches the same logic used by isLineupLocked() in leagues.ts.
+function firstScoringTuesdayPT(draftTime: Date): string {
+  const dowNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const draftDow = dowNames.indexOf(
+    draftTime.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/Los_Angeles' }),
+  );
+  // If draft is on Tuesday, next scoring Tuesday is 7 days later (week-1 exception).
+  const daysToTuesday = draftDow === 2 ? 7 : (2 - draftDow + 7) % 7;
+  const firstTuesday = new Date(draftTime);
+  firstTuesday.setDate(draftTime.getDate() + daysToTuesday);
+  return firstTuesday.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+}
+
 async function main(): Promise<void> {
   // Single-source week boundary: same Pacific Tue function used by dailyPipeline.
   // At Mon 0:01 AM Pacific (finalize cron time), this returns last Tuesday = week just ended.
   const weekDate = getCurrentWeekDate();
-  console.log(`[finalize] week boundary ${weekDate.toISOString().slice(0, 10)} (Tue 0:00 Pacific start)`);
+  const todayPT = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+  console.log(`[finalize] week boundary ${weekDate.toISOString().slice(0, 10)}, today PT: ${todayPT}`);
 
   const leagues = await prisma.league.findMany({
     where: { status: 'active' },
-    select: { id: true, currentWeek: true, seasonYear: true },
+    select: { id: true, currentWeek: true, seasonYear: true, draftTime: true },
   });
 
-  for (const { id: leagueId, currentWeek: week, seasonYear: year } of leagues) {
+  for (const { id: leagueId, currentWeek: week, seasonYear: year, draftTime } of leagues) {
+    // Week 1 exception: there is no game in the gap between draft completion and the
+    // first scoring Tuesday. Only finalize once the Monday AFTER the first full scoring
+    // week (Tue–Sun) has been reached — i.e. firstScoringTuesday + 6 days.
+    if (week === 1 && draftTime) {
+      const firstTuesdayStr = firstScoringTuesdayPT(draftTime);
+      const firstTuesdayDate = new Date(firstTuesdayStr + 'T12:00:00Z');
+      const firstMonday = new Date(firstTuesdayDate);
+      firstMonday.setUTCDate(firstTuesdayDate.getUTCDate() + 6);
+      const firstMondayStr = firstMonday.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+      if (todayPT < firstMondayStr) {
+        console.log(
+          `[finalize] league ${leagueId} week 1 — first scoring week starts ${firstTuesdayStr},` +
+          ` first finalize on ${firstMondayStr}, skipping (today ${todayPT})`,
+        );
+        continue;
+      }
+    }
+
     await finalizeLeagueWeek(leagueId, week, year);
   }
 
