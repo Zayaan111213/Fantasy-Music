@@ -38,9 +38,13 @@ export async function apiPut<T>(token: string, path: string, data?: object): Pro
 export interface ActiveLeagueFixture {
   user1: { id: string; email: string; token: string };
   user2: { id: string; email: string; token: string };
+  user3: { id: string; email: string; token: string };
+  user4: { id: string; email: string; token: string };
   leagueId: string;
   team1Id: string;
   team2Id: string;
+  team3Id: string;
+  team4Id: string;
 }
 
 export async function setupActiveLeague(): Promise<ActiveLeagueFixture> {

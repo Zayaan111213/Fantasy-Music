@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../../db/prisma';
 import { requireAuth, type AuthRequest } from '../middleware/auth';
+import { buildRoundRobin } from '../../utils/schedule';
 
 const router = Router();
 
@@ -207,18 +208,7 @@ export async function makePick(
 
       // Generate round-robin matchups for 10 weeks
       const allTeams = await tx.team.findMany({ where: { leagueId }, orderBy: { draftPosition: 'asc' } });
-      const ids = allTeams.map((t) => t.id);
-      const matchups = [];
-      for (let week = 1; week <= 10; week++) {
-        for (let i = 0; i < Math.floor(ids.length / 2); i++) {
-          const j = ids.length - 1 - i;
-          if (i !== j) {
-            matchups.push({ leagueId, week, homeTeamId: ids[i], awayTeamId: ids[j] });
-          }
-        }
-        // Rotate (except position 0)
-        ids.splice(1, 0, ids.pop()!);
-      }
+      const matchups = buildRoundRobin(allTeams.map((t) => t.id), leagueId, 10);
       await tx.matchup.createMany({ data: matchups });
 
       await tx.league.update({ where: { id: leagueId }, data: { status: 'active', currentWeek: 1 } });

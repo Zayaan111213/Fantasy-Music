@@ -10,7 +10,7 @@ test.describe('Lineup management', () => {
   });
 
   test.afterAll(async () => {
-    await teardownLeague(fixture.leagueId, [fixture.user1.id, fixture.user2.id]);
+    await teardownLeague(fixture.leagueId, [fixture.user1.id, fixture.user2.id, fixture.user3.id, fixture.user4.id]);
   });
 
   test('swap works via UI on Monday', async ({ browser: b }) => {

@@ -1,21 +1,29 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { createUser, injectAuth } from '../helpers/auth';
-import { apiPost } from '../helpers/api';
+import { apiPost, teardownLeague } from '../helpers/api';
 
 test.describe('Live draft', () => {
   let commissioner: { id: string; token: string };
-  let player: { id: string; token: string };
+  let players: { id: string; token: string }[];
   let leagueId: string;
   let inviteCode: string;
 
   test.beforeAll(async () => {
     const ts = Date.now();
-    const u1 = await createUser(`e2e-draft-comm-${ts}@test.internal`, 'testpass123', `draftcomm${ts}`.slice(0, 20));
-    const u2 = await createUser(`e2e-draft-player-${ts}@test.internal`, 'testpass123', `draftplay${ts}`.slice(0, 20));
+    const [u1, u2, u3, u4] = await Promise.all([
+      createUser(`e2e-draft-comm-${ts}@test.internal`,  'testpass123', `draftcomm${ts}`.slice(0, 20)),
+      createUser(`e2e-draft-p2-${ts}@test.internal`,    'testpass123', `draftp2${ts}`.slice(0, 20)),
+      createUser(`e2e-draft-p3-${ts}@test.internal`,    'testpass123', `draftp3${ts}`.slice(0, 20)),
+      createUser(`e2e-draft-p4-${ts}@test.internal`,    'testpass123', `draftp4${ts}`.slice(0, 20)),
+    ]);
     commissioner = { id: u1.id, token: u1.token };
-    player = { id: u2.id, token: u2.token };
+    players = [
+      { id: u2.id, token: u2.token },
+      { id: u3.id, token: u3.token },
+      { id: u4.id, token: u4.token },
+    ];
 
-    // Create league
+    // Commissioner creates a 4-team league (auto-joins as team 1)
     const draftTime = new Date(Date.now() + 2 * 60 * 60_000).toISOString();
     const league = await apiPost<{ id: string; inviteCode: string }>(commissioner.token, '/api/leagues', {
       name: 'E2E Draft League',
@@ -26,71 +34,74 @@ test.describe('Live draft', () => {
     leagueId = league.id;
     inviteCode = league.inviteCode;
 
-    // Player joins
-    await apiPost(player.token, `/api/leagues/join/${inviteCode}`);
+    // All 3 players join (creates teams 2, 3, 4)
+    await Promise.all(players.map((p) => apiPost(p.token, `/api/leagues/join/${inviteCode}`)));
 
-    // Start draft (transitions to pre_draft)
+    // Transition to pre_draft (starts the 10-min countdown)
     await apiPost(commissioner.token, `/api/leagues/${leagueId}/draft/start`);
   });
 
-  test('two users complete a full draft', async ({ browser: b }) => {
-    // Open two isolated contexts — one per user
-    const ctx1 = await b.newContext();
-    const ctx2 = await b.newContext();
-    await injectAuth(ctx1, commissioner.token);
-    await injectAuth(ctx2, player.token);
+  test.afterAll(async () => {
+    if (leagueId) {
+      await teardownLeague(leagueId, [commissioner.id, ...players.map((p) => p.id)]);
+    }
+  });
 
-    const page1 = await ctx1.newPage();
-    const page2 = await ctx2.newPage();
+  test('four users complete a full 36-pick snake draft', async ({ browser: b }) => {
+    // One isolated browser context per user
+    const contexts = await Promise.all(
+      [commissioner, ...players].map((u) => b.newContext().then(async (ctx) => {
+        await injectAuth(ctx, u.token);
+        return ctx;
+      }))
+    );
+    const pages: Page[] = await Promise.all(contexts.map((ctx) => ctx.newPage()));
 
-    await Promise.all([
-      page1.goto(`/leagues/${leagueId}/draft`),
-      page2.goto(`/leagues/${leagueId}/draft`),
-    ]);
+    await Promise.all(pages.map((p) => p.goto(`/leagues/${leagueId}/draft`)));
 
-    // Both pages should show the pre-draft countdown
-    await expect(page1.getByText('Draft starting in')).toBeVisible({ timeout: 15_000 });
-    await expect(page1.getByRole('button', { name: 'Start Now' })).toBeVisible();
+    // All pages see the pre-draft lobby
+    await expect(pages[0].getByText('Draft starting in')).toBeVisible({ timeout: 15_000 });
+    await expect(pages[0].getByRole('button', { name: 'Start Now' })).toBeVisible();
 
-    // Commissioner skips the countdown
-    await page1.getByRole('button', { name: 'Start Now' }).click();
+    // Commissioner skips the countdown → all pages transition to live draft
+    await pages[0].getByRole('button', { name: 'Start Now' }).click();
+    await expect(pages[0].getByText(/Round 1 · Pick 1/)).toBeVisible({ timeout: 15_000 });
+    for (const p of pages.slice(1)) {
+      await expect(p.getByText(/Round 1/)).toBeVisible({ timeout: 15_000 });
+    }
 
-    // Both pages transition to the live timer (Round 1 · Pick 1)
-    await expect(page1.getByText(/Round 1 · Pick 1/)).toBeVisible({ timeout: 15_000 });
-    await expect(page2.getByText(/Round 1/)).toBeVisible({ timeout: 15_000 });
-
-    const TOTAL_PICKS = 18; // 2 teams × 9 slots
+    // Snake draft: 4 teams × 9 slots = 36 picks
+    const TOTAL_PICKS = 36;
 
     for (let i = 0; i < TOTAL_PICKS; i++) {
-      // Wait for "Your pick!" to appear on either page before deciding who's on clock.
-      // .isVisible() is non-blocking so check only after one page has the text.
-      await Promise.race([
-        page1.getByText('Your pick!').waitFor({ state: 'visible', timeout: 15_000 }),
-        page2.getByText('Your pick!').waitFor({ state: 'visible', timeout: 15_000 }),
-      ]);
-      const p1Turn = await page1.getByText('Your pick!').isVisible();
-      const onClock = p1Turn ? page1 : page2;
-      const offClock = p1Turn ? page2 : page1;
+      // Wait for any page to show "Your pick!" — only the on-clock user sees it
+      await Promise.race(
+        pages.map((p) => p.getByText('Your pick!').waitFor({ state: 'visible', timeout: 20_000 }))
+      );
 
-      // Confirm the on-clock page is ready
-      await expect(onClock.getByText('Your pick!')).toBeVisible({ timeout: 5_000 });
+      // Find which page is on clock
+      let onClock: Page | undefined;
+      for (const p of pages) {
+        if (await p.getByText('Your pick!').isVisible()) { onClock = p; break; }
+      }
+      if (!onClock) throw new Error(`No page on clock for pick ${i + 1}`);
 
-      // Wait for the first enabled Draft button (artist list may still be loading)
+      // Draft the first available artist
       const draftBtn = onClock.locator('button:not([disabled])').filter({ hasText: 'Draft' }).first();
       await draftBtn.waitFor({ state: 'visible', timeout: 10_000 });
       await draftBtn.click();
 
+      // After any pick but the last, confirm at least one other page received the broadcast
       if (i < TOTAL_PICKS - 1) {
-        // Wait for the pick count to advance on the off-clock page (socket propagation)
-        await expect(offClock.getByText(`#${i + 1}`).last()).toBeVisible({ timeout: 10_000 });
+        const otherPage = pages.find((p) => p !== onClock)!;
+        await expect(otherPage.getByText(`#${i + 1}`).last()).toBeVisible({ timeout: 10_000 });
       }
     }
 
-    // Draft complete — both pages should show the toast and redirect
-    await expect(page1.getByText('Draft complete! Rosters are set.')).toBeVisible({ timeout: 15_000 });
-    await page1.waitForURL(`**/leagues/${leagueId}`, { timeout: 10_000 });
+    // Draft complete — commissioner's page shows the toast and redirects to the league hub
+    await expect(pages[0].getByText('Draft complete! Rosters are set.')).toBeVisible({ timeout: 15_000 });
+    await pages[0].waitForURL(`**/leagues/${leagueId}`, { timeout: 10_000 });
 
-    await ctx1.close();
-    await ctx2.close();
+    await Promise.all(contexts.map((ctx) => ctx.close()));
   });
 });

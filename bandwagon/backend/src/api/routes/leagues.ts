@@ -18,6 +18,14 @@ export function generateInviteCode(): string {
   return code;
 }
 
+const MAIN_GENRES = new Set(['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country']);
+
+export function artistEligibleForSlot(genre: string | null, slot: string): boolean {
+  if (slot.startsWith('Bench') || slot === 'Flex') return true;
+  if (slot === 'Other') return genre !== null && !MAIN_GENRES.has(genre);
+  return genre === slot;
+}
+
 const CreateLeagueSchema = z.object({
   name: z.string().min(1).max(50),
   teamCount: z.number().int().min(4).max(12).default(8),
@@ -725,6 +733,32 @@ router.put('/:id/team', requireAuth, uploadTeamLogo, async (req: AuthRequest, re
   }
 });
 
+// Returns true if lineup edits are forbidden right now.
+// dayPT: day-of-week name in Pacific time (e.g. 'Monday').
+// todayPT: Pacific date string in 'YYYY-MM-DD' format.
+export function isLineupLocked(
+  dayPT: string,
+  currentWeek: number,
+  draftTime: Date | null,
+  todayPT: string,
+): boolean {
+  if (dayPT === 'Monday') return false;
+
+  if (currentWeek === 1 && draftTime) {
+    const dowNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const draftDow = dowNames.indexOf(
+      draftTime.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/Los_Angeles' }),
+    );
+    const daysToTuesday = draftDow === 2 ? 7 : (2 - draftDow + 7) % 7;
+    const firstTuesdayApprox = new Date(draftTime);
+    firstTuesdayApprox.setDate(draftTime.getDate() + daysToTuesday);
+    const firstTuesdayPT = firstTuesdayApprox.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+    if (todayPT < firstTuesdayPT) return false;
+  }
+
+  return true;
+}
+
 // Roster: swap lineup (starter ↔ bench)
 router.put('/:id/roster/lineup', requireAuth, async (req: AuthRequest, res, next) => {
   try {
@@ -742,23 +776,10 @@ router.put('/:id/roster/lineup', requireAuth, async (req: AuthRequest, res, next
       const dayPT = process.env.NODE_ENV === 'test' && process.env.TEST_OVERRIDE_DAY
         ? process.env.TEST_OVERRIDE_DAY
         : new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/Los_Angeles' });
-      if (dayPT !== 'Monday') {
-        let isPreFirstGame = false;
-        if (league.currentWeek === 1 && league.draftTime) {
-          const draft = new Date(league.draftTime);
-          const dowNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-          const draftDow = dowNames.indexOf(draft.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/Los_Angeles' }));
-          const daysToTuesday = draftDow === 2 ? 7 : (2 - draftDow + 7) % 7;
-          const firstTuesdayApprox = new Date(draft);
-          firstTuesdayApprox.setDate(draft.getDate() + daysToTuesday);
-          const todayPT = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
-          const firstTuesdayPT = firstTuesdayApprox.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
-          isPreFirstGame = todayPT < firstTuesdayPT;
-        }
-        if (!isPreFirstGame) {
-          res.status(403).json({ error: 'Lineup is locked during the scoring week (Tuesday–Sunday).' });
-          return;
-        }
+      const todayPT = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+      if (isLineupLocked(dayPT, league.currentWeek, league.draftTime, todayPT)) {
+        res.status(403).json({ error: 'Lineup is locked during the scoring week (Tuesday–Sunday).' });
+        return;
       }
     }
 
@@ -774,19 +795,6 @@ router.put('/:id/roster/lineup', requireAuth, async (req: AuthRequest, res, next
     ]);
 
     if (!spotA || !spotB) { res.status(400).json({ error: 'Invalid slots' }); return; }
-
-    // Validate eligibility: if moving to a non-Bench, non-Flex slot, genre must match
-    const MAIN_GENRES = new Set(['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country']);
-    function slotGenre(slot: string) {
-      if (slot.startsWith('Bench') || slot === 'Flex') return null;
-      return slot;
-    }
-    function artistEligibleForSlot(genre: string | null, slot: string): boolean {
-      const required = slotGenre(slot);
-      if (!required) return true;
-      if (required === 'Other') return genre !== null && !MAIN_GENRES.has(genre);
-      return genre === required;
-    }
 
     // Fetch artist genres
     const [artistA, artistB] = await Promise.all([
@@ -821,61 +829,66 @@ router.post('/:id/roster/claim', requireAuth, async (req: AuthRequest, res, next
   try {
     const schema = z.object({ artistId: z.string(), dropSlot: z.string() });
     const { artistId, dropSlot } = schema.parse(req.body);
-
-    const league = await prisma.league.findUnique({
-      where: { id: req.params.id },
-      include: { teams: true },
-    });
-    if (!league) { res.status(404).json({ error: 'League not found' }); return; }
-
-    const myTeam = league.teams.find((t) => t.userId === req.userId);
-    if (!myTeam) { res.status(403).json({ error: 'You are not in this league' }); return; }
-
-    if (league.status !== 'active') {
-      res.status(400).json({ error: 'Free agent claims are only available during the active season' });
+    const result = await claimFreeAgent(req.params.id, req.userId!, artistId, dropSlot);
+    if ('error' in result) {
+      res.status(result.status).json({ error: result.error });
       return;
     }
-
-    const artist = await prisma.artist.findUnique({ where: { id: artistId } });
-    if (!artist) { res.status(404).json({ error: 'Artist not found' }); return; }
-
-    // Confirm artist is a free agent (no roster spot with this artistId in this league)
-    const rostered = await prisma.rosterSpot.findFirst({
-      where: { artistId, team: { leagueId: req.params.id } },
-    });
-    if (rostered) { res.status(400).json({ error: `${artist.name} is already on a roster` }); return; }
-
-    // Confirm the drop slot exists on user's team and has a player
-    const dropSpot = await prisma.rosterSpot.findUnique({
-      where: { teamId_slot: { teamId: myTeam.id, slot: dropSlot } },
-      include: { artist: true },
-    });
-    if (!dropSpot) { res.status(400).json({ error: 'Invalid slot' }); return; }
-    if (!dropSpot.artistId) { res.status(400).json({ error: 'That slot is already empty' }); return; }
-
-    // Confirm new artist is eligible for the slot being freed
-    const MAIN_GENRES = new Set(['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country']);
-    function eligibleForSlot(genre: string, slot: string): boolean {
-      if (slot.startsWith('Bench') || slot === 'Flex') return true;
-      if (slot === 'Other') return !MAIN_GENRES.has(genre);
-      return genre === slot;
-    }
-    if (!eligibleForSlot(artist.primaryGenre, dropSlot)) {
-      res.status(400).json({ error: `${artist.name} is not eligible for the ${dropSlot} slot` });
-      return;
-    }
-
-    const droppedArtistId = dropSpot.artistId;
-
-    await prisma.rosterSpot.update({
-      where: { id: dropSpot.id },
-      data: { artistId },
-    });
-
-    res.json({ success: true, slot: dropSlot, droppedArtistId, addedArtistId: artistId });
+    res.json(result);
   } catch (err) {
     next(err);
   }
 });
+
+export async function claimFreeAgent(
+  leagueId: string,
+  userId: string,
+  artistId: string,
+  dropSlot: string,
+): Promise<
+  | { success: true; slot: string; droppedArtistId: string; addedArtistId: string }
+  | { error: string; status: number }
+> {
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    include: { teams: true },
+  });
+  if (!league) return { error: 'League not found', status: 404 };
+
+  const myTeam = league.teams.find((t) => t.userId === userId);
+  if (!myTeam) return { error: 'You are not in this league', status: 403 };
+
+  if (league.status !== 'active') {
+    return { error: 'Free agent claims are only available during the active season', status: 400 };
+  }
+
+  const artist = await prisma.artist.findUnique({ where: { id: artistId } });
+  if (!artist) return { error: 'Artist not found', status: 404 };
+
+  const rostered = await prisma.rosterSpot.findFirst({
+    where: { artistId, team: { leagueId } },
+  });
+  if (rostered) return { error: `${artist.name} is already on a roster`, status: 400 };
+
+  const dropSpot = await prisma.rosterSpot.findUnique({
+    where: { teamId_slot: { teamId: myTeam.id, slot: dropSlot } },
+    include: { artist: true },
+  });
+  if (!dropSpot) return { error: 'Invalid slot', status: 400 };
+  if (!dropSpot.artistId) return { error: 'That slot is already empty', status: 400 };
+
+  if (!artistEligibleForSlot(artist.primaryGenre, dropSlot)) {
+    return { error: `${artist.name} is not eligible for the ${dropSlot} slot`, status: 400 };
+  }
+
+  const droppedArtistId = dropSpot.artistId;
+
+  await prisma.rosterSpot.update({
+    where: { id: dropSpot.id },
+    data: { artistId },
+  });
+
+  return { success: true, slot: dropSlot, droppedArtistId, addedArtistId: artistId };
+}
 
 export default router;

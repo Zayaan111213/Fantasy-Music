@@ -10,7 +10,10 @@ test.describe('Matchup and standings views', () => {
   });
 
   test.afterAll(async () => {
-    await teardownLeague(fixture.leagueId, [fixture.user1.id, fixture.user2.id]);
+    await teardownLeague(
+      fixture.leagueId,
+      [fixture.user1.id, fixture.user2.id, fixture.user3.id, fixture.user4.id],
+    );
   });
 
   test('matchup tab shows both team names and scores', async ({ browser: b }) => {
@@ -21,17 +24,18 @@ test.describe('Matchup and standings views', () => {
     await page.goto(`/leagues/${fixture.leagueId}`);
     await page.getByRole('button', { name: 'Matchup' }).click();
 
-    // Both team names should appear in the matchup H2H header
+    // Week 1: Team A (home) faces Team D (away) — the round-robin pinning rule
+    // places team at index 0 vs team at index 3 in week 1.
     await expect(page.getByText('E2E Team A').first()).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText('E2E Team B').first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('E2E Team D').first()).toBeVisible({ timeout: 10_000 });
 
-    // At least one score should be visible (42.5 or 38.0 from fixture)
+    // Scores set by the fixture: A=42.5, D=38.0
     await expect(page.getByText('42.5').or(page.getByText('38.0')).first()).toBeVisible({ timeout: 5_000 });
 
     await ctx.close();
   });
 
-  test('standings tab shows ranked rows for both teams', async ({ browser: b }) => {
+  test('standings tab shows all four teams ranked 1–4', async ({ browser: b }) => {
     const ctx = await b.newContext();
     await injectAuth(ctx, fixture.user1.token);
     const page = await ctx.newPage();
@@ -39,13 +43,15 @@ test.describe('Matchup and standings views', () => {
     await page.goto(`/leagues/${fixture.leagueId}`);
     await page.getByRole('button', { name: 'Standings' }).click();
 
-    // Both teams should appear
+    // All four teams must appear
     await expect(page.getByText('E2E Team A')).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText('E2E Team B')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('E2E Team C')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('E2E Team D')).toBeVisible({ timeout: 10_000 });
 
-    // Rank numbers 1 and 2 should be present in the table
+    // Rank numbers 1 through 4 should all be present
     await expect(page.getByText('1').first()).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByText('2').first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('4').first()).toBeVisible({ timeout: 5_000 });
 
     await ctx.close();
   });
