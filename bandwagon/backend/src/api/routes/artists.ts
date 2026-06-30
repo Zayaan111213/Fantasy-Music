@@ -136,10 +136,23 @@ router.get('/:id', requireAuth, async (req, res, next) => {
       };
     }
 
+    // Recompute totalPoints from the live chartBreakdown so the total always
+    // matches the displayed breakdown bars, even between daily pipeline runs.
+    let weeklyScores = artist.weeklyScores;
+    if (chartBreakdown && weeklyScores.length > 0) {
+      const computedTotal =
+        (chartBreakdown.song?.positionPoints ?? 0) +
+        Math.max(0, chartBreakdown.song?.movementPoints ?? 0) +
+        (chartBreakdown.album?.positionPoints ?? 0) +
+        Math.max(0, chartBreakdown.album?.movementPoints ?? 0) +
+        (weeklyScores[0].longevityPoints ?? 0);
+      weeklyScores = [{ ...weeklyScores[0], totalPoints: computedTotal }, ...weeklyScores.slice(1)];
+    }
+
     const cfg = leagueRow ? ScoringConfigSchema.safeParse(leagueRow.scoringConfig).data ?? null : null;
 
     if (!cfg) {
-      res.json({ ...artist, chartBreakdown });
+      res.json({ ...artist, weeklyScores, chartBreakdown });
       return;
     }
 
@@ -148,7 +161,7 @@ router.get('/:id', requireAuth, async (req, res, next) => {
       ? genreRows
       : await prisma.genreStreamingTier.findMany({ where: { genre: 'Pop' }, orderBy: { sortOrder: 'asc' } });
 
-    const adjustedWeeklyScores = artist.weeklyScores.map((ws) => {
+    const adjustedWeeklyScores = weeklyScores.map((ws) => {
       const adjusted = applyCustomScoringToWeeklyScore(ws, artist.primaryGenre, genreTiers, cfg);
       return { ...ws, ...adjusted };
     });

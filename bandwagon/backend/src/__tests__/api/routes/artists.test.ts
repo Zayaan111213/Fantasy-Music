@@ -5,8 +5,11 @@ import request from 'supertest';
 vi.mock('../../../db/prisma', () => ({
   prisma: {
     artist: { findMany: vi.fn(), findUnique: vi.fn() },
+    league: { findUnique: vi.fn() },
+    weeklyScore: { findUnique: vi.fn(), aggregate: vi.fn() },
+    chartEntry: { findFirst: vi.fn() },
+    albumChartEntry: { findFirst: vi.fn() },
     genreStreamingTier: { findMany: vi.fn() },
-    weeklyScore: { findUnique: vi.fn() },
   },
 }));
 
@@ -22,8 +25,11 @@ import artistRouter from '../../../api/routes/artists';
 
 const pm = prisma as unknown as {
   artist: { findMany: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn> };
+  league: { findUnique: ReturnType<typeof vi.fn> };
+  weeklyScore: { findUnique: ReturnType<typeof vi.fn>; aggregate: ReturnType<typeof vi.fn> };
+  chartEntry: { findFirst: ReturnType<typeof vi.fn> };
+  albumChartEntry: { findFirst: ReturnType<typeof vi.fn> };
   genreStreamingTier: { findMany: ReturnType<typeof vi.fn> };
-  weeklyScore: { findUnique: ReturnType<typeof vi.fn> };
 };
 
 const app = express();
@@ -164,5 +170,134 @@ describe('GET /artists', () => {
     expect(pm.artist.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ skip: 40, take: 40 }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /artists/:id — detail + score breakdown
+// ---------------------------------------------------------------------------
+
+describe('GET /artists/:id', () => {
+  const WEEK_DATE = new Date('2026-07-01T07:00:00Z');
+  const PRIOR_DATE = new Date('2026-06-24T07:00:00Z');
+
+  function setupArtist(opts: {
+    storedTotal?: number;
+    longevity?: number;
+    songRank?: number | null;
+    songPriorRank?: number | null;
+    albumRank?: number | null;
+    albumPriorRank?: number | null;
+  } = {}) {
+    const {
+      storedTotal = 70,
+      longevity = 0,
+      songRank = 1,
+      songPriorRank = 1,
+      albumRank = 1,
+      albumPriorRank = 1,
+    } = opts;
+
+    pm.league.findUnique.mockResolvedValue(null);
+    pm.weeklyScore.aggregate.mockResolvedValue({ _max: { week: 1 } });
+    pm.genreStreamingTier.findMany.mockResolvedValue([]);
+
+    pm.artist.findUnique.mockResolvedValue({
+      id: 'drake', name: 'Drake', primaryGenre: 'R&B/Hip-Hop', imageUrl: null,
+      weeklyScores: [{
+        id: 'ws1', artistId: 'drake', week: 1, seasonYear: 2026,
+        totalPoints: storedTotal,
+        longevityPoints: longevity,
+        chartPositionPoints: 0, chartMovementPoints: 0, streamingPoints: 0,
+        isFinalized: false, dataMissing: null,
+      }],
+    });
+
+    // Song chart entries
+    if (songRank !== null) {
+      pm.chartEntry.findFirst
+        .mockResolvedValueOnce({
+          appleSongId: BigInt(111), songTitle: 'Janice STFU', chart: 'US',
+          rank: songRank, weekDate: WEEK_DATE,
+        })
+        .mockResolvedValueOnce(
+          songPriorRank !== null
+            ? { appleSongId: BigInt(111), rank: songPriorRank, weekDate: PRIOR_DATE }
+            : null,
+        );
+    } else {
+      pm.chartEntry.findFirst.mockResolvedValue(null);
+    }
+
+    // Album chart entries
+    if (albumRank !== null) {
+      pm.albumChartEntry.findFirst
+        .mockResolvedValueOnce({
+          appleAlbumId: BigInt(222), albumTitle: 'ICEMAN', chart: 'US',
+          rank: albumRank, weekDate: WEEK_DATE,
+        })
+        .mockResolvedValueOnce(
+          albumPriorRank !== null
+            ? { appleAlbumId: BigInt(222), rank: albumPriorRank, weekDate: PRIOR_DATE }
+            : null,
+        );
+    } else {
+      pm.albumChartEntry.findFirst.mockResolvedValue(null);
+    }
+  }
+
+  it('recomputes totalPoints from chartBreakdown — stale DB value is overridden', async () => {
+    // Scenario from the bug report: stored total = 70 (old debut bonuses), but current
+    // chart shows movement of 0 for both song and album → correct total is 50, not 70.
+    setupArtist({ storedTotal: 70, songRank: 1, songPriorRank: 1, albumRank: 1, albumPriorRank: 1 });
+
+    const res = await request(app).get('/artists/drake');
+    expect(res.status).toBe(200);
+    // Song position #1 = 25, movement 0 = 0; album position #1 = 25, movement 0 = 0; longevity = 0
+    expect(res.body.weeklyScores[0].totalPoints).toBe(50);
+  });
+
+  it('totalPoints includes debut movement bonus when artist has no prior chart entry', async () => {
+    // No prior song or album entry → both are debuts → +10 each
+    setupArtist({ storedTotal: 0, songRank: 1, songPriorRank: null, albumRank: 1, albumPriorRank: null });
+
+    const res = await request(app).get('/artists/drake');
+    // Song position 25 + debut +10; album position 25 + debut +10 = 70
+    expect(res.body.weeklyScores[0].totalPoints).toBe(70);
+  });
+
+  it('totalPoints includes longevity from the stored weekly score', async () => {
+    // Both at #1, no movement, longevity = 6 (4 consecutive weeks)
+    setupArtist({ storedTotal: 99, longevity: 6, songRank: 1, songPriorRank: 1, albumRank: 1, albumPriorRank: 1 });
+
+    const res = await request(app).get('/artists/drake');
+    // 25 + 0 + 25 + 0 + 6 = 56
+    expect(res.body.weeklyScores[0].totalPoints).toBe(56);
+  });
+
+  it('returns chartBreakdown with correct rank, title, and points', async () => {
+    setupArtist({ songRank: 5, songPriorRank: 10, albumRank: null });
+
+    const res = await request(app).get('/artists/drake');
+    expect(res.status).toBe(200);
+    const bd = res.body.chartBreakdown;
+    expect(bd.song.rank).toBe(5);
+    expect(bd.song.title).toBe('Janice STFU');
+    expect(bd.song.positionPoints).toBe(18); // rank 5 → tier 2–10 = 18
+    expect(bd.song.movement).toBe(5);        // prior 10 − current 5 = +5
+    expect(bd.song.movementPoints).toBe(5);  // +5 positions
+    expect(bd.album).toBeNull();
+  });
+
+  it('returns 404 when artist not found', async () => {
+    pm.league.findUnique.mockResolvedValue(null);
+    pm.weeklyScore.aggregate.mockResolvedValue({ _max: { week: 1 } });
+    pm.artist.findUnique.mockResolvedValue(null);
+    pm.chartEntry.findFirst.mockResolvedValue(null);
+    pm.albumChartEntry.findFirst.mockResolvedValue(null);
+
+    const res = await request(app).get('/artists/unknown');
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('Artist not found');
   });
 });
