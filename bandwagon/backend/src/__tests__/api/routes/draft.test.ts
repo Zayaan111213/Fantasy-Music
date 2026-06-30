@@ -51,7 +51,7 @@ describe('isEligible', () => {
 
 vi.mock('../../../db/prisma', () => {
   const prismaMock = {
-    league: { findUnique: vi.fn() },
+    league: { findUnique: vi.fn(), update: vi.fn() },
     draftPick: { findFirst: vi.fn(), create: vi.fn() },
     artist: { findUnique: vi.fn() },
     rosterSpot: { findUnique: vi.fn(), upsert: vi.fn() },
@@ -66,7 +66,7 @@ vi.mock('../../../db/prisma', () => {
 import { prisma } from '../../../db/prisma';
 
 const prismaMock = prisma as unknown as {
-  league: { findUnique: ReturnType<typeof vi.fn> };
+  league: { findUnique: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
   draftPick: { findFirst: ReturnType<typeof vi.fn> };
   artist: { findUnique: ReturnType<typeof vi.fn> };
   rosterSpot: { findUnique: ReturnType<typeof vi.fn>; upsert: ReturnType<typeof vi.fn> };
@@ -188,5 +188,54 @@ describe('makePick', () => {
     const result = await makePick('league-1', 'user-1', 'artist-1', 'Pop', false);
     expect(result).toMatchObject({ isComplete: false });
     expect('pick' in result).toBe(true);
+  });
+
+  it('completion branch: sets league active, creates 10 matchups (2 teams × 10 weeks), inits all roster slots', async () => {
+    // 2 teams × 9 slots = 18 total picks; currentPick=17 → last pick → isComplete=true
+    // Snake order (2 teams, 9 rounds): [t1,t2, t2,t1, t1,t2, t2,t1, t1,t2, t2,t1, t1,t2, t2,t1, t1,t2]
+    // pickOrder[17] = 't2' → call with 'u2'
+    const pickOrder = ['t1','t2','t2','t1','t1','t2','t2','t1','t1','t2','t2','t1','t1','t2','t2','t1','t1','t2'];
+    prismaMock.league.findUnique.mockResolvedValue({
+      id: 'league-1',
+      status: 'drafting',
+      teamCount: 2,
+      draftState: { currentPick: 17, pickOrder, isComplete: false },
+      teams: [
+        { id: 't1', userId: 'u1', draftPosition: 1 },
+        { id: 't2', userId: 'u2', draftPosition: 2 },
+      ],
+    });
+    prismaMock.draftPick.findFirst
+      .mockResolvedValueOnce(null) // not already drafted
+      .mockResolvedValueOnce({    // returned pick after tx
+        id: 'pick-18',
+        artist: { id: 'artist-1', name: 'Pop Star', primaryGenre: 'Pop', imageUrl: null },
+        team: { id: 't2', name: "Team 2's Squad", logoUrl: null },
+      });
+    prismaMock.artist.findUnique.mockResolvedValue({ id: 'artist-1', name: 'Pop Star', primaryGenre: 'Pop' });
+    prismaMock.rosterSpot.findUnique.mockResolvedValue(null);
+    prismaMock.team.findMany.mockResolvedValue([
+      { id: 't1', draftPosition: 1 },
+      { id: 't2', draftPosition: 2 },
+    ]);
+    prismaMock.$transaction.mockImplementation(async (fn: Function) => fn(prismaMock));
+
+    const result = await makePick('league-1', 'u2', 'artist-1', 'Pop', false);
+
+    expect('error' in result).toBe(false);
+    expect((result as { isComplete: boolean }).isComplete).toBe(true);
+
+    // League set to active with week 1
+    expect(prismaMock.league.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: 'active', currentWeek: 1 } })
+    );
+
+    // 10-week round-robin for 2 teams = 10 matchups
+    expect(prismaMock.matchup.createMany).toHaveBeenCalledTimes(1);
+    const matchupData = prismaMock.matchup.createMany.mock.calls[0][0].data;
+    expect(matchupData).toHaveLength(10); // 2 teams → 1 matchup/week × 10 weeks
+
+    // Roster slot init: 1 pick upsert + 9 slots × 2 teams = 19 total
+    expect(prismaMock.rosterSpot.upsert.mock.calls.length).toBeGreaterThanOrEqual(19);
   });
 });
