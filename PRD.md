@@ -157,7 +157,7 @@ The app is organized into these top-level destinations. Detailed per-screen spec
 
 ### **9.2 Signals & point values**
 
-An artist's weekly score \= sum of the signals below. All signals are derived from the **Apple Most Played Songs chart (Top 100\) and Apple Most Played Albums chart (Top 50\)**, rolled up to the artist level (an artist's score uses their best-ranked charting song that week unless noted).
+An artist's weekly score \= sum of the signals below. All signals are derived from the **Apple Most Played Songs chart (Top 100\) and Apple Most Played Albums chart (Top 100\)**, rolled up to the artist level (an artist's score uses their best-ranked charting song that week unless noted).
 
 **(a) Chart rank.** Based on the artist's highest-ranked song on the Apple Most Played Songs chart that week. **\[TUNE\]**
 

@@ -257,6 +257,20 @@ describe('GET /artists/:id', () => {
     expect(res.body.weeklyScores[0].totalPoints).toBe(50);
   });
 
+  it('zeroes out totalPoints and longevityPoints when artist has fallen off both charts', async () => {
+    // Bug report: artist has no song/album entry this week (chartBreakdown is null),
+    // but the stale WeeklyScore row from when it was still charting had totalPoints=12,
+    // longevityPoints=2. Displaying those next to "no chart entry this week" is wrong —
+    // both should read 0 once the artist is confirmed off every chart.
+    setupArtist({ storedTotal: 12, longevity: 2, songRank: null, albumRank: null });
+
+    const res = await request(app).get('/artists/drake');
+    expect(res.status).toBe(200);
+    expect(res.body.chartBreakdown).toBeNull();
+    expect(res.body.weeklyScores[0].longevityPoints).toBe(0);
+    expect(res.body.weeklyScores[0].totalPoints).toBe(0);
+  });
+
   it('totalPoints includes debut movement bonus when artist has no prior chart entry', async () => {
     // No prior song or album entry → both are debuts → +10 each
     setupArtist({ storedTotal: 0, songRank: 1, songPriorRank: null, albumRank: 1, albumPriorRank: null });

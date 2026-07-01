@@ -138,15 +138,19 @@ router.get('/:id', requireAuth, async (req, res, next) => {
 
     // Recompute totalPoints from the live chartBreakdown so the total always
     // matches the displayed breakdown bars, even between daily pipeline runs.
+    // If the artist isn't on either chart right now, longevity/total must be 0 too —
+    // otherwise a stale WeeklyScore row (from before it fell off the charts) gets
+    // shown next to "no chart entry this week" messaging.
     let weeklyScores = artist.weeklyScores;
-    if (chartBreakdown && weeklyScores.length > 0) {
+    if (weeklyScores.length > 0) {
+      const longevityPoints = chartBreakdown ? (weeklyScores[0].longevityPoints ?? 0) : 0;
       const computedTotal =
-        (chartBreakdown.song?.positionPoints ?? 0) +
-        Math.max(0, chartBreakdown.song?.movementPoints ?? 0) +
-        (chartBreakdown.album?.positionPoints ?? 0) +
-        Math.max(0, chartBreakdown.album?.movementPoints ?? 0) +
-        (weeklyScores[0].longevityPoints ?? 0);
-      weeklyScores = [{ ...weeklyScores[0], totalPoints: computedTotal }, ...weeklyScores.slice(1)];
+        (chartBreakdown?.song?.positionPoints ?? 0) +
+        Math.max(0, chartBreakdown?.song?.movementPoints ?? 0) +
+        (chartBreakdown?.album?.positionPoints ?? 0) +
+        Math.max(0, chartBreakdown?.album?.movementPoints ?? 0) +
+        longevityPoints;
+      weeklyScores = [{ ...weeklyScores[0], longevityPoints, totalPoints: computedTotal }, ...weeklyScores.slice(1)];
     }
 
     const cfg = leagueRow ? ScoringConfigSchema.safeParse(leagueRow.scoringConfig).data ?? null : null;

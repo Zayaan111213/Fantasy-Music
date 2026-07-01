@@ -21,7 +21,7 @@ PostgreSQL is the right fit because the domain is deeply relational: users → l
 The app **must not** call data providers directly from feature code. All external data must go through an internal data-access layer. This is a hard requirement — it enables provider swaps, fallbacks, and graceful degradation. If a source drops for a week, scoring must continue on available signals and flag the gap, never hard-fail the whole run.
 
 ### Scoring Engine
-An artist's weekly score = **song chart position points + song movement points + album chart position points + album movement points + longevity points**. No streaming signal. All signals derive from the **Apple Music Most Played Songs chart (Top 100) and Apple Music Most Played Albums chart (Top 50)**. Week boundaries: **Tuesday 00:00 – Sunday 23:59 US Pacific**.
+An artist's weekly score = **song chart position points + song movement points + album chart position points + album movement points + longevity points**. No streaming signal. All signals derive from the **Apple Music Most Played Songs chart (Top 100) and Apple Music Most Played Albums chart (Top 100)**. Week boundaries: **Tuesday 00:00 – Sunday 23:59 US Pacific**.
 
 **Scoring tiers (song and album position use identical tiers):**
 | Chart rank | Points |
@@ -136,7 +136,7 @@ bandwagon/
 
 ## Backend Architecture Notes
 
-- **Scoring pipeline**: `jobs/dailyPipeline.ts` fetches the Apple Music Most Played Songs (Top 100) and Albums (Top 50) RSS feeds, ingests them into `ChartEntry` / `AlbumChartEntry` tables, enriches artist genres via iTunes Lookup, then calls `scoreAllArtistsForWeek()`. `scoring/engine.ts`'s `scoreArtistWeekFromCharts()` reads chart positions directly from the DB — no external provider call at score time.
+- **Scoring pipeline**: `jobs/dailyPipeline.ts` fetches the Apple Music Most Played Songs (Top 100) and Albums (Top 100) RSS feeds, ingests them into `ChartEntry` / `AlbumChartEntry` tables, enriches artist genres via iTunes Lookup, then calls `scoreAllArtistsForWeek()`. `scoring/engine.ts`'s `scoreArtistWeekFromCharts()` reads chart positions directly from the DB — no external provider call at score time.
 - **Finalization**: `jobs/finalizePipeline.ts` runs Monday ~00:01 PT. It sets `matchup.isFinalized = true`, resolves ties (highest single artist score among starters), sets `matchup.winnerId`, and advances `league.currentWeek`. Idempotent — safe to re-run.
 - **Scoring tiers**: `scoring/tiers.ts` holds pure, DB-free scoring functions. Song and album chart position use identical tiers. Longevity: `Math.min(Math.max(consecutiveWeeks - 1, 0) * 2, 10)`.
 - **Lineup lock**: `PUT /leagues/:id/roster/lineup` enforces lock: returns 403 on Tuesday–Sunday (PT) unless `currentWeek === 1` and today is before the first Tuesday after `league.draftTime`. Both backend and `getWeekPhase()` in `LeagueHub.tsx` use the same day-of-week + date-string comparison logic.
