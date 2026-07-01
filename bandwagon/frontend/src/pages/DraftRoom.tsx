@@ -346,13 +346,18 @@ export function DraftRoom() {
                       const canDraft = isMyTurn && hasEligibleSlot(artist.primaryGenre, openSlots);
                       return (
                         <div key={artist.id} className="grid grid-cols-12 items-center gap-1 p-3 hover:bg-white/5 transition-colors">
-                          <div className="col-span-5 flex items-center gap-2 min-w-0">
+                          <a
+                            href={`/artists/${artist.id}?leagueId=${leagueId}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="col-span-5 flex items-center gap-2 min-w-0 group"
+                          >
                             <Avatar src={artist.imageUrl} name={artist.name} size="sm" />
                             <div className="min-w-0">
-                              <div className="text-sm font-medium text-white truncate">{artist.name}</div>
+                              <div className="text-sm font-medium text-white truncate group-hover:text-indigo-300 transition-colors">{artist.name}</div>
                               <Badge genre={artist.primaryGenre}>{artist.primaryGenre}</Badge>
                             </div>
-                          </div>
+                          </a>
                           <div className="col-span-3 text-right font-mono text-sm text-gray-300">
                             {(artist.lastWeekPoints ?? 0).toFixed(1)}
                           </div>
