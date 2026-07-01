@@ -5,11 +5,12 @@ vi.mock('../../db/prisma', () => ({
     chartEntry: { findMany: vi.fn(), findFirst: vi.fn(), count: vi.fn() },
     albumChartEntry: { findMany: vi.fn(), findFirst: vi.fn(), count: vi.fn() },
     weeklyScore: { upsert: vi.fn() },
+    artist: { findMany: vi.fn() },
   },
 }));
 
 import { prisma } from '../../db/prisma';
-import { scoreArtistWeekFromCharts } from '../../scoring/engine';
+import { scoreArtistWeekFromCharts, scoreAllArtistsForWeek } from '../../scoring/engine';
 
 const pm = prisma as unknown as {
   chartEntry: {
@@ -23,6 +24,7 @@ const pm = prisma as unknown as {
     count: ReturnType<typeof vi.fn>;
   };
   weeklyScore: { upsert: ReturnType<typeof vi.fn> };
+  artist: { findMany: ReturnType<typeof vi.fn> };
 };
 
 const WEEK_DATE = new Date('2026-06-17T00:00:00Z');
@@ -186,5 +188,26 @@ describe('scoreArtistWeekFromCharts', () => {
     // Should use rank 5 (18 pts), not rank 20 (12 pts)
     expect(c.chartPositionPoints).toBe(18);
     expect(c.bestChartPosition).toBe(5);
+  });
+});
+
+describe('scoreAllArtistsForWeek', () => {
+  it('scores every artist in the DB, including ones off both charts this week', async () => {
+    // Bug: this used to only score artists returned by a distinct chartEntry/
+    // albumChartEntry query for this weekDate, so an artist that fell off both
+    // charts never got a fresh (zeroed) WeeklyScore row — every page reading
+    // WeeklyScore directly kept showing its last stale total.
+    pm.artist.findMany.mockResolvedValue([{ id: 'artist-1' }, { id: 'artist-2' }, { id: 'artist-3' }]);
+    // Only artist-2 is actually on a chart this week; artist-1 and artist-3 are not.
+    pm.chartEntry.findMany.mockImplementation(async ({ where }: any) =>
+      where.artistId === 'artist-2' ? [song(10)] : [],
+    );
+
+    await scoreAllArtistsForWeek(WEEK, YEAR, WEEK_DATE);
+
+    expect(pm.artist.findMany).toHaveBeenCalled();
+    expect(pm.weeklyScore.upsert).toHaveBeenCalledTimes(3);
+    const scoredArtistIds = pm.weeklyScore.upsert.mock.calls.map((call) => call[0].create.artistId);
+    expect(scoredArtistIds).toEqual(['artist-1', 'artist-2', 'artist-3']);
   });
 });

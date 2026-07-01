@@ -10,15 +10,16 @@ import type { Artist, WeeklyScore, ChartBreakdown } from '../api/types';
 type ArtistWithScores = Artist & { weeklyScores: WeeklyScore[]; chartBreakdown?: ChartBreakdown | null };
 
 function ScoreBar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
-  const pct = max > 0 ? (value / max) * 100 : 0;
+  const isNegative = value < 0;
+  const pct = max > 0 ? (Math.abs(value) / max) * 100 : 0;
   return (
     <div>
       <div className="flex justify-between text-sm mb-1">
         <span className="text-gray-400">{label}</span>
-        <span className="font-semibold text-white">{value.toFixed(1)}</span>
+        <span className={`font-semibold ${isNegative ? 'text-red-400' : 'text-white'}`}>{value.toFixed(1)}</span>
       </div>
       <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-        <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
+        <div className={`h-full ${isNegative ? 'bg-red-500' : color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
       </div>
     </div>
   );
@@ -109,7 +110,7 @@ export function ArtistDetail() {
                   />
                   <ScoreBar
                     label={`Song Movement · ${artist.chartBreakdown.song.isDebut ? 'New Entry' : artist.chartBreakdown.song.movement !== null ? `${artist.chartBreakdown.song.movement > 0 ? '+' : ''}${artist.chartBreakdown.song.movement}` : 'No change'}`}
-                    value={Math.max(0, artist.chartBreakdown.song.movementPoints)}
+                    value={artist.chartBreakdown.song.movementPoints}
                     max={15}
                     color="bg-pink-500"
                   />
@@ -127,7 +128,7 @@ export function ArtistDetail() {
                   />
                   <ScoreBar
                     label={`Album Movement · ${artist.chartBreakdown.album.isDebut ? 'New Entry' : artist.chartBreakdown.album.movement !== null ? `${artist.chartBreakdown.album.movement > 0 ? '+' : ''}${artist.chartBreakdown.album.movement}` : 'No change'}`}
-                    value={Math.max(0, artist.chartBreakdown.album.movementPoints)}
+                    value={artist.chartBreakdown.album.movementPoints}
                     max={15}
                     color="bg-fuchsia-500"
                   />

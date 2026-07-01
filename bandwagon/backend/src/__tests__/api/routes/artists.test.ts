@@ -257,6 +257,18 @@ describe('GET /artists/:id', () => {
     expect(res.body.weeklyScores[0].totalPoints).toBe(50);
   });
 
+  it('subtracts a negative movement penalty from totalPoints instead of flooring it at 0', async () => {
+    // Song dropped from rank 5 to rank 20 → movement -15, capped at maxDrop -10.
+    // Album unchanged at #1. Total must reflect the real penalty, not floor it at 0.
+    setupArtist({ storedTotal: 999, songRank: 20, songPriorRank: 5, albumRank: 1, albumPriorRank: 1 });
+
+    const res = await request(app).get('/artists/drake');
+    expect(res.status).toBe(200);
+    expect(res.body.chartBreakdown.song.movementPoints).toBe(-10);
+    // song position (rank 20 → 12) + song movement (-10) + album position (25) + album movement (0) + longevity (0)
+    expect(res.body.weeklyScores[0].totalPoints).toBe(27);
+  });
+
   it('zeroes out totalPoints and longevityPoints when artist has fallen off both charts', async () => {
     // Bug report: artist has no song/album entry this week (chartBreakdown is null),
     // but the stale WeeklyScore row from when it was still charting had totalPoints=12,

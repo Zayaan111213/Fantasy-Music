@@ -144,11 +144,13 @@ router.get('/:id', requireAuth, async (req, res, next) => {
     let weeklyScores = artist.weeklyScores;
     if (weeklyScores.length > 0) {
       const longevityPoints = chartBreakdown ? (weeklyScores[0].longevityPoints ?? 0) : 0;
+      // Movement points are signed (a rank drop is a real penalty per the scoring
+      // spec) — don't floor at 0, or the total silently under-counts the drop.
       const computedTotal =
         (chartBreakdown?.song?.positionPoints ?? 0) +
-        Math.max(0, chartBreakdown?.song?.movementPoints ?? 0) +
+        (chartBreakdown?.song?.movementPoints ?? 0) +
         (chartBreakdown?.album?.positionPoints ?? 0) +
-        Math.max(0, chartBreakdown?.album?.movementPoints ?? 0) +
+        (chartBreakdown?.album?.movementPoints ?? 0) +
         longevityPoints;
       weeklyScores = [{ ...weeklyScores[0], longevityPoints, totalPoints: computedTotal }, ...weeklyScores.slice(1)];
     }

@@ -187,26 +187,14 @@ export async function scoreAllArtistsForWeek(
   year: number,
   weekDate: Date,
 ): Promise<void> {
-  const [songRows, albumRows] = await Promise.all([
-    prisma.chartEntry.findMany({
-      where: { weekDate, artistId: { not: null } },
-      select: { artistId: true },
-      distinct: ['artistId'],
-    }),
-    prisma.albumChartEntry.findMany({
-      where: { weekDate, artistId: { not: null } },
-      select: { artistId: true },
-      distinct: ['artistId'],
-    }),
-  ]);
+  // Score every artist, not just ones on this week's chart — an artist that fell
+  // off both charts still needs a fresh WeeklyScore row (with zeroed position/
+  // movement/longevity) so every page reading WeeklyScore directly (Players tab,
+  // My Team, standings/matchups) reflects that, not a stale prior-week total.
+  const allArtists = await prisma.artist.findMany({ select: { id: true } });
 
-  const artistIds = new Set([
-    ...songRows.map((r) => r.artistId!),
-    ...albumRows.map((r) => r.artistId!),
-  ]);
-
-  console.log(`Scoring ${artistIds.size} artists for week ${week}/${year} (${weekDate.toISOString().slice(0, 10)})...`);
-  for (const artistId of artistIds) {
+  console.log(`Scoring ${allArtists.length} artists for week ${week}/${year} (${weekDate.toISOString().slice(0, 10)})...`);
+  for (const { id: artistId } of allArtists) {
     await scoreArtistWeekFromCharts(artistId, week, year, weekDate);
   }
   console.log('Artist scoring complete.');
