@@ -131,8 +131,8 @@ export function DraftRoom() {
     });
 
     socket.on('draft:complete', () => {
-      addToast('Draft complete! Rosters are set.');
-      setTimeout(() => navigate(`/leagues/${leagueId}`), 2000);
+      addToast('Draft complete! Loading scores…');
+      setTimeout(() => navigate(`/leagues/${leagueId}`), 5000);
     });
 
     socket.on('draft:error', (msg: string) => addToast(`Error: ${msg}`));

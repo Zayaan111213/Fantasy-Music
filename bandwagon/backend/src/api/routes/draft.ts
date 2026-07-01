@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { prisma } from '../../db/prisma';
 import { requireAuth, type AuthRequest } from '../middleware/auth';
 import { buildRoundRobin } from '../../utils/schedule';
+import { scoreArtistWeekFromCharts, updateMatchupScores } from '../../scoring/engine';
+import { getCurrentWeekDate } from '../../jobs/ingestCharts';
 
 const router = Router();
 
@@ -111,6 +113,11 @@ router.post('/:id/draft/pick', requireAuth, async (req: AuthRequest, res, next) 
     if ('error' in result) {
       res.status(400).json({ error: result.error });
       return;
+    }
+    if (result.isComplete) {
+      triggerInitialScoring(req.params.id).catch((err) =>
+        console.error('[draft] initial scoring error:', err),
+      );
     }
     res.json(result);
   } catch (err) {
@@ -224,6 +231,30 @@ export async function makePick(
   });
 
   return { pick: pick!, isComplete };
+}
+
+// Re-scores every drafted artist for the league's first week using the current chart
+// data. Called fire-and-forget after the draft completes so the league hub shows
+// correct totals, longevity, and movement without waiting for the next daily pipeline.
+export async function triggerInitialScoring(leagueId: string): Promise<void> {
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: { seasonYear: true },
+  });
+  if (!league) return;
+
+  const picks = await prisma.draftPick.findMany({
+    where: { leagueId },
+    select: { artistId: true },
+    distinct: ['artistId'],
+  });
+
+  const weekDate = getCurrentWeekDate();
+  await Promise.all(
+    picks.map(({ artistId }) => scoreArtistWeekFromCharts(artistId, 1, league.seasonYear, weekDate)),
+  );
+  await updateMatchupScores(leagueId, 1, league.seasonYear);
+  console.log(`[draft] initial scoring complete for league ${leagueId}`);
 }
 
 export default router;

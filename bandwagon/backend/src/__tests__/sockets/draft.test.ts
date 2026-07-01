@@ -13,6 +13,7 @@ vi.mock('../../db/prisma', () => ({
 
 vi.mock('../../api/routes/draft', () => ({
   makePick: vi.fn(),
+  triggerInitialScoring: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('jsonwebtoken', () => ({

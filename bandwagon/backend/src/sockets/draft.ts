@@ -1,7 +1,7 @@
 import type { Server, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../db/prisma';
-import { makePick } from '../api/routes/draft';
+import { makePick, triggerInitialScoring } from '../api/routes/draft';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'bandwagon-dev-secret';
 const PICK_SECONDS = 60;
@@ -149,6 +149,9 @@ async function fireAutoDraft(io: Server, leagueId: string) {
     if (result.isComplete) {
       clearLeagueTimer(leagueId);
       io.to(`draft:${leagueId}`).emit('draft:complete');
+      triggerInitialScoring(leagueId).catch((err) =>
+        console.error('[draft] initial scoring error:', err),
+      );
       return;
     }
 
@@ -367,6 +370,9 @@ export function registerDraftSocket(io: Server) {
 
         if (result.isComplete) {
           io.to(`draft:${leagueId}`).emit('draft:complete');
+          triggerInitialScoring(leagueId).catch((err) =>
+            console.error('[draft] initial scoring error:', err),
+          );
           return;
         }
 
