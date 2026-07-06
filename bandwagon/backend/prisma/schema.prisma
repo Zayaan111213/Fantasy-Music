@@ -154,6 +154,22 @@ model WeeklyScore {
   chartMovement       Int?
   isFinalized         Boolean  @default(false)
   dataMissing         String?
+
+  // Per-signal breakdown, captured at scoring time so past weeks can show
+  // why an artist scored what they did (not just the combined totals above).
+  songRank            Int?
+  songTitle           String?
+  songPositionPoints  Float    @default(0)
+  songMovement        Int?
+  songMovementPoints  Float    @default(0)
+  songIsDebut         Boolean  @default(false)
+  albumRank           Int?
+  albumTitle          String?
+  albumPositionPoints Float    @default(0)
+  albumMovement       Int?
+  albumMovementPoints Float    @default(0)
+  albumIsDebut        Boolean  @default(false)
+
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 

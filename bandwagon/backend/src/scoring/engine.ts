@@ -101,6 +101,7 @@ export async function scoreArtistWeekFromCharts(
 
   let songMovementPoints = 0;
   let songMovement: number | null = null;
+  let songIsDebut = false;
   if (bestSong) {
     const priorSong = bestSong.appleSongId
       ? await prisma.chartEntry.findFirst({
@@ -109,9 +110,9 @@ export async function scoreArtistWeekFromCharts(
       : await prisma.chartEntry.findFirst({
           where: { weekDate: prior, chart: bestSong.chart, songTitle: bestSong.songTitle },
         });
-    const isDebut = priorSong === null;
+    songIsDebut = priorSong === null;
     songMovement = priorSong !== null ? priorSong.rank - bestSong.rank : null;
-    songMovementPoints = scoreChartMovement(songMovement, isDebut, DEFAULT_SONG_MOVEMENT);
+    songMovementPoints = scoreChartMovement(songMovement, songIsDebut, DEFAULT_SONG_MOVEMENT);
   }
 
   // --- Albums ---
@@ -123,6 +124,8 @@ export async function scoreArtistWeekFromCharts(
   const albumPositionPoints = scoreChartPosition(bestAlbum?.rank ?? null, ALBUM_CHART_POSITION_TIERS);
 
   let albumMovementPoints = 0;
+  let albumMovement: number | null = null;
+  let albumIsDebut = false;
   if (bestAlbum) {
     const priorAlbum = bestAlbum.appleAlbumId
       ? await prisma.albumChartEntry.findFirst({
@@ -131,9 +134,9 @@ export async function scoreArtistWeekFromCharts(
       : await prisma.albumChartEntry.findFirst({
           where: { weekDate: prior, chart: bestAlbum.chart, albumTitle: bestAlbum.albumTitle },
         });
-    const isDebut = priorAlbum === null;
-    const albumMovement = priorAlbum !== null ? priorAlbum.rank - bestAlbum.rank : null;
-    albumMovementPoints = scoreChartMovement(albumMovement, isDebut, DEFAULT_ALBUM_MOVEMENT);
+    albumIsDebut = priorAlbum === null;
+    albumMovement = priorAlbum !== null ? priorAlbum.rank - bestAlbum.rank : null;
+    albumMovementPoints = scoreChartMovement(albumMovement, albumIsDebut, DEFAULT_ALBUM_MOVEMENT);
   }
 
   const chartPositionPoints = songPositionPoints + albumPositionPoints;
@@ -156,6 +159,21 @@ export async function scoreArtistWeekFromCharts(
 
   const totalPoints = chartPositionPoints + chartMovementPoints + longevityPoints;
 
+  const breakdownFields = {
+    songRank: bestSong?.rank ?? null,
+    songTitle: bestSong?.songTitle ?? null,
+    songPositionPoints,
+    songMovement,
+    songMovementPoints,
+    songIsDebut,
+    albumRank: bestAlbum?.rank ?? null,
+    albumTitle: bestAlbum?.albumTitle ?? null,
+    albumPositionPoints,
+    albumMovement,
+    albumMovementPoints,
+    albumIsDebut,
+  };
+
   await prisma.weeklyScore.upsert({
     where: { artistId_week_seasonYear: { artistId, week, seasonYear: year } },
     create: {
@@ -168,6 +186,7 @@ export async function scoreArtistWeekFromCharts(
       bestChartPosition: bestSong?.rank ?? bestAlbum?.rank ?? null,
       chartMovement: songMovement,
       dataMissing: songs.length === 0 && albums.length === 0 ? 'charts' : null,
+      ...breakdownFields,
     },
     update: {
       streamingPoints: 0,
@@ -178,6 +197,7 @@ export async function scoreArtistWeekFromCharts(
       bestChartPosition: bestSong?.rank ?? bestAlbum?.rank ?? null,
       chartMovement: songMovement,
       dataMissing: songs.length === 0 && albums.length === 0 ? 'charts' : null,
+      ...breakdownFields,
     },
   });
 }

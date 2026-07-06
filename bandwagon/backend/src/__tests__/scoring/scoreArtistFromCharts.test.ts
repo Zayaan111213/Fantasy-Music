@@ -147,6 +147,29 @@ describe('scoreArtistWeekFromCharts', () => {
     expect(c.totalPoints).toBe(56);
   });
 
+  it('persists per-signal song + album breakdown so past weeks can show why an artist scored what they did', async () => {
+    pm.chartEntry.findMany.mockResolvedValue([song(5)]);
+    pm.chartEntry.findFirst.mockResolvedValue({ rank: 15 }); // +10 movement
+    pm.albumChartEntry.findMany.mockResolvedValue([album(8)]);
+    pm.albumChartEntry.findFirst.mockResolvedValue(null); // album debut
+
+    await scoreArtistWeekFromCharts(ARTIST, WEEK, YEAR, WEEK_DATE);
+
+    const c = capturedCreate();
+    expect(c.songRank).toBe(5);
+    expect(c.songTitle).toBe('Hit Song');
+    expect(c.songPositionPoints).toBe(18);
+    expect(c.songMovement).toBe(10);
+    expect(c.songMovementPoints).toBe(10);
+    expect(c.songIsDebut).toBe(false);
+    expect(c.albumRank).toBe(8);
+    expect(c.albumTitle).toBe('Album');
+    expect(c.albumPositionPoints).toBe(18);
+    expect(c.albumMovement).toBeNull();
+    expect(c.albumMovementPoints).toBe(10);
+    expect(c.albumIsDebut).toBe(true);
+  });
+
   it('caps longevity at +10 after 6 consecutive weeks on chart', async () => {
     pm.chartEntry.findMany.mockResolvedValue([song(10)]);
     pm.chartEntry.findFirst.mockResolvedValue(null);

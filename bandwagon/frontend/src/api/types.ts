@@ -64,6 +64,18 @@ export interface WeeklyScore {
   chartMovement: number | null;
   isFinalized: boolean;
   dataMissing: string | null;
+  songRank: number | null;
+  songTitle: string | null;
+  songPositionPoints: number;
+  songMovement: number | null;
+  songMovementPoints: number;
+  songIsDebut: boolean;
+  albumRank: number | null;
+  albumTitle: string | null;
+  albumPositionPoints: number;
+  albumMovement: number | null;
+  albumMovementPoints: number;
+  albumIsDebut: boolean;
 }
 
 export interface ChartBreakdownEntry {
