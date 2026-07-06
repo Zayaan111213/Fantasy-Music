@@ -167,6 +167,7 @@ router.get('/:id', requireAuth, async (req, res, next) => {
       id: `${artist.id}-${weekDate.toISOString().slice(0, 10)}`,
       artistId: artist.id,
       week: n - i,
+      weekDate: weekDate.toISOString().slice(0, 10),
       seasonYear: weekDate.getUTCFullYear(),
       streamingPoints: 0,
       weeklyStreams: null as bigint | null,
