@@ -200,11 +200,11 @@ export function ArtistDetail() {
           </Card>
         )}
 
-        {/* Season history */}
+        {/* Chart history — last 10 real chart weeks, independent of any league's season length */}
         <Card className="p-5">
           <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
             <TrendingUp className="w-4 h-4" />
-            Season History
+            Chart History
             <span className="text-xs text-gray-600 font-normal normal-case tracking-normal ml-auto">Tap a week for details</span>
           </h2>
           <div className="space-y-2">

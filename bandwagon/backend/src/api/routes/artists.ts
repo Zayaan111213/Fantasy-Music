@@ -9,9 +9,16 @@ import {
   DEFAULT_SONG_MOVEMENT,
   DEFAULT_ALBUM_MOVEMENT,
 } from '../../scoring/tiers';
-import { applyCustomScoringToWeeklyScore } from '../../scoring/engine';
+import { applyCustomScoringToWeeklyScore, computeChartScoreForWeek } from '../../scoring/engine';
+import { getCurrentWeekDate } from '../../jobs/ingestCharts';
 
 const router = Router();
+
+// How many of the artist's most recent real chart weeks to show on its detail
+// page — independent of any league's own week counter, so an artist that's
+// been charting longer than a given league has existed still shows its
+// actual history (or fewer, if it hasn't charted that many weeks yet).
+const HISTORY_WEEKS = 10;
 
 router.get('/', requireAuth, async (req, res, next) => {
   try {
@@ -53,26 +60,11 @@ router.get('/:id', requireAuth, async (req, res, next) => {
     const leagueRow = leagueId
       ? await prisma.league.findUnique({
           where: { id: leagueId },
-          select: { scoringConfig: true, currentWeek: true, seasonYear: true },
+          select: { scoringConfig: true },
         })
       : null;
 
-    const seasonYear = leagueRow?.seasonYear ?? 2026;
-    // Without a league, find the latest week with real chart-based scores (streamingPoints=0 means pipeline-scored)
-    const currentWeek = leagueRow?.currentWeek ?? (await prisma.weeklyScore.aggregate({
-      where: { seasonYear, streamingPoints: 0, chartPositionPoints: { gt: 0 } },
-      _max: { week: true },
-    }))._max.week ?? 1;
-
-    const artist = await prisma.artist.findUnique({
-      where: { id: req.params.id },
-      include: {
-        weeklyScores: {
-          where: { seasonYear, week: { lte: currentWeek } },
-          orderBy: { week: 'desc' },
-        },
-      },
-    });
+    const artist = await prisma.artist.findUnique({ where: { id: req.params.id } });
     if (!artist) { res.status(404).json({ error: 'Artist not found' }); return; }
 
     // Build chart breakdown for the latest scored week (song + album, position + movement)
@@ -136,12 +128,57 @@ router.get('/:id', requireAuth, async (req, res, next) => {
       };
     }
 
+    // Season history: the artist's last HISTORY_WEEKS real calendar weeks with
+    // chart activity, computed straight from ChartEntry/AlbumChartEntry — not
+    // read off the WeeklyScore table, whose `week` numbering is relative to
+    // whichever league happened to be scoring it. That meant an artist's
+    // history was capped at how long the viewing league had existed, even
+    // when the artist had charted for longer. This is league-agnostic.
+    const [songWeeks, albumWeeks] = await Promise.all([
+      prisma.chartEntry.findMany({
+        where: { artistId: artist.id },
+        select: { weekDate: true },
+        distinct: ['weekDate'],
+        orderBy: { weekDate: 'desc' },
+        take: HISTORY_WEEKS,
+      }),
+      prisma.albumChartEntry.findMany({
+        where: { artistId: artist.id },
+        select: { weekDate: true },
+        distinct: ['weekDate'],
+        orderBy: { weekDate: 'desc' },
+        take: HISTORY_WEEKS,
+      }),
+    ]);
+    const weekDateByKey = new Map<string, Date>();
+    for (const { weekDate } of [...songWeeks, ...albumWeeks]) {
+      weekDateByKey.set(weekDate.toISOString(), weekDate);
+    }
+    const weekDatesDesc = [...weekDateByKey.values()]
+      .sort((a, b) => b.getTime() - a.getTime())
+      .slice(0, HISTORY_WEEKS);
+
+    const breakdowns = await Promise.all(
+      weekDatesDesc.map((weekDate) => computeChartScoreForWeek(artist.id, weekDate)),
+    );
+    const currentWeekDate = getCurrentWeekDate();
+    const n = weekDatesDesc.length;
+    let weeklyScores = weekDatesDesc.map((weekDate, i) => ({
+      id: `${artist.id}-${weekDate.toISOString().slice(0, 10)}`,
+      artistId: artist.id,
+      week: n - i,
+      seasonYear: weekDate.getUTCFullYear(),
+      streamingPoints: 0,
+      weeklyStreams: null as bigint | null,
+      isFinalized: weekDate.getTime() !== currentWeekDate.getTime(),
+      ...breakdowns[i],
+    }));
+
     // Recompute totalPoints from the live chartBreakdown so the total always
     // matches the displayed breakdown bars, even between daily pipeline runs.
     // If the artist isn't on either chart right now, longevity/total must be 0 too —
     // otherwise a stale WeeklyScore row (from before it fell off the charts) gets
     // shown next to "no chart entry this week" messaging.
-    let weeklyScores = artist.weeklyScores;
     if (weeklyScores.length > 0) {
       const longevityPoints = chartBreakdown ? (weeklyScores[0].longevityPoints ?? 0) : 0;
       // Movement points are signed (a rank drop is a real penalty per the scoring

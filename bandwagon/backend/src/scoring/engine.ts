@@ -83,12 +83,38 @@ function priorWeek(weekDate: Date): Date {
   return new Date(weekDate.getTime() - 7 * 24 * 60 * 60 * 1000);
 }
 
-export async function scoreArtistWeekFromCharts(
+export interface ChartScoreBreakdown {
+  songRank: number | null;
+  songTitle: string | null;
+  songPositionPoints: number;
+  songMovement: number | null;
+  songMovementPoints: number;
+  songIsDebut: boolean;
+  albumRank: number | null;
+  albumTitle: string | null;
+  albumPositionPoints: number;
+  albumMovement: number | null;
+  albumMovementPoints: number;
+  albumIsDebut: boolean;
+  chartPositionPoints: number;
+  chartMovementPoints: number;
+  longevityPoints: number;
+  totalPoints: number;
+  bestChartPosition: number | null;
+  chartMovement: number | null;
+  dataMissing: string | null;
+}
+
+// Pure read: computes an artist's chart-based score for an arbitrary weekDate
+// straight from ChartEntry/AlbumChartEntry, with no dependency on any league's
+// week counter and no DB write. Shared by scoreArtistWeekFromCharts (which
+// persists the result against a specific league week) and the artist-detail
+// route's history view (which needs scores for real calendar weeks that may
+// predate any league's own week numbering).
+export async function computeChartScoreForWeek(
   artistId: string,
-  week: number,
-  year: number,
   weekDate: Date,
-): Promise<void> {
+): Promise<ChartScoreBreakdown> {
   const prior = priorWeek(weekDate);
 
   // --- Songs ---
@@ -159,7 +185,7 @@ export async function scoreArtistWeekFromCharts(
 
   const totalPoints = chartPositionPoints + chartMovementPoints + longevityPoints;
 
-  const breakdownFields = {
+  return {
     songRank: bestSong?.rank ?? null,
     songTitle: bestSong?.songTitle ?? null,
     songPositionPoints,
@@ -172,33 +198,28 @@ export async function scoreArtistWeekFromCharts(
     albumMovement,
     albumMovementPoints,
     albumIsDebut,
+    chartPositionPoints,
+    chartMovementPoints,
+    longevityPoints,
+    totalPoints,
+    bestChartPosition: bestSong?.rank ?? bestAlbum?.rank ?? null,
+    chartMovement: songMovement,
+    dataMissing: songs.length === 0 && albums.length === 0 ? 'charts' : null,
   };
+}
+
+export async function scoreArtistWeekFromCharts(
+  artistId: string,
+  week: number,
+  year: number,
+  weekDate: Date,
+): Promise<void> {
+  const breakdown = await computeChartScoreForWeek(artistId, weekDate);
 
   await prisma.weeklyScore.upsert({
     where: { artistId_week_seasonYear: { artistId, week, seasonYear: year } },
-    create: {
-      artistId, week, seasonYear: year,
-      streamingPoints: 0,
-      chartPositionPoints,
-      chartMovementPoints,
-      longevityPoints,
-      totalPoints,
-      bestChartPosition: bestSong?.rank ?? bestAlbum?.rank ?? null,
-      chartMovement: songMovement,
-      dataMissing: songs.length === 0 && albums.length === 0 ? 'charts' : null,
-      ...breakdownFields,
-    },
-    update: {
-      streamingPoints: 0,
-      chartPositionPoints,
-      chartMovementPoints,
-      longevityPoints,
-      totalPoints,
-      bestChartPosition: bestSong?.rank ?? bestAlbum?.rank ?? null,
-      chartMovement: songMovement,
-      dataMissing: songs.length === 0 && albums.length === 0 ? 'charts' : null,
-      ...breakdownFields,
-    },
+    create: { artistId, week, seasonYear: year, streamingPoints: 0, ...breakdown },
+    update: { streamingPoints: 0, ...breakdown },
   });
 }
 

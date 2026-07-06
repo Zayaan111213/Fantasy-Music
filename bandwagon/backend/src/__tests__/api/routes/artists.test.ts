@@ -7,8 +7,8 @@ vi.mock('../../../db/prisma', () => ({
     artist: { findMany: vi.fn(), findUnique: vi.fn() },
     league: { findUnique: vi.fn() },
     weeklyScore: { findUnique: vi.fn(), aggregate: vi.fn() },
-    chartEntry: { findFirst: vi.fn() },
-    albumChartEntry: { findFirst: vi.fn() },
+    chartEntry: { findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn() },
+    albumChartEntry: { findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn() },
     genreStreamingTier: { findMany: vi.fn() },
   },
 }));
@@ -27,8 +27,8 @@ const pm = prisma as unknown as {
   artist: { findMany: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn> };
   league: { findUnique: ReturnType<typeof vi.fn> };
   weeklyScore: { findUnique: ReturnType<typeof vi.fn>; aggregate: ReturnType<typeof vi.fn> };
-  chartEntry: { findFirst: ReturnType<typeof vi.fn> };
-  albumChartEntry: { findFirst: ReturnType<typeof vi.fn> };
+  chartEntry: { findFirst: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn>; count: ReturnType<typeof vi.fn> };
+  albumChartEntry: { findFirst: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn>; count: ReturnType<typeof vi.fn> };
   genreStreamingTier: { findMany: ReturnType<typeof vi.fn> };
 };
 
@@ -178,78 +178,77 @@ describe('GET /artists', () => {
 // ---------------------------------------------------------------------------
 
 describe('GET /artists/:id', () => {
-  const WEEK_DATE = new Date('2026-07-01T07:00:00Z');
-  const PRIOR_DATE = new Date('2026-06-24T07:00:00Z');
+  const WEEK_DATE = new Date('2026-07-01T00:00:00Z');
+  const PRIOR_DATE = new Date('2026-06-24T00:00:00Z');
 
+  // scoreLongevity(consecutiveWeeks) = min(max(consecutiveWeeks - 1, 0) * 2, 10).
+  // `longevityPoints` here is the target output; we back it out into however many
+  // consecutive prior-week chart.count calls must return non-zero to produce it.
   function setupArtist(opts: {
-    storedTotal?: number;
-    longevity?: number;
+    longevityPoints?: number;
     songRank?: number | null;
     songPriorRank?: number | null;
     albumRank?: number | null;
     albumPriorRank?: number | null;
   } = {}) {
     const {
-      storedTotal = 70,
-      longevity = 0,
+      longevityPoints = 0,
       songRank = 1,
       songPriorRank = 1,
       albumRank = 1,
       albumPriorRank = 1,
     } = opts;
 
-    pm.league.findUnique.mockResolvedValue(null);
-    pm.weeklyScore.aggregate.mockResolvedValue({ _max: { week: 1 } });
     pm.genreStreamingTier.findMany.mockResolvedValue([]);
 
     pm.artist.findUnique.mockResolvedValue({
       id: 'drake', name: 'Drake', primaryGenre: 'R&B/Hip-Hop', imageUrl: null,
-      weeklyScores: [{
-        id: 'ws1', artistId: 'drake', week: 1, seasonYear: 2026,
-        totalPoints: storedTotal,
-        longevityPoints: longevity,
-        chartPositionPoints: 0, chartMovementPoints: 0, streamingPoints: 0,
-        isFinalized: false, dataMissing: null,
-      }],
     });
 
-    // Song chart entries
-    if (songRank !== null) {
-      pm.chartEntry.findFirst
-        .mockResolvedValueOnce({
-          appleSongId: BigInt(111), songTitle: 'Janice STFU', chart: 'US',
-          rank: songRank, weekDate: WEEK_DATE,
-        })
-        .mockResolvedValueOnce(
-          songPriorRank !== null
-            ? { appleSongId: BigInt(111), rank: songPriorRank, weekDate: PRIOR_DATE }
-            : null,
-        );
-    } else {
-      pm.chartEntry.findFirst.mockResolvedValue(null);
-    }
+    // Distinct-weekDate history discovery: for these tests the artist has
+    // exactly one on-record chart week (WEEK_DATE), regardless of whether
+    // that week's per-signal lookup below finds a song/album entry.
+    pm.chartEntry.findMany.mockImplementation(async (args: any) =>
+      args.distinct ? [{ weekDate: WEEK_DATE }] : (songRank !== null ? [{
+        appleSongId: BigInt(111), songTitle: 'Janice STFU', chart: 'US', rank: songRank,
+      }] : []),
+    );
+    pm.albumChartEntry.findMany.mockImplementation(async (args: any) =>
+      args.distinct ? [{ weekDate: WEEK_DATE }] : (albumRank !== null ? [{
+        appleAlbumId: BigInt(222), albumTitle: 'ICEMAN', chart: 'US', rank: albumRank,
+      }] : []),
+    );
 
-    // Album chart entries
-    if (albumRank !== null) {
-      pm.albumChartEntry.findFirst
-        .mockResolvedValueOnce({
-          appleAlbumId: BigInt(222), albumTitle: 'ICEMAN', chart: 'US',
-          rank: albumRank, weekDate: WEEK_DATE,
-        })
-        .mockResolvedValueOnce(
-          albumPriorRank !== null
-            ? { appleAlbumId: BigInt(222), rank: albumPriorRank, weekDate: PRIOR_DATE }
-            : null,
-        );
-    } else {
-      pm.albumChartEntry.findFirst.mockResolvedValue(null);
-    }
+    // findFirst is called twice for each signal: once for the route's own
+    // "most recent chart entry ever" lookup (chartBreakdown block — no
+    // `weekDate` in its where clause), and once for the prior-week lookup
+    // (used both by that block and by the history computation for WEEK_DATE).
+    pm.chartEntry.findFirst.mockImplementation(async (args: any) => {
+      if (!args.where.weekDate) {
+        return songRank !== null
+          ? { appleSongId: BigInt(111), songTitle: 'Janice STFU', chart: 'US', rank: songRank, weekDate: WEEK_DATE }
+          : null;
+      }
+      return songPriorRank !== null ? { appleSongId: BigInt(111), rank: songPriorRank, weekDate: PRIOR_DATE } : null;
+    });
+    pm.albumChartEntry.findFirst.mockImplementation(async (args: any) => {
+      if (!args.where.weekDate) {
+        return albumRank !== null
+          ? { appleAlbumId: BigInt(222), albumTitle: 'ICEMAN', chart: 'US', rank: albumRank, weekDate: WEEK_DATE }
+          : null;
+      }
+      return albumPriorRank !== null ? { appleAlbumId: BigInt(222), rank: albumPriorRank, weekDate: PRIOR_DATE } : null;
+    });
+
+    const priorWeeksOnChart = longevityPoints / 2;
+    let call = 0;
+    pm.chartEntry.count.mockImplementation(async () => (call++ < priorWeeksOnChart ? 1 : 0));
+    pm.albumChartEntry.count.mockResolvedValue(0);
   }
 
   it('recomputes totalPoints from chartBreakdown — stale DB value is overridden', async () => {
-    // Scenario from the bug report: stored total = 70 (old debut bonuses), but current
-    // chart shows movement of 0 for both song and album → correct total is 50, not 70.
-    setupArtist({ storedTotal: 70, songRank: 1, songPriorRank: 1, albumRank: 1, albumPriorRank: 1 });
+    // Song and album both unchanged at #1 (movement 0) → total is 50, not some stale figure.
+    setupArtist({ songRank: 1, songPriorRank: 1, albumRank: 1, albumPriorRank: 1 });
 
     const res = await request(app).get('/artists/drake');
     expect(res.status).toBe(200);
@@ -260,7 +259,7 @@ describe('GET /artists/:id', () => {
   it('subtracts a negative movement penalty from totalPoints instead of flooring it at 0', async () => {
     // Song dropped from rank 5 to rank 20 → movement -15, capped at maxDrop -10.
     // Album unchanged at #1. Total must reflect the real penalty, not floor it at 0.
-    setupArtist({ storedTotal: 999, songRank: 20, songPriorRank: 5, albumRank: 1, albumPriorRank: 1 });
+    setupArtist({ songRank: 20, songPriorRank: 5, albumRank: 1, albumPriorRank: 1 });
 
     const res = await request(app).get('/artists/drake');
     expect(res.status).toBe(200);
@@ -270,11 +269,9 @@ describe('GET /artists/:id', () => {
   });
 
   it('zeroes out totalPoints and longevityPoints when artist has fallen off both charts', async () => {
-    // Bug report: artist has no song/album entry this week (chartBreakdown is null),
-    // but the stale WeeklyScore row from when it was still charting had totalPoints=12,
-    // longevityPoints=2. Displaying those next to "no chart entry this week" is wrong —
-    // both should read 0 once the artist is confirmed off every chart.
-    setupArtist({ storedTotal: 12, longevity: 2, songRank: null, albumRank: null });
+    // Artist has no song/album entry this week → chartBreakdown is null, and the
+    // recomputed weeklyScores[0] must read 0, not carry over some stale figure.
+    setupArtist({ longevityPoints: 2, songRank: null, albumRank: null });
 
     const res = await request(app).get('/artists/drake');
     expect(res.status).toBe(200);
@@ -285,16 +282,16 @@ describe('GET /artists/:id', () => {
 
   it('totalPoints includes debut movement bonus when artist has no prior chart entry', async () => {
     // No prior song or album entry → both are debuts → +10 each
-    setupArtist({ storedTotal: 0, songRank: 1, songPriorRank: null, albumRank: 1, albumPriorRank: null });
+    setupArtist({ songRank: 1, songPriorRank: null, albumRank: 1, albumPriorRank: null });
 
     const res = await request(app).get('/artists/drake');
     // Song position 25 + debut +10; album position 25 + debut +10 = 70
     expect(res.body.weeklyScores[0].totalPoints).toBe(70);
   });
 
-  it('totalPoints includes longevity from the stored weekly score', async () => {
-    // Both at #1, no movement, longevity = 6 (4 consecutive weeks)
-    setupArtist({ storedTotal: 99, longevity: 6, songRank: 1, songPriorRank: 1, albumRank: 1, albumPriorRank: 1 });
+  it('totalPoints includes longevity computed from consecutive charting weeks', async () => {
+    // Both at #1, no movement, longevity = 6 (4 consecutive weeks: 1 + 3 prior)
+    setupArtist({ longevityPoints: 6, songRank: 1, songPriorRank: 1, albumRank: 1, albumPriorRank: 1 });
 
     const res = await request(app).get('/artists/drake');
     // 25 + 0 + 25 + 0 + 6 = 56
@@ -315,9 +312,48 @@ describe('GET /artists/:id', () => {
     expect(bd.album).toBeNull();
   });
 
+  it('returns up to the last 10 real chart weeks, independent of any league week counter', async () => {
+    // 12 distinct weekDates on record — the response must cap at 10 and use
+    // the most recent ones, not whatever a league's own currentWeek happens
+    // to be (there is no leagueId on this request at all).
+    const weekDates = Array.from({ length: 12 }, (_, i) => new Date(WEEK_DATE.getTime() - i * 7 * 24 * 60 * 60 * 1000));
+    pm.genreStreamingTier.findMany.mockResolvedValue([]);
+    pm.artist.findUnique.mockResolvedValue({ id: 'drake', name: 'Drake', primaryGenre: 'R&B/Hip-Hop', imageUrl: null });
+    pm.chartEntry.findMany.mockImplementation(async (args: any) =>
+      args.distinct ? weekDates.map((weekDate) => ({ weekDate })) : [{ appleSongId: BigInt(1), songTitle: 'X', chart: 'US', rank: 10 }],
+    );
+    pm.albumChartEntry.findMany.mockImplementation(async (args: any) => (args.distinct ? [] : []));
+    pm.chartEntry.findFirst.mockResolvedValue(null);
+    pm.albumChartEntry.findFirst.mockResolvedValue(null);
+    pm.chartEntry.count.mockResolvedValue(0);
+    pm.albumChartEntry.count.mockResolvedValue(0);
+
+    const res = await request(app).get('/artists/drake');
+    expect(res.status).toBe(200);
+    expect(res.body.weeklyScores).toHaveLength(10);
+    // Most recent week first, numbered so the latest has the highest "week" value.
+    expect(res.body.weeklyScores[0].week).toBe(10);
+    expect(res.body.weeklyScores[9].week).toBe(1);
+  });
+
+  it('returns fewer than 10 weeks when the artist has charted for fewer weeks', async () => {
+    pm.genreStreamingTier.findMany.mockResolvedValue([]);
+    pm.artist.findUnique.mockResolvedValue({ id: 'newcomer', name: 'Newcomer', primaryGenre: 'Pop', imageUrl: null });
+    pm.chartEntry.findMany.mockImplementation(async (args: any) =>
+      args.distinct ? [{ weekDate: WEEK_DATE }, { weekDate: PRIOR_DATE }] : [{ appleSongId: BigInt(1), songTitle: 'Debut', chart: 'US', rank: 40 }],
+    );
+    pm.albumChartEntry.findMany.mockResolvedValue([]);
+    pm.chartEntry.findFirst.mockResolvedValue(null);
+    pm.albumChartEntry.findFirst.mockResolvedValue(null);
+    pm.chartEntry.count.mockResolvedValue(0);
+    pm.albumChartEntry.count.mockResolvedValue(0);
+
+    const res = await request(app).get('/artists/newcomer');
+    expect(res.status).toBe(200);
+    expect(res.body.weeklyScores).toHaveLength(2);
+  });
+
   it('returns 404 when artist not found', async () => {
-    pm.league.findUnique.mockResolvedValue(null);
-    pm.weeklyScore.aggregate.mockResolvedValue({ _max: { week: 1 } });
     pm.artist.findUnique.mockResolvedValue(null);
     pm.chartEntry.findFirst.mockResolvedValue(null);
     pm.albumChartEntry.findFirst.mockResolvedValue(null);
