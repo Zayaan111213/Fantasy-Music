@@ -39,6 +39,17 @@ function isLegacyRow(ws: WeeklyScore): boolean {
     && (ws.chartPositionPoints > 0 || ws.chartMovementPoints !== 0);
 }
 
+// weekDate is a plain "YYYY-MM-DD" calendar date (Tuesday, the start of the
+// scoring week) — force UTC when formatting so it doesn't shift a day
+// backward for viewers west of UTC.
+function formatWeekLabel(ws: WeeklyScore): string {
+  if (!ws.weekDate) return `Week ${ws.week}`;
+  const formatted = new Date(ws.weekDate).toLocaleDateString(undefined, {
+    month: 'short', day: 'numeric', timeZone: 'UTC',
+  });
+  return `Week of ${formatted}`;
+}
+
 function ScoreBar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
   const isNegative = value < 0;
   const pct = max > 0 ? (Math.abs(value) / max) * 100 : 0;
@@ -137,7 +148,7 @@ export function ArtistDetail() {
           <Card className="p-5">
             <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
               <BarChart2 className="w-4 h-4" />
-              Week {activeScore.week} Score Breakdown
+              {formatWeekLabel(activeScore)} Score Breakdown
               {!activeScore.isFinalized && <span className="text-xs text-yellow-500 font-normal ml-auto">Provisional</span>}
             </h2>
             {activeIsLegacy ? (
@@ -216,7 +227,7 @@ export function ArtistDetail() {
                   score.week === activeScore?.week ? 'bg-white/10' : 'hover:bg-white/5'
                 }`}
               >
-                <div className="w-14 text-xs text-gray-500 text-left">Week {score.week}</div>
+                <div className="w-24 shrink-0 text-xs text-gray-500 text-left whitespace-nowrap">{formatWeekLabel(score)}</div>
                 <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-indigo-500 rounded-full"

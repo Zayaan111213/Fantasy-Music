@@ -53,6 +53,7 @@ export interface WeeklyScore {
   id: string;
   artistId: string;
   week: number;
+  weekDate?: string;
   seasonYear: number;
   streamingPoints: number;
   chartPositionPoints: number;
