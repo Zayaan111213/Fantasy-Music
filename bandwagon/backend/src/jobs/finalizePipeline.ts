@@ -1,5 +1,11 @@
 import { prisma } from '../db/prisma';
 import { getCurrentWeekDate } from './ingestCharts';
+import {
+  ensurePlayoffMatchups,
+  PLAYOFF_FINALS_WEEK,
+  PLAYOFF_SEMIS_WEEK,
+  REGULAR_SEASON_WEEKS,
+} from '../playoffs/bracket';
 
 export async function bestArtistScore(teamId: string, week: number, year: number): Promise<number> {
   const spots = await prisma.rosterSpot.findMany({
@@ -47,6 +53,10 @@ export async function finalizeLeagueWeek(leagueId: string, week: number, year: n
 
   if (count === 0) {
     console.log(`[finalize] league ${leagueId} week ${week} — already finalized, skipped`);
+    // A previous run may have crashed after the isFinalized flip but before the
+    // bracket/advance steps — re-run them (all idempotent) so the league can't
+    // get stranded at a playoff boundary.
+    if (week >= REGULAR_SEASON_WEEKS) await advanceSeason(leagueId, week);
     return;
   }
 
@@ -54,25 +64,63 @@ export async function finalizeLeagueWeek(leagueId: string, week: number, year: n
   // Scores are frozen at this point; same inputs → same winner on any retry of this block.
   const matchups = await prisma.matchup.findMany({ where: { leagueId, week } });
   for (const m of matchups) {
-    const winnerId = await resolveWinner(
+    let winnerId = await resolveWinner(
       m.homeTeamId, m.awayTeamId, m.homeScore, m.awayScore, week, year,
     );
+    // Playoff games can't end in a tie: the better (lower-number) seed advances.
+    if (winnerId === null && m.matchupType !== 'regular' && m.homeSeed != null && m.awaySeed != null) {
+      winnerId = m.homeSeed < m.awaySeed ? m.homeTeamId : m.awayTeamId;
+    }
     await prisma.matchup.update({ where: { id: m.id }, data: { winnerId } });
     console.log(`[finalize] matchup ${m.id} → winner ${winnerId ?? 'tie'}`);
 
     // Update team stats: both teams accumulate pointsFor; winner/loser get wins/losses.
-    await prisma.team.update({ where: { id: m.homeTeamId }, data: { pointsFor: { increment: m.homeScore } } });
-    await prisma.team.update({ where: { id: m.awayTeamId }, data: { pointsFor: { increment: m.awayScore } } });
-    if (winnerId !== null) {
-      const loserId = winnerId === m.homeTeamId ? m.awayTeamId : m.homeTeamId;
-      await prisma.team.update({ where: { id: winnerId }, data: { wins: { increment: 1 } } });
-      await prisma.team.update({ where: { id: loserId }, data: { losses: { increment: 1 } } });
+    // Playoff games don't count — standings freeze as the regular-season record.
+    if (m.matchupType === 'regular') {
+      await prisma.team.update({ where: { id: m.homeTeamId }, data: { pointsFor: { increment: m.homeScore } } });
+      await prisma.team.update({ where: { id: m.awayTeamId }, data: { pointsFor: { increment: m.awayScore } } });
+      if (winnerId !== null) {
+        const loserId = winnerId === m.homeTeamId ? m.awayTeamId : m.homeTeamId;
+        await prisma.team.update({ where: { id: winnerId }, data: { wins: { increment: 1 } } });
+        await prisma.team.update({ where: { id: loserId }, data: { losses: { increment: 1 } } });
+      }
     }
   }
 
-  const nextWeek = Math.min(week + 1, 10);
-  await prisma.league.update({ where: { id: leagueId }, data: { currentWeek: nextWeek } });
-  console.log(`[finalize] league ${leagueId} week ${week} → ${nextWeek}`);
+  await advanceSeason(leagueId, week);
+}
+
+// After a week finalizes: create the next playoff round when due, then advance
+// currentWeek, or mark the season complete after the finals week. Idempotent —
+// the currentWeek update is monotonic and bracket creation no-ops when the
+// next week's matchups already exist.
+async function advanceSeason(leagueId: string, week: number): Promise<void> {
+  if (week >= PLAYOFF_FINALS_WEEK) {
+    const { count } = await prisma.league.updateMany({
+      where: { id: leagueId, status: { not: 'complete' } },
+      data: { status: 'complete' },
+    });
+    if (count > 0) console.log(`[finalize] league ${leagueId} — season complete`);
+    return;
+  }
+
+  if (week === REGULAR_SEASON_WEEKS || week === PLAYOFF_SEMIS_WEEK) {
+    await ensurePlayoffMatchups(leagueId, week);
+  }
+
+  // Advance only if next week's matchups exist: a league too small for playoffs
+  // has none after week 10 (ensurePlayoffMatchups already marked it complete).
+  const next = await prisma.matchup.findFirst({
+    where: { leagueId, week: week + 1 },
+    select: { id: true },
+  });
+  if (next) {
+    await prisma.league.updateMany({
+      where: { id: leagueId, currentWeek: { lt: week + 1 } },
+      data: { currentWeek: week + 1 },
+    });
+    console.log(`[finalize] league ${leagueId} week ${week} → ${week + 1}`);
+  }
 }
 
 // Returns the PT calendar date (YYYY-MM-DD) of the first scoring Tuesday after the draft.
@@ -126,6 +174,8 @@ async function main(): Promise<void> {
   console.log('[finalize] done');
 }
 
-main()
-  .catch((err) => { console.error('[finalize] fatal:', err); process.exit(1); })
-  .finally(() => prisma.$disconnect());
+if (require.main === module) {
+  main()
+    .catch((err) => { console.error('[finalize] fatal:', err); process.exit(1); })
+    .finally(() => prisma.$disconnect());
+}

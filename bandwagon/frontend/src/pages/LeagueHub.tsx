@@ -16,9 +16,10 @@ type Tab = 'myteam' | 'matchup' | 'standings' | 'players' | 'settings';
 const ALL_STARTER_SLOTS = ['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country', 'Other', 'Flex'];
 const ALL_BENCH_SLOTS = ['Bench-1', 'Bench-2', 'Bench-3'];
 
-type WeekPhase = 'pre_season' | 'adjustment' | 'scoring';
+type WeekPhase = 'pre_season' | 'adjustment' | 'scoring' | 'complete';
 
 function getWeekPhase(league: League): WeekPhase {
+  if (league.status === 'complete') return 'complete';
   if (league.status !== 'active') return 'pre_season';
   const dayPT = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/Los_Angeles' });
   if (dayPT === 'Monday') return 'adjustment';
@@ -38,6 +39,34 @@ function getWeekPhase(league: League): WeekPhase {
   }
 
   return 'scoring';
+}
+
+const REGULAR_SEASON_WEEKS = 10;
+const PLAYOFF_FINAL_WEEK = 12;
+
+const PLAYOFF_TAGS: Record<string, { label: string; className: string }> = {
+  semifinal:             { label: 'Semifinal',         className: 'bg-purple-500/10 text-purple-400 border-purple-500/30' },
+  championship:          { label: '🏆 Championship',   className: 'bg-amber-500/10 text-amber-300 border-amber-500/40' },
+  third_place:           { label: '🥉 3rd Place Game', className: 'bg-orange-500/10 text-orange-300 border-orange-500/30' },
+  consolation_semifinal: { label: 'Consolation',       className: 'bg-sky-500/10 text-sky-400 border-sky-500/30' },
+  fifth_place:           { label: '5th Place Game',    className: 'bg-sky-500/10 text-sky-400 border-sky-500/30' },
+  seventh_place:         { label: '7th Place Game',    className: 'bg-sky-500/10 text-sky-400 border-sky-500/30' },
+};
+
+function PlayoffTag({ matchupType }: { matchupType?: string }) {
+  const tag = matchupType ? PLAYOFF_TAGS[matchupType] : undefined;
+  if (!tag) return null;
+  return (
+    <span className={`inline-flex items-center text-xs font-semibold border rounded px-2 py-0.5 ${tag.className}`}>
+      {tag.label}
+    </span>
+  );
+}
+
+function weekTitle(week: number): string {
+  if (week === 11) return 'Week 11 · Semifinals';
+  if (week === 12) return 'Week 12 · Championship Week';
+  return `Week ${week}`;
 }
 
 function SlotLabel({ slot }: { slot: string }) {
@@ -229,7 +258,8 @@ function MyTeamTab({ leagueId, league, phase }: { leagueId: string; league: Leag
     }
   }
 
-  const isLocked = phase === 'scoring';
+  const seasonOver = phase === 'complete';
+  const isLocked = phase === 'scoring' || seasonOver;
 
   function handleSlotClick(slot: string) {
     if (isLocked) return;
@@ -312,7 +342,12 @@ function MyTeamTab({ leagueId, league, phase }: { leagueId: string; league: Leag
         )}
       </Card>
 
-      {isLocked && (
+      {seasonOver ? (
+        <div className="bg-white/5 border border-white/10 rounded-lg p-3 text-sm text-gray-400 flex items-center gap-2">
+          <Trophy className="w-4 h-4 shrink-0" />
+          Season complete — lineups are final
+        </div>
+      ) : isLocked && (
         <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-sm text-amber-400 flex items-center gap-2">
           <Lock className="w-4 h-4 shrink-0" />
           Lineup locked until Monday
@@ -373,9 +408,10 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
   const [viewWeek, setViewWeek] = useState(league.currentWeek);
   const [showResultPopup, setShowResultPopup] = useState(false);
 
-  const isCurrentWeek = viewWeek === league.currentWeek;
-  const isPastWeek = viewWeek < league.currentWeek;
-  const isFutureWeek = viewWeek > league.currentWeek;
+  // After the season completes every week is history, including the finals week.
+  const isCurrentWeek = viewWeek === league.currentWeek && phase !== 'complete';
+  const isPastWeek = viewWeek < league.currentWeek || phase === 'complete';
+  const isFutureWeek = viewWeek > league.currentWeek && phase !== 'complete';
 
   const { data: matchup, isLoading } = useQuery({
     queryKey: ['matchup', leagueId, 'week', viewWeek],
@@ -408,7 +444,10 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
     );
   }
 
-  const TOTAL_WEEKS = 10;
+  // Playoff weeks (11-12) only become navigable once the bracket exists.
+  const totalWeeks = league.currentWeek > REGULAR_SEASON_WEEKS || league.status === 'complete'
+    ? PLAYOFF_FINAL_WEEK
+    : REGULAR_SEASON_WEEKS;
 
   function WeekNav() {
     return (
@@ -421,7 +460,7 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
           <ChevronLeft className="w-4 h-4" />
         </button>
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-white">Week {viewWeek}</span>
+          <span className="text-sm font-semibold text-white">{weekTitle(viewWeek)}</span>
           {isCurrentWeek && (
             <span className="text-xs bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded px-1.5 py-0.5">Current</span>
           )}
@@ -430,8 +469,8 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
           )}
         </div>
         <button
-          onClick={() => setViewWeek((w) => Math.min(TOTAL_WEEKS, w + 1))}
-          disabled={viewWeek >= TOTAL_WEEKS}
+          onClick={() => setViewWeek((w) => Math.min(totalWeeks, w + 1))}
+          disabled={viewWeek >= totalWeeks}
           className="p-1 rounded text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
           <ChevronRight className="w-4 h-4" />
@@ -452,7 +491,11 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
       <div className="space-y-4">
         <WeekNav />
         <div className="text-center py-12 text-gray-400">
-          {isFutureWeek ? `Week ${viewWeek} matchup hasn't been played yet.` : 'No matchup found for this week.'}
+          {viewWeek > REGULAR_SEASON_WEEKS
+            ? `You don't have a Week ${viewWeek} playoff game.`
+            : isFutureWeek
+              ? `Week ${viewWeek} matchup hasn't been played yet.`
+              : 'No matchup found for this week.'}
         </div>
       </div>
     );
@@ -499,7 +542,10 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
         <WeekNav />
         <Card className="p-5">
           <div className="flex items-center justify-between mb-3">
-            <div className="text-xs text-gray-500">Week {viewWeek} · Final</div>
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <span>Week {viewWeek} · Final</span>
+              <PlayoffTag matchupType={matchup.matchupType} />
+            </div>
             {iWon && <span className="text-xs font-semibold text-green-400 bg-green-400/10 rounded px-2 py-0.5">Win</span>}
             {iLost && <span className="text-xs font-semibold text-red-400 bg-red-400/10 rounded px-2 py-0.5">Loss</span>}
             {!iWon && !iLost && <span className="text-xs text-gray-500">Not finalized</span>}
@@ -530,7 +576,10 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
       <div className="space-y-4">
         <WeekNav />
         <Card className="p-5">
-          <div className="text-center text-xs text-gray-500 mb-3">Week {viewWeek} · Upcoming</div>
+          <div className="flex items-center justify-center gap-2 text-xs text-gray-500 mb-3">
+            <span>Week {viewWeek} · Upcoming</span>
+            <PlayoffTag matchupType={matchup.matchupType} />
+          </div>
           <div className="flex items-center justify-center gap-6">
             <div className="text-center">
               <div className="font-semibold text-white mb-1">{myTeamData?.name ?? 'Your Team'}</div>
@@ -591,7 +640,10 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
 
         {/* H2H header — scores are 0, week hasn't started */}
         <Card className="p-5">
-          <div className="text-center text-xs text-gray-500 mb-3">Week {league.currentWeek} · starts Tuesday</div>
+          <div className="flex items-center justify-center gap-2 text-xs text-gray-500 mb-3">
+            <span>Week {league.currentWeek} · starts Tuesday</span>
+            <PlayoffTag matchupType={matchup.matchupType} />
+          </div>
           <div className="flex items-center justify-center gap-6">
             <div className="text-center">
               <div className="font-semibold text-white mb-1">{myTeamData?.name ?? 'Your Team'}</div>
@@ -633,7 +685,10 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
     <div className="space-y-4">
       <WeekNav />
       <Card className="p-5">
-        <div className="text-center text-xs text-gray-500 mb-1">Week {league.currentWeek}</div>
+        <div className="flex items-center justify-center gap-2 text-xs text-gray-500 mb-1">
+          <span>Week {league.currentWeek}</span>
+          <PlayoffTag matchupType={matchup.matchupType} />
+        </div>
         <div className="flex items-center justify-center gap-1.5 mb-3">
           <Lock className="w-3 h-3 text-amber-500" />
           <span className="text-xs text-amber-500">Lineup locked · updates daily</span>
@@ -672,6 +727,7 @@ function StandingsTab({ leagueId, league }: { leagueId: string; league: League }
   if (isLoading) return <div className="flex justify-center py-12"><Spinner className="w-8 h-8" /></div>;
 
   const playoffCutline = 4;
+  const inPlayoffs = league.currentWeek > REGULAR_SEASON_WEEKS || league.status === 'complete';
 
   return (
     <Card>
@@ -683,11 +739,18 @@ function StandingsTab({ leagueId, league }: { leagueId: string; league: League }
           <div className="col-span-3 text-right">Pts For</div>
         </div>
       </div>
+      {inPlayoffs && (
+        <div className="px-4 py-2 text-xs text-gray-500 border-b border-white/10">
+          {league.status === 'complete'
+            ? 'Final regular-season standings'
+            : 'Regular-season record · playoffs in progress'}
+        </div>
+      )}
       {data?.map((entry, i) => (
         <div key={entry.teamId}>
           {i === playoffCutline && (
             <div className="px-4 py-1 bg-purple-500/10 text-center text-xs text-purple-400 border-y border-purple-500/20">
-              ── Playoff Line ──
+              {inPlayoffs ? '── Playoffs ──' : '── Playoff Line ──'}
             </div>
           )}
           <div className="grid grid-cols-12 items-center p-4 hover:bg-white/5 transition-colors">
