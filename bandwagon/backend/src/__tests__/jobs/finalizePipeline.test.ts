@@ -6,9 +6,21 @@ vi.mock('../../db/prisma', () => ({
     weeklyScore: { findUnique: vi.fn() },
     // league.findMany must return [] by default so that main() (which runs at module
     // import time) iterates over an empty array and exits cleanly instead of throwing.
-    league:  { findMany: vi.fn().mockResolvedValue([]), update: vi.fn() },
-    matchup: { updateMany: vi.fn().mockResolvedValue({ count: 0 }), findMany: vi.fn().mockResolvedValue([]), update: vi.fn() },
-    team:    { update: vi.fn() },
+    league: {
+      findMany:   vi.fn().mockResolvedValue([]),
+      update:     vi.fn(),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
+    matchup: {
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      findMany:   vi.fn().mockResolvedValue([]),
+      // Next-week matchups exist by default, so advanceSeason moves the week
+      // forward and ensurePlayoffMatchups no-ops.
+      findFirst:  vi.fn().mockResolvedValue({ id: 'm-next' }),
+      update:     vi.fn(),
+      createMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
+    team:    { update: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
     $disconnect: vi.fn().mockResolvedValue(undefined),
   },
 }));
@@ -103,6 +115,7 @@ describe('finalizeLeagueWeek', () => {
     vi.mocked(prisma.matchup.findMany).mockResolvedValueOnce([{
       id: 'm1', homeTeamId: 'h', awayTeamId: 'a',
       homeScore: 100, awayScore: 80,
+      matchupType: 'regular', homeSeed: null, awaySeed: null,
     }] as never);
 
     await finalizeLeagueWeek('league1', 1, 2026);
@@ -122,8 +135,11 @@ describe('finalizeLeagueWeek', () => {
     expect(prisma.team.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'a' }, data: { pointsFor: { increment: 80 } } })
     );
-    expect(prisma.league.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'league1' }, data: { currentWeek: 2 } })
+    expect(prisma.league.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'league1', currentWeek: { lt: 2 } },
+        data: { currentWeek: 2 },
+      })
     );
   });
 
@@ -136,6 +152,46 @@ describe('finalizeLeagueWeek', () => {
 
     expect(prisma.matchup.findMany).not.toHaveBeenCalled();
     expect(prisma.team.update).not.toHaveBeenCalled();
+  });
+
+  it('playoff dead tie falls back to the higher seed and skips team stat updates', async () => {
+    vi.mocked(prisma.team.update).mockClear();
+    vi.mocked(prisma.matchup.updateMany).mockResolvedValueOnce({ count: 1 } as never);
+    vi.mocked(prisma.matchup.findMany).mockResolvedValueOnce([{
+      id: 'm-semi', homeTeamId: 'h', awayTeamId: 'a',
+      homeScore: 100, awayScore: 100,
+      matchupType: 'semifinal', homeSeed: 2, awaySeed: 3,
+    }] as never);
+    // Equal best-artist tiebreaker: both rosters empty → 0 vs 0 → true tie
+    rosterFindMany
+      .mockResolvedValueOnce([] as never)
+      .mockResolvedValueOnce([] as never);
+
+    await finalizeLeagueWeek('league1', 11, 2026);
+
+    expect(prisma.matchup.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'm-semi' }, data: { winnerId: 'h' } })
+    );
+    // Playoff games never touch wins/losses/pointsFor
+    expect(prisma.team.update).not.toHaveBeenCalled();
+  });
+
+  it('marks the league complete after the finals week', async () => {
+    vi.mocked(prisma.matchup.updateMany).mockResolvedValueOnce({ count: 1 } as never);
+    vi.mocked(prisma.matchup.findMany).mockResolvedValueOnce([{
+      id: 'm-final', homeTeamId: 'h', awayTeamId: 'a',
+      homeScore: 120, awayScore: 90,
+      matchupType: 'championship', homeSeed: 1, awaySeed: 2,
+    }] as never);
+
+    await finalizeLeagueWeek('league1', 12, 2026);
+
+    expect(prisma.league.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'league1', status: { not: 'complete' } },
+        data: { status: 'complete' },
+      })
+    );
   });
 });
 

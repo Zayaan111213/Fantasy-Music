@@ -74,16 +74,23 @@ test.describe('Live draft', () => {
     const TOTAL_PICKS = 36;
 
     for (let i = 0; i < TOTAL_PICKS; i++) {
-      // Wait for any page to show "Your pick!" — only the on-clock user sees it
-      await Promise.race(
-        pages.map((p) => p.getByText('Your pick!').waitFor({ state: 'visible', timeout: 20_000 }))
-      );
-
-      // Find which page is on clock
+      // The on-clock page shows "Your pick!" AND the current pick number.
+      // Requiring both rules out the previous picker's page, whose stale
+      // "Your pick!" survives until the socket broadcast lands (both texts
+      // render from the same state object, so they update atomically).
+      const pickLabel = `Pick ${i + 1} of ${TOTAL_PICKS}`;
       let onClock: Page | undefined;
-      for (const p of pages) {
-        if (await p.getByText('Your pick!').isVisible()) { onClock = p; break; }
-      }
+      await expect
+        .poll(async () => {
+          for (const p of pages) {
+            if (
+              (await p.getByText(pickLabel).isVisible()) &&
+              (await p.getByText('Your pick!').isVisible())
+            ) { onClock = p; return true; }
+          }
+          return false;
+        }, { timeout: 20_000, message: `No page on clock for pick ${i + 1}` })
+        .toBe(true);
       if (!onClock) throw new Error(`No page on clock for pick ${i + 1}`);
 
       // Draft the first available artist
@@ -98,9 +105,11 @@ test.describe('Live draft', () => {
       }
     }
 
-    // Draft complete — commissioner's page shows the toast and redirects to the league hub
-    await expect(pages[0].getByText('Draft complete! Rosters are set.')).toBeVisible({ timeout: 15_000 });
-    await pages[0].waitForURL(`**/leagues/${leagueId}`, { timeout: 10_000 });
+    // Draft complete — the commissioner's page redirects to the league hub.
+    // (The "Draft complete!" toast is transient and often gone before an
+    // assertion can observe it, so assert the redirect and roster instead.)
+    await pages[0].waitForURL(`**/leagues/${leagueId}`, { timeout: 15_000 });
+    await expect(pages[0].getByRole('heading', { name: 'Starters' })).toBeVisible({ timeout: 10_000 });
 
     await Promise.all(contexts.map((ctx) => ctx.close()));
   });

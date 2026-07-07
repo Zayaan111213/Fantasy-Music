@@ -19,7 +19,9 @@ test.describe('Authentication', () => {
     await page.waitForURL('**/onboarding', { timeout: 10_000 });
     await expect(page.getByText('Set up your profile')).toBeVisible();
 
-    const username = `tester${Date.now()}`.slice(0, 20);
+    // Random suffix: the fast and full projects run this spec concurrently, so
+    // a timestamp alone can collide on the unique username constraint.
+    const username = `t${Date.now()}${Math.random().toString(36).slice(2, 5)}`.slice(0, 20);
     await page.getByLabel('Username').fill(username);
     await expect(page.locator('svg.text-green-400, .text-green-400').first()).toBeVisible({ timeout: 5_000 });
     await page.getByRole('button', { name: 'Continue' }).click();

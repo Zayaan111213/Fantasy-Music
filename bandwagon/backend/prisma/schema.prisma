@@ -188,12 +188,17 @@ model Matchup {
   awayScore   Float   @default(0)
   winnerId    String?
   isFinalized Boolean @default(false)
+  matchupType String  @default("regular") // regular | semifinal | championship | third_place | consolation_semifinal | fifth_place | seventh_place
+  homeSeed    Int?
+  awaySeed    Int?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   league   League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   homeTeam Team   @relation("HomeTeam", fields: [homeTeamId], references: [id])
   awayTeam Team   @relation("AwayTeam", fields: [awayTeamId], references: [id])
+
+  @@unique([leagueId, week, homeTeamId])
 }
 
 model DraftPick {

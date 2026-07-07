@@ -34,9 +34,11 @@ test.describe('Free agent claim', () => {
     const firstClaimButton = page.getByRole('button', { name: 'Claim' }).first();
     await expect(firstClaimButton).toBeVisible({ timeout: 10_000 });
 
-    // Capture the artist name shown in the same row as the Claim button
+    // Capture the artist name shown in the same row as the Claim button.
+    // The name is rendered as a <Link> (anchor), and the button's grandparent
+    // is the row's 12-column grid container.
     const artistRow = firstClaimButton.locator('../..').first();
-    const artistNameBefore = await artistRow.locator('p').first().textContent();
+    const artistNameBefore = await artistRow.locator('a').first().textContent();
 
     // Click Claim — modal opens
     await firstClaimButton.click();
@@ -45,7 +47,8 @@ test.describe('Free agent claim', () => {
     await expect(page.getByText('Select a player to drop')).toBeVisible({ timeout: 5_000 });
 
     // Click the first eligible drop slot in the modal's scrollable section
-    const dropScrollArea = page.locator('.overflow-y-auto').first();
+    // (scoped to the modal overlay so page-level scroll containers can't match)
+    const dropScrollArea = page.locator('.fixed .overflow-y-auto').first();
     const firstDropOption = dropScrollArea.locator('button').first();
     await expect(firstDropOption).toBeVisible({ timeout: 5_000 });
     await firstDropOption.click();

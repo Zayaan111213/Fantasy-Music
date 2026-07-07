@@ -4,6 +4,7 @@ import { prisma } from '../../db/prisma';
 import { signToken } from '../middleware/auth';
 import { generateInviteCode } from './leagues';
 import { buildRoundRobin } from '../../utils/schedule';
+import { finalizeLeagueWeek } from '../../jobs/finalizePipeline';
 
 const router = Router();
 
@@ -170,6 +171,102 @@ router.post('/active-league', async (req, res, next) => {
       team3Id: team3.id,
       team4Id: team4.id,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Creates an active N-team league (default 8) at the end of the regular season:
+// weeks 1-9 finalized, week 10 scored but NOT finalized, currentWeek = 10, and
+// team records set so Team i finishes as seed i. Running
+// finalizeLeagueWeek(leagueId, 10, 2026) then exercises playoff bracket
+// generation. Teams have empty rosters — playoff simulation sets matchup
+// scores directly.
+router.post('/advance-to-playoffs', async (req, res, next) => {
+  try {
+    const teamCount = Math.min(Math.max(Number(req.body?.teamCount) || 8, 2), 12);
+    const ts = Date.now();
+    const hash = await bcrypt.hash('testpass123', 10);
+
+    const users = await Promise.all(
+      Array.from({ length: teamCount }, (_, i) =>
+        prisma.user.create({
+          data: { email: `e2e-po${i + 1}-${ts}@test.internal`, passwordHash: hash, username: `e2epo${i + 1}${ts}` },
+        }),
+      ),
+    );
+
+    let inviteCode = generateInviteCode();
+    while (await prisma.league.findUnique({ where: { inviteCode } })) {
+      inviteCode = generateInviteCode();
+    }
+
+    const league = await prisma.league.create({
+      data: {
+        name: `E2E Playoffs ${ts}`,
+        commissionerId: users[0].id,
+        teamCount,
+        isPrivate: true,
+        status: 'active',
+        inviteCode,
+        currentWeek: 10,
+        seasonYear: 2026,
+        draftTime: new Date(Date.now() - 90 * 24 * 60 * 60_000),
+      },
+    });
+
+    // Records descend by team index so the standings sort (wins desc,
+    // pointsFor desc) seeds Team 1 first, Team 2 second, etc.
+    const teams: { id: string; name: string }[] = [];
+    for (let i = 1; i <= teamCount; i++) {
+      const wins = Math.max(0, Math.min(9, 10 - i));
+      teams.push(
+        await prisma.team.create({
+          data: {
+            leagueId: league.id,
+            userId: users[i - 1].id,
+            name: `Seed ${i} Team`,
+            draftPosition: i,
+            wins,
+            losses: 9 - wins,
+            pointsFor: 1000 - i * 10,
+          },
+        }),
+      );
+      await Promise.all(
+        ALL_SLOTS.map((slot) => prisma.rosterSpot.create({ data: { teamId: teams[i - 1].id, slot, artistId: null } })),
+      );
+    }
+
+    // Week 10 is a dead tie everywhere (equal scores, empty rosters), so
+    // finalizing it leaves every record untouched and the seed order intact.
+    const allMatchups = buildRoundRobin(teams.map((t) => t.id), league.id, 10).map((m) =>
+      m.week < 10
+        ? { ...m, homeScore: 50, awayScore: 40, winnerId: m.homeTeamId, isFinalized: true }
+        : { ...m, homeScore: 50, awayScore: 50 },
+    );
+    await prisma.matchup.createMany({ data: allMatchups });
+
+    res.json({
+      leagueId: league.id,
+      token: signToken(users[0].id),
+      tokens: users.map((u) => signToken(u.id)),
+      userIds: users.map((u) => u.id),
+      teams: teams.map((t, i) => ({ id: t.id, name: t.name, seed: i + 1 })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Runs the real weekly finalization (winner resolution, playoff bracket
+// generation, week advance / season completion) for a league.
+router.post('/finalize-week', async (req, res, next) => {
+  try {
+    const { leagueId, week } = req.body as { leagueId: string; week?: number };
+    const league = await prisma.league.findUniqueOrThrow({ where: { id: leagueId } });
+    await finalizeLeagueWeek(leagueId, week ?? league.currentWeek, league.seasonYear);
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

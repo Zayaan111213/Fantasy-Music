@@ -111,6 +111,9 @@ export interface Matchup {
   awayScore: number;
   winnerId: string | null;
   isFinalized: boolean;
+  matchupType: string;
+  homeSeed: number | null;
+  awaySeed: number | null;
   homeTeam?: Team & { rosterSpots?: RosterSpot[] };
   awayTeam?: Team & { rosterSpots?: RosterSpot[] };
 }

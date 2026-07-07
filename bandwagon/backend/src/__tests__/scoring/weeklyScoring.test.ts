@@ -8,11 +8,17 @@ vi.mock('../../db/prisma', () => ({
     chartEntry:      { findMany: vi.fn(), findFirst: vi.fn(), count: vi.fn() },
     albumChartEntry: { findMany: vi.fn().mockResolvedValue([]), findFirst: vi.fn().mockResolvedValue(null), count: vi.fn().mockResolvedValue(0) },
     weeklyScore:     { upsert: vi.fn(), findUnique: vi.fn() },
-    matchup:         { findMany: vi.fn(), updateMany: vi.fn().mockResolvedValue({ count: 0 }), update: vi.fn() },
+    matchup: {
+      findMany:   vi.fn(),
+      findFirst:  vi.fn().mockResolvedValue({ id: 'nextWeekMatchup' }),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      update:     vi.fn(),
+    },
     league: {
       findMany:   vi.fn().mockResolvedValue([]),
       findUnique: vi.fn().mockResolvedValue({ scoringConfig: null }),
       update:     vi.fn(),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     team:        { update: vi.fn() },
     rosterSpot:  { findMany: vi.fn().mockResolvedValue([]) },
@@ -115,6 +121,7 @@ beforeAll(() => {
     if (args.include) return [MATCHUP_WITH_TEAMS] as never;
     return [{
       id: 'matchup1', leagueId: LEAGUE_ID, week: WEEK, isFinalized: false, winnerId: null,
+      matchupType: 'regular', homeSeed: null, awaySeed: null,
       homeTeamId: 'teamHome', awayTeamId: 'teamAway',
       homeScore: matchupState.homeScore, awayScore: matchupState.awayScore,
     }] as never;
@@ -229,8 +236,11 @@ describe('weekly scoring pipeline — mid-week chart update', () => {
     });
 
     it('league advances from week 2 to week 3', () => {
-      expect(prisma.league.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: LEAGUE_ID }, data: { currentWeek: 3 } })
+      expect(prisma.league.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: LEAGUE_ID, currentWeek: { lt: 3 } },
+          data: { currentWeek: 3 },
+        })
       );
     });
   });

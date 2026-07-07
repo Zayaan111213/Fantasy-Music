@@ -83,6 +83,7 @@ Live snake draft with a per-pick clock (default 60s). Before picks begin, a 10-m
 - **Player lists**: all lists show Name, Genre, Picture, Last Week score, 5W Avg; sortable by clicking headers
 - **Notifications**: DB-backed; currently used for league-deletion alerts shown on Home on next login
 - **Free agent claims**: add/drop from Players tab with rolling waiver priority
+- **Playoffs**: after week 10, top 4 seeds play a bracket (week 11 semifinals 1v4/2v3; week 12 Championship + 3rd Place Game) and seeds 5–8 a consolation bracket (5v8/6v7 → 5th/7th Place Games). Pairing logic in `backend/src/playoffs/bracket.ts`, driven by `finalizePipeline.ts`. Playoff games have `matchup.matchupType` (`semifinal`/`championship`/`third_place`/`consolation_semifinal`/`fifth_place`/`seventh_place`) + `homeSeed`/`awaySeed`; they never touch wins/losses/pointsFor (standings freeze after week 10); dead ties go to the higher seed. Bracket adapts to 4–12 teams (<4: no playoffs). After week 12 finalizes, `league.status = 'complete'`.
 
 ### Directory Layout
 ```
@@ -193,9 +194,14 @@ cd bandwagon/backend && npm run pipeline:finalize
 # Reset demo leagues on production (deletes all leagues, rebuilds with real-chart artists)
 cd bandwagon/backend && DATABASE_URL="<prod-url>" npx tsx src/jobs/resetLeagues.ts
 
-# Typecheck / build (no test suite or lint config exists yet)
+# Typecheck / build
 cd bandwagon/backend && npm run build   # tsc
 cd bandwagon/frontend && npm run build  # tsc && vite build
+
+# Tests
+cd bandwagon/backend && npm test        # vitest unit tests
+cd bandwagon/frontend && npm test       # vitest unit tests
+cd bandwagon && npm run test:e2e        # Playwright (needs .env.test + bandwagon_test DB)
 
 # Deploy to Railway
 cd bandwagon && railway up
