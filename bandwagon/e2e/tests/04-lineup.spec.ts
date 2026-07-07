@@ -2,6 +2,20 @@ import { test, expect } from '@playwright/test';
 import { injectAuth } from '../helpers/auth';
 import { setupActiveLeague, teardownLeague, apiPut, type ActiveLeagueFixture } from '../helpers/api';
 
+// Next Tuesday (Pacific) at ~noon PT, on or after today. 19:00 UTC falls on
+// the same Pacific calendar day year-round, so the PT weekday check is stable.
+function nextTuesdayPT(): Date {
+  const base = new Date();
+  base.setUTCHours(19, 0, 0, 0);
+  for (let i = 0; i < 7; i++) {
+    const cand = new Date(base.getTime() + i * 86_400_000);
+    if (cand.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/Los_Angeles' }) === 'Tuesday') {
+      return cand;
+    }
+  }
+  throw new Error('unreachable: no Tuesday within 7 days');
+}
+
 test.describe('Lineup management', () => {
   let fixture: ActiveLeagueFixture;
 
@@ -62,8 +76,12 @@ test.describe('Lineup management', () => {
     await injectAuth(ctx, fixture.user1.token);
     const page = await ctx.newPage();
 
-    // Override browser Date to Tuesday so getWeekPhase() returns 'scoring' (locked)
-    await page.clock.setFixedTime(new Date('2026-06-23T10:00:00'));
+    // Override browser Date to the next Tuesday (PT) on or after the real today,
+    // so getWeekPhase() returns 'scoring' (locked). A hardcoded date rots: the
+    // fixture's draftTime is now − 14 days, and pinning a Tuesday at/before the
+    // first scoring Tuesday after the draft triggers the week-1 adjustment
+    // exception, which unlocks the lineup instead.
+    await page.clock.setFixedTime(nextTuesdayPT());
     await page.goto(`/leagues/${fixture.leagueId}`);
 
     // Lock banner must be visible
