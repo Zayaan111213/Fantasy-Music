@@ -8,6 +8,7 @@ import { requireAuth, type AuthRequest } from '../middleware/auth';
 import { uploadTeamLogo } from '../middleware/upload';
 import { ScoringConfigSchema } from '../../scoring/tiers';
 import { applyCustomScoringToWeeklyScore } from '../../scoring/engine';
+import { buildWeek11Matchups } from '../../playoffs/bracket';
 
 const router = Router();
 
@@ -364,7 +365,8 @@ router.get('/:id/standings', requireAuth, async (req: AuthRequest, res, next) =>
     const teams = await prisma.team.findMany({
       where: { leagueId: req.params.id },
       include: { user: { select: { username: true, avatarUrl: true } } },
-      orderBy: [{ wins: 'desc' }, { pointsFor: 'desc' }],
+      // Same order as playoff seeding (getFinalSeeds), so rank always matches seed
+      orderBy: [{ wins: 'desc' }, { pointsFor: 'desc' }, { createdAt: 'asc' }],
     });
 
     res.json(teams.map((t, i) => ({
@@ -379,6 +381,57 @@ router.get('/:id/standings', requireAuth, async (req: AuthRequest, res, next) =>
       losses: t.losses,
       pointsFor: t.pointsFor,
     })));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Playoff bracket: the real playoff matchups once they exist, otherwise a
+// projection from current standings ("if the season ended today"). Returns
+// null when the league is too small for playoffs (< 4 teams).
+router.get('/:id/bracket', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const leagueId = req.params.id;
+    const league = await prisma.league.findUnique({ where: { id: leagueId } });
+    if (!league) { res.status(404).json({ error: 'League not found' }); return; }
+
+    const teamInclude = { select: { id: true, name: true } };
+    const actual = await prisma.matchup.findMany({
+      where: { leagueId, week: { gt: 10 }, matchupType: { not: 'regular' } },
+      include: { homeTeam: teamInclude, awayTeam: teamInclude },
+      orderBy: [{ week: 'asc' }, { homeSeed: 'asc' }],
+    });
+    if (actual.length > 0) {
+      res.json({ projected: false, matchups: actual });
+      return;
+    }
+
+    const teams = await prisma.team.findMany({
+      where: { leagueId },
+      select: { id: true, name: true },
+      orderBy: [{ wins: 'desc' }, { pointsFor: 'desc' }, { createdAt: 'asc' }],
+    });
+    if (teams.length < 4) { res.json(null); return; }
+
+    const seeds = teams.map((t, i) => ({ teamId: t.id, seed: i + 1 }));
+    const nameById = new Map(teams.map((t) => [t.id, t.name]));
+    const projected = buildWeek11Matchups(leagueId, seeds).map((m, i) => ({
+      id: `projected-${i}`,
+      leagueId,
+      week: m.week,
+      matchupType: m.matchupType,
+      homeTeamId: m.homeTeamId,
+      awayTeamId: m.awayTeamId,
+      homeSeed: m.homeSeed,
+      awaySeed: m.awaySeed,
+      homeScore: 0,
+      awayScore: 0,
+      winnerId: null,
+      isFinalized: false,
+      homeTeam: { id: m.homeTeamId, name: nameById.get(m.homeTeamId)! },
+      awayTeam: { id: m.awayTeamId, name: nameById.get(m.awayTeamId)! },
+    }));
+    res.json({ projected: true, matchups: projected });
   } catch (err) {
     next(err);
   }

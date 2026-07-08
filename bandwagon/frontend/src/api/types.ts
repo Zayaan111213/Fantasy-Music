@@ -118,6 +118,27 @@ export interface Matchup {
   awayTeam?: Team & { rosterSpots?: RosterSpot[] };
 }
 
+export interface BracketMatchup {
+  id: string;
+  week: number;
+  matchupType: string;
+  homeTeamId: string;
+  awayTeamId: string;
+  homeSeed: number | null;
+  awaySeed: number | null;
+  homeScore: number;
+  awayScore: number;
+  winnerId: string | null;
+  isFinalized: boolean;
+  homeTeam: { id: string; name: string };
+  awayTeam: { id: string; name: string };
+}
+
+export interface Bracket {
+  projected: boolean;
+  matchups: BracketMatchup[];
+}
+
 export interface StandingsEntry {
   rank: number;
   teamId: string;
