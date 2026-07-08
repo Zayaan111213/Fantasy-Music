@@ -129,8 +129,8 @@ export interface BracketMatchup {
   awayScore: number;
   winnerId: string | null;
   isFinalized: boolean;
-  homeTeam: { id: string; name: string };
-  awayTeam: { id: string; name: string };
+  homeTeam: { id: string; name: string; wins: number; losses: number };
+  awayTeam: { id: string; name: string; wins: number; losses: number };
 }
 
 export interface Bracket {

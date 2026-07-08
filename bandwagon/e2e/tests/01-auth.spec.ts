@@ -30,6 +30,15 @@ test.describe('Authentication', () => {
     await expect(page.getByText('Bandwagon')).toBeVisible();
   });
 
+  test('demo account buttons fill the login form', async ({ page }) => {
+    await page.goto('/auth');
+    await page.getByRole('button', { name: 'HookHunter' }).click();
+    await expect(page.getByLabel('Email')).toHaveValue('demo4@bandwagon.app');
+    await expect(page.getByLabel('Password')).toHaveValue('password123');
+    await page.getByRole('button', { name: 'MusicMaven' }).click();
+    await expect(page.getByLabel('Email')).toHaveValue('demo1@bandwagon.app');
+  });
+
   test('login flow — existing user lands on home', async ({ page }) => {
     const email = uniqueEmail();
     const user = await createUser(email, 'testpass123', `lt${Date.now()}${Math.random().toString(36).slice(2, 5)}`.slice(0, 20));

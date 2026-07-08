@@ -395,7 +395,7 @@ router.get('/:id/bracket', requireAuth, async (req: AuthRequest, res, next) => {
     const league = await prisma.league.findUnique({ where: { id: leagueId } });
     if (!league) { res.status(404).json({ error: 'League not found' }); return; }
 
-    const teamInclude = { select: { id: true, name: true } };
+    const teamInclude = { select: { id: true, name: true, wins: true, losses: true } };
     const actual = await prisma.matchup.findMany({
       where: { leagueId, week: { gt: 10 }, matchupType: { not: 'regular' } },
       include: { homeTeam: teamInclude, awayTeam: teamInclude },
@@ -408,13 +408,13 @@ router.get('/:id/bracket', requireAuth, async (req: AuthRequest, res, next) => {
 
     const teams = await prisma.team.findMany({
       where: { leagueId },
-      select: { id: true, name: true },
+      select: { id: true, name: true, wins: true, losses: true },
       orderBy: [{ wins: 'desc' }, { pointsFor: 'desc' }, { createdAt: 'asc' }],
     });
     if (teams.length < 4) { res.json(null); return; }
 
     const seeds = teams.map((t, i) => ({ teamId: t.id, seed: i + 1 }));
-    const nameById = new Map(teams.map((t) => [t.id, t.name]));
+    const teamById = new Map(teams.map((t) => [t.id, t]));
     const projected = buildWeek11Matchups(leagueId, seeds).map((m, i) => ({
       id: `projected-${i}`,
       leagueId,
@@ -428,8 +428,8 @@ router.get('/:id/bracket', requireAuth, async (req: AuthRequest, res, next) => {
       awayScore: 0,
       winnerId: null,
       isFinalized: false,
-      homeTeam: { id: m.homeTeamId, name: nameById.get(m.homeTeamId)! },
-      awayTeam: { id: m.awayTeamId, name: nameById.get(m.awayTeamId)! },
+      homeTeam: teamById.get(m.homeTeamId)!,
+      awayTeam: teamById.get(m.awayTeamId)!,
     }));
     res.json({ projected: true, matchups: projected });
   } catch (err) {
