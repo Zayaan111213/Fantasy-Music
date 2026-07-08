@@ -99,6 +99,7 @@ export function ArtistDetail() {
     ? (isViewingLatest ? artist.chartBreakdown ?? null : breakdownFromScore(activeScore))
     : null;
   const activeIsLegacy = !!activeScore && !isViewingLatest && isLegacyRow(activeScore);
+  const activeIsOffChart = !activeIsLegacy && !activeBreakdown?.song && !activeBreakdown?.album;
 
   return (
     <div className="min-h-screen bg-gray-950">
@@ -157,6 +158,10 @@ export function ArtistDetail() {
               </p>
             ) : (
             <div className="space-y-4">
+              {activeIsOffChart ? (
+                <p className="text-xs text-gray-500 italic">Not on the Most Played songs or albums charts this week</p>
+              ) : (
+              <>
               {activeBreakdown?.song ? (
                 <>
                   <ScoreBar
@@ -199,11 +204,13 @@ export function ArtistDetail() {
                 max={12}
                 color="bg-amber-500"
               />
+              </>
+              )}
               <div className="flex justify-between items-center pt-3 border-t border-white/10">
                 <span className="font-semibold text-white">Total</span>
                 <span className="text-2xl font-bold text-white">{activeScore.totalPoints.toFixed(1)}</span>
               </div>
-              {activeScore.dataMissing && (
+              {activeScore.dataMissing && !activeIsOffChart && (
                 <p className="text-xs text-yellow-600">Note: some signals unavailable ({activeScore.dataMissing})</p>
               )}
             </div>
@@ -228,13 +235,17 @@ export function ArtistDetail() {
                 }`}
               >
                 <div className="w-24 shrink-0 text-xs text-gray-500 text-left whitespace-nowrap">{formatWeekLabel(score)}</div>
-                <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-indigo-500 rounded-full"
-                    style={{ width: `${(score.totalPoints / maxTotal) * 100}%` }}
-                  />
-                </div>
-                <div className="w-12 text-right text-sm font-semibold text-white font-mono">
+                {score.totalPoints === 0 && score.songRank === null && score.albumRank === null ? (
+                  <div className="flex-1 text-left text-xs text-gray-600 italic">Not on the charts</div>
+                ) : (
+                  <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-indigo-500 rounded-full"
+                      style={{ width: `${(score.totalPoints / maxTotal) * 100}%` }}
+                    />
+                  </div>
+                )}
+                <div className={`w-12 text-right text-sm font-semibold font-mono ${score.totalPoints === 0 ? 'text-gray-600' : 'text-white'}`}>
                   {score.totalPoints.toFixed(1)}
                 </div>
                 {!score.isFinalized && (
