@@ -315,7 +315,7 @@ function RosterRow({ spot, onSwapSelect, selectedSlot, readOnly = false, compact
           {compact && <Avatar src={null} name="?" size="sm" />}
           <div className={`flex-1 min-w-0 ${reverse ? 'text-right' : ''}`}>
             {compact && <SlotLabel slot={spot.slot} />}
-            <span className="text-sm text-gray-600">Empty slot</span>
+            <span className={`block text-gray-600 italic ${compact ? 'text-xs' : 'text-sm'}`}>Empty slot</span>
           </div>
           <span className="text-xs text-gray-600 shrink-0">—</span>
         </>
