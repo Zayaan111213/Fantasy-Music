@@ -43,15 +43,57 @@ test.describe('Matchup and standings views', () => {
     await page.goto(`/leagues/${fixture.leagueId}`);
     await page.getByRole('button', { name: 'Standings' }).click();
 
-    // All four teams must appear
-    await expect(page.getByText('E2E Team A')).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText('E2E Team B')).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText('E2E Team C')).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText('E2E Team D')).toBeVisible({ timeout: 10_000 });
+    // All four teams must appear (.first() — names also render in the bracket card)
+    await expect(page.getByText('E2E Team A').first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('E2E Team B').first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('E2E Team C').first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('E2E Team D').first()).toBeVisible({ timeout: 10_000 });
 
     // Rank numbers 1 through 4 should all be present
     await expect(page.getByText('1').first()).toBeVisible({ timeout: 5_000 });
     await expect(page.getByText('4').first()).toBeVisible({ timeout: 5_000 });
+
+    await ctx.close();
+  });
+
+  test('standings tab shows a projected playoff bracket during the regular season', async ({ browser: b }) => {
+    const ctx = await b.newContext();
+    await injectAuth(ctx, fixture.user1.token);
+    const page = await ctx.newPage();
+
+    await page.goto(`/leagues/${fixture.leagueId}`);
+    await page.getByRole('button', { name: 'Standings' }).click();
+
+    await expect(page.getByText('Playoff Bracket')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('Projected')).toBeVisible();
+    await expect(page.getByText('If the season ended today')).toBeVisible();
+    // Week-12 games are unknown before the semifinals are played
+    await expect(page.getByText('Semifinal winners')).toBeVisible();
+    await expect(page.getByText('Semifinal losers')).toBeVisible();
+    // 4-team league: no consolation bracket
+    await expect(page.getByText('Consolation Bracket')).not.toBeVisible();
+
+    await page.screenshot({ path: test.info().outputPath('projected-bracket.png'), fullPage: true });
+    await ctx.close();
+  });
+
+  test('week dropdown jumps to any week from the matchup tab', async ({ browser: b }) => {
+    const ctx = await b.newContext();
+    await injectAuth(ctx, fixture.user1.token);
+    const page = await ctx.newPage();
+
+    await page.goto(`/leagues/${fixture.leagueId}`);
+    await page.getByRole('button', { name: 'Matchup' }).click();
+
+    // Open the week picker from the nav label and jump to week 3
+    await page.getByRole('button', { name: 'Week 1', exact: true }).click();
+    await page.getByRole('button', { name: 'Week 3', exact: true }).click();
+    await expect(page.getByText('Week 3 · Upcoming')).toBeVisible({ timeout: 10_000 });
+
+    // Jump back to the current week
+    await page.getByRole('button', { name: 'Week 3', exact: true }).click();
+    await page.getByRole('button', { name: /^Week 1 Current$/ }).click();
+    await expect(page.getByText('E2E Team A').first()).toBeVisible({ timeout: 10_000 });
 
     await ctx.close();
   });

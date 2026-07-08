@@ -66,6 +66,16 @@ test.describe('Playoffs', () => {
 
     await expect(page.getByText('Regular-season record · playoffs in progress')).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText('── Playoffs ──')).toBeVisible();
+
+    // Real (non-projected) bracket: week-11 games exist, week-12 games are TBD,
+    // and the 9-team league has a full consolation bracket.
+    await expect(page.getByText('Playoff Bracket')).toBeVisible();
+    await expect(page.getByText('Projected')).not.toBeVisible();
+    await expect(page.getByText('Semifinal winners')).toBeVisible();
+    await expect(page.getByText('Consolation Bracket')).toBeVisible();
+    await expect(page.getByText('Consolation winners')).toBeVisible();
+
+    await page.screenshot({ path: test.info().outputPath('live-bracket.png'), fullPage: true });
     await ctx.close();
   });
 

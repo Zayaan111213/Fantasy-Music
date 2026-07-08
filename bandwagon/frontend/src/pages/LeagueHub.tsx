@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Music2, ChevronLeft, Trophy, Users, Settings, Swords, Search, ArrowUpDown, User, Pencil, X, Check, Lock, ChevronRight } from 'lucide-react';
+import { Music2, ChevronLeft, Trophy, Users, Settings, Swords, Search, ArrowUpDown, User, Pencil, X, Check, Lock, ChevronRight, ChevronDown } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/ui/Card';
@@ -9,7 +9,7 @@ import { Badge } from '../components/ui/Badge';
 import { Avatar } from '../components/ui/Avatar';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
-import type { League, Matchup, StandingsEntry, PlayerEntry, RosterSpot, Team } from '../api/types';
+import type { Bracket, BracketMatchup, League, Matchup, StandingsEntry, PlayerEntry, RosterSpot, Team } from '../api/types';
 
 type Tab = 'myteam' | 'matchup' | 'standings' | 'players' | 'settings';
 
@@ -67,6 +67,121 @@ function weekTitle(week: number): string {
   if (week === 11) return 'Week 11 · Semifinals';
   if (week === 12) return 'Week 12 · Championship Week';
   return `Week ${week}`;
+}
+
+function BracketGame({ m, showScores }: { m: BracketMatchup; showScores: boolean }) {
+  const tag = m.week === PLAYOFF_FINAL_WEEK || m.matchupType === 'fifth_place' ? PLAYOFF_TAGS[m.matchupType] : undefined;
+  const row = (teamId: string, name: string, seed: number | null, score: number) => {
+    const isWinner = m.isFinalized && m.winnerId === teamId;
+    return (
+      <div className="flex items-center gap-2 py-0.5">
+        <span className="w-5 shrink-0 text-center text-[10px] font-mono rounded bg-white/10 text-gray-400">{seed ?? '–'}</span>
+        <span className={`flex-1 text-sm truncate ${isWinner ? 'text-green-400 font-semibold' : 'text-white'}`}>{name}</span>
+        {showScores && (
+          <span className={`font-mono text-xs ${isWinner ? 'text-green-400' : 'text-gray-400'}`}>{score.toFixed(1)}</span>
+        )}
+      </div>
+    );
+  };
+  return (
+    <div className="bg-white/5 rounded-lg px-3 py-2">
+      {tag && (
+        <span className={`inline-flex items-center text-[10px] font-semibold border rounded px-1.5 py-0.5 mb-1 ${tag.className}`}>
+          {tag.label}
+        </span>
+      )}
+      {row(m.homeTeamId, m.homeTeam.name, m.homeSeed, m.homeScore)}
+      {row(m.awayTeamId, m.awayTeam.name, m.awaySeed, m.awayScore)}
+    </div>
+  );
+}
+
+function BracketTbd({ matchupType, label }: { matchupType: string; label: string }) {
+  const tag = PLAYOFF_TAGS[matchupType];
+  return (
+    <div className="bg-white/5 rounded-lg px-3 py-2 border border-dashed border-white/10">
+      {tag && (
+        <span className={`inline-flex items-center text-[10px] font-semibold border rounded px-1.5 py-0.5 mb-1 ${tag.className}`}>
+          {tag.label}
+        </span>
+      )}
+      <div className="text-xs text-gray-500 italic py-1">{label}</div>
+    </div>
+  );
+}
+
+function BracketCard({ bracket }: { bracket: Bracket }) {
+  const ms = bracket.matchups;
+  const bySeed = (a: BracketMatchup, b: BracketMatchup) => (a.homeSeed ?? 99) - (b.homeSeed ?? 99);
+  const semis = ms.filter((m) => m.matchupType === 'semifinal').sort(bySeed);
+  const consSemis = ms.filter((m) => m.matchupType === 'consolation_semifinal').sort(bySeed);
+  const championship = ms.find((m) => m.matchupType === 'championship');
+  const third = ms.find((m) => m.matchupType === 'third_place');
+  const fifth = ms.find((m) => m.matchupType === 'fifth_place');
+  const seventh = ms.find((m) => m.matchupType === 'seventh_place');
+  // In 6-team leagues a single week-11 game decides 5th place outright
+  const fifthInRound1 = fifth && fifth.week !== PLAYOFF_FINAL_WEEK ? fifth : undefined;
+  const fifthInFinals = fifth && fifth.week === PLAYOFF_FINAL_WEEK ? fifth : undefined;
+  const showScores = !bracket.projected;
+  const hasConsolation = consSemis.length > 0 || fifthInRound1 != null;
+
+  return (
+    <Card className="p-4">
+      <div className="flex items-center gap-2 mb-1">
+        <Trophy className="w-4 h-4 text-amber-400" />
+        <h3 className="text-sm font-semibold text-white">Playoff Bracket</h3>
+        {bracket.projected && (
+          <span className="text-[10px] font-semibold uppercase tracking-wider bg-white/10 text-gray-400 border border-white/10 rounded px-1.5 py-0.5">
+            Projected
+          </span>
+        )}
+      </div>
+      {bracket.projected && (
+        <p className="text-xs text-gray-500 mb-3">If the season ended today</p>
+      )}
+      <div className={`grid grid-cols-2 gap-3 ${bracket.projected ? '' : 'mt-2'}`}>
+        <div className="space-y-2">
+          <div className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">Semifinals · Week 11</div>
+          {semis.map((m) => <BracketGame key={m.id} m={m} showScores={showScores} />)}
+        </div>
+        <div className="space-y-2">
+          <div className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">Week 12</div>
+          {championship
+            ? <BracketGame m={championship} showScores={showScores} />
+            : <BracketTbd matchupType="championship" label="Semifinal winners" />}
+          {third
+            ? <BracketGame m={third} showScores={showScores} />
+            : <BracketTbd matchupType="third_place" label="Semifinal losers" />}
+        </div>
+      </div>
+      {hasConsolation && (
+        <div className="mt-3 pt-3 border-t border-white/10">
+          <div className="text-[10px] text-gray-500 uppercase tracking-wider font-medium mb-2">Consolation Bracket</div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              {consSemis.map((m) => <BracketGame key={m.id} m={m} showScores={showScores} />)}
+              {fifthInRound1 && <BracketGame m={fifthInRound1} showScores={showScores} />}
+            </div>
+            <div className="space-y-2">
+              {consSemis.length > 0 && (
+                fifthInFinals
+                  ? <BracketGame m={fifthInFinals} showScores={showScores} />
+                  : <BracketTbd
+                      matchupType="fifth_place"
+                      label={consSemis.length === 2 ? 'Consolation winners' : 'Seed 5 vs consolation winner'}
+                    />
+              )}
+              {consSemis.length === 2 && (
+                seventh
+                  ? <BracketGame m={seventh} showScores={showScores} />
+                  : <BracketTbd matchupType="seventh_place" label="Consolation losers" />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
 }
 
 function SlotLabel({ slot }: { slot: string }) {
@@ -406,6 +521,7 @@ function MyTeamTab({ leagueId, league, phase }: { leagueId: string; league: Leag
 function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: League; phase: WeekPhase }) {
   const { user } = useAuth();
   const [viewWeek, setViewWeek] = useState(league.currentWeek);
+  const [weekMenuOpen, setWeekMenuOpen] = useState(false);
   const [showResultPopup, setShowResultPopup] = useState(false);
 
   // After the season completes every week is history, including the finals week.
@@ -451,7 +567,7 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
 
   function WeekNav() {
     return (
-      <div className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-2">
+      <div className="relative flex items-center justify-between bg-white/5 rounded-lg px-3 py-2">
         <button
           onClick={() => setViewWeek((w) => Math.max(1, w - 1))}
           disabled={viewWeek <= 1}
@@ -460,7 +576,13 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
           <ChevronLeft className="w-4 h-4" />
         </button>
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-white">{weekTitle(viewWeek)}</span>
+          <button
+            onClick={() => setWeekMenuOpen((o) => !o)}
+            className="flex items-center gap-1 text-sm font-semibold text-white hover:text-indigo-300 transition-colors"
+          >
+            {weekTitle(viewWeek)}
+            <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${weekMenuOpen ? 'rotate-180' : ''}`} />
+          </button>
           {isCurrentWeek && (
             <span className="text-xs bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded px-1.5 py-0.5">Current</span>
           )}
@@ -475,6 +597,27 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
         >
           <ChevronRight className="w-4 h-4" />
         </button>
+        {weekMenuOpen && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setWeekMenuOpen(false)} />
+            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 z-20 w-56 max-h-64 overflow-y-auto bg-gray-900 border border-white/10 rounded-lg shadow-2xl py-1">
+              {Array.from({ length: totalWeeks }, (_, i) => i + 1).map((w) => (
+                <button
+                  key={w}
+                  onClick={() => { setViewWeek(w); setWeekMenuOpen(false); }}
+                  className={`w-full flex items-center justify-between px-3 py-2 text-sm text-left transition-colors ${
+                    w === viewWeek ? 'bg-indigo-500/20 text-indigo-300' : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                  }`}
+                >
+                  <span>{weekTitle(w)}</span>
+                  {w === league.currentWeek && phase !== 'complete' && (
+                    <span className="text-[10px] text-indigo-400 border border-indigo-500/30 bg-indigo-500/10 rounded px-1 py-0.5">Current</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     );
   }
@@ -724,12 +867,19 @@ function StandingsTab({ leagueId, league }: { leagueId: string; league: League }
     queryFn: () => api.get<StandingsEntry[]>(`/leagues/${leagueId}/standings`),
   });
 
+  const { data: bracket } = useQuery({
+    queryKey: ['bracket', leagueId],
+    queryFn: () => api.get<Bracket | null>(`/leagues/${leagueId}/bracket`),
+    enabled: league.status === 'active' || league.status === 'complete',
+  });
+
   if (isLoading) return <div className="flex justify-center py-12"><Spinner className="w-8 h-8" /></div>;
 
   const playoffCutline = 4;
   const inPlayoffs = league.currentWeek > REGULAR_SEASON_WEEKS || league.status === 'complete';
 
   return (
+    <div className="space-y-4">
     <Card>
       <div className="p-4 border-b border-white/10">
         <div className="grid grid-cols-12 text-xs text-gray-500 uppercase tracking-wider font-medium">
@@ -772,6 +922,8 @@ function StandingsTab({ leagueId, league }: { leagueId: string; league: League }
         </div>
       ))}
     </Card>
+    {bracket && <BracketCard bracket={bracket} />}
+    </div>
   );
 }
 
