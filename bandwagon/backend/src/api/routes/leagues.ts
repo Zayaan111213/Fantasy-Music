@@ -19,7 +19,13 @@ export function generateInviteCode(): string {
   return code;
 }
 
-const MAIN_GENRES = new Set(['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country']);
+export const MAIN_GENRES = new Set(['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country']);
+
+// "Other" in a genre filter means the Other-slot bucket (any non-main genre),
+// matching artistEligibleForSlot — not artists literally tagged "Other".
+export function genreFilterToWhere(genre: string): { primaryGenre: string | { notIn: string[] } } {
+  return { primaryGenre: genre === 'Other' ? { notIn: [...MAIN_GENRES] } : genre };
+}
 
 export function artistEligibleForSlot(genre: string | null, slot: string): boolean {
   if (slot.startsWith('Bench') || slot === 'Flex') return true;
@@ -652,7 +658,7 @@ router.get('/:id/players', requireAuth, async (req: AuthRequest, res, next) => {
     const artists = await prisma.artist.findMany({
       where: {
         ...(q && { name: { contains: q, mode: 'insensitive' } }),
-        ...(genre && { primaryGenre: genre }),
+        ...(genre && genreFilterToWhere(genre)),
       },
       include: {
         rosterSpots: {
