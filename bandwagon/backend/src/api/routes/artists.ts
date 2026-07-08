@@ -128,22 +128,21 @@ router.get('/:id', requireAuth, async (req, res, next) => {
       };
     }
 
-    // Season history: the artist's last HISTORY_WEEKS real calendar weeks with
-    // chart activity, computed straight from ChartEntry/AlbumChartEntry — not
-    // read off the WeeklyScore table, whose `week` numbering is relative to
-    // whichever league happened to be scoring it. That meant an artist's
-    // history was capped at how long the viewing league had existed, even
-    // when the artist had charted for longer. This is league-agnostic.
+    // Season history: the app's last HISTORY_WEEKS real calendar chart weeks,
+    // computed straight from ChartEntry/AlbumChartEntry — not read off the
+    // WeeklyScore table, whose `week` numbering is relative to whichever league
+    // happened to be scoring it. Deliberately NOT filtered to the artist's own
+    // weeks: weeks where the artist missed both charts still appear, scored 0,
+    // so the history reads "on the chart / off the chart" week by week instead
+    // of silently skipping the misses.
     const [songWeeks, albumWeeks] = await Promise.all([
       prisma.chartEntry.findMany({
-        where: { artistId: artist.id },
         select: { weekDate: true },
         distinct: ['weekDate'],
         orderBy: { weekDate: 'desc' },
         take: HISTORY_WEEKS,
       }),
       prisma.albumChartEntry.findMany({
-        where: { artistId: artist.id },
         select: { weekDate: true },
         distinct: ['weekDate'],
         orderBy: { weekDate: 'desc' },
