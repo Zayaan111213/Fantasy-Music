@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../../db/prisma', () => ({
   prisma: {
     rosterSpot:  { findMany: vi.fn() },
+    trade:       { findMany: vi.fn().mockResolvedValue([]), updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
+    tradeItem:   { findMany: vi.fn().mockResolvedValue([]) },
     weeklyScore: { findUnique: vi.fn() },
     // league.findMany must return [] by default so that main() (which runs at module
     // import time) iterates over an empty array and exits cleanly instead of throwing.

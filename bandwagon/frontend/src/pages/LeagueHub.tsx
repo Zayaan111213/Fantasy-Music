@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Music2, ChevronLeft, Trophy, Users, Settings, Swords, Search, ArrowUpDown, User, Pencil, X, Check, Lock, ChevronRight, ChevronDown } from 'lucide-react';
+import { Music2, ChevronLeft, Trophy, Users, Settings, Swords, Search, ArrowUpDown, User, Pencil, X, Check, Lock, ChevronRight, ChevronDown, ArrowLeftRight } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/ui/Card';
@@ -9,6 +9,7 @@ import { Badge } from '../components/ui/Badge';
 import { Avatar } from '../components/ui/Avatar';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
+import { TradesSection } from '../components/TradesSection';
 import type { Bracket, BracketMatchup, League, LeagueMatchup, Matchup, StandingsEntry, PlayerEntry, RosterSpot, Team } from '../api/types';
 
 type Tab = 'myteam' | 'matchup' | 'standings' | 'players' | 'settings';
@@ -352,7 +353,13 @@ function TeamRosterCard({ title, roster, reverse = false, leagueId, prevScoreMap
 const MAX_LOGO_SIZE = 5 * 1024 * 1024;
 const ALLOWED_LOGO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
-function MyTeamTab({ leagueId, league, phase }: { leagueId: string; league: League; phase: WeekPhase }) {
+function MyTeamTab({ leagueId, league, phase, tradeDraft, onTradeDraftConsumed }: {
+  leagueId: string;
+  league: League;
+  phase: WeekPhase;
+  tradeDraft?: { teamId: string; artistId: string } | null;
+  onTradeDraftConsumed?: () => void;
+}) {
   const queryClient = useQueryClient();
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
 
@@ -574,6 +581,13 @@ function MyTeamTab({ leagueId, league, phase }: { leagueId: string; league: Leag
           ))}
         </div>
       </Card>
+
+      <TradesSection
+        leagueId={leagueId}
+        league={league}
+        initialProposal={tradeDraft}
+        onProposalConsumed={onTradeDraftConsumed}
+      />
     </div>
   );
 }
@@ -1079,7 +1093,11 @@ function canFillSlot(genre: string, slot: string): boolean {
   return genre === slot;
 }
 
-function PlayersTab({ leagueId, league }: { leagueId: string; league: League }) {
+function PlayersTab({ leagueId, league, onProposeTrade }: {
+  leagueId: string;
+  league: League;
+  onProposeTrade?: (teamId: string, artistId: string) => void;
+}) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [genre, setGenre] = useState('');
@@ -1269,9 +1287,21 @@ function PlayersTab({ leagueId, league }: { leagueId: string; league: League }) 
                   <div className="col-span-2 text-right font-mono text-sm text-gray-300">
                     {(artist.avgLast5Points ?? 0).toFixed(1)}
                   </div>
-                  <div className="col-span-3 flex justify-end">
+                  <div className="col-span-3 flex justify-end items-center gap-1.5 min-w-0">
                     {artist.rosteredBy ? (
-                      <span className="text-xs text-gray-500 truncate">@{artist.rosteredBy.name}</span>
+                      <>
+                        <span className="text-xs text-gray-500 truncate">@{artist.rosteredBy.name}</span>
+                        {league.status === 'active' && artist.rosteredBy.id !== myTeam?.id && onProposeTrade && (
+                          <button
+                            onClick={() => onProposeTrade(artist.rosteredBy!.id, artist.id)}
+                            title="Propose trade"
+                            aria-label={`Propose trade for ${artist.name}`}
+                            className="shrink-0 p-1 rounded-md bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20 transition-colors"
+                          >
+                            <ArrowLeftRight className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </>
                     ) : league.status === 'active' ? (
                       <button
                         onClick={() => { setClaimArtist(artist); setDropSlot(null); setClaimError(''); }}
@@ -1721,6 +1751,8 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League })
 export function LeagueHub() {
   const { id } = useParams<{ id: string }>();
   const [tab, setTab] = useState<Tab>('myteam');
+  // Set by the Players tab's trade icon; consumed by the My Team Trades section
+  const [tradeDraft, setTradeDraft] = useState<{ teamId: string; artistId: string } | null>(null);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -1791,10 +1823,24 @@ export function LeagueHub() {
       </header>
 
       <main className="relative max-w-3xl mx-auto px-4 py-6">
-        {tab === 'myteam' && <MyTeamTab leagueId={id!} league={league} phase={phase} />}
+        {tab === 'myteam' && (
+          <MyTeamTab
+            leagueId={id!}
+            league={league}
+            phase={phase}
+            tradeDraft={tradeDraft}
+            onTradeDraftConsumed={() => setTradeDraft(null)}
+          />
+        )}
         {tab === 'matchup' && <MatchupTab leagueId={id!} league={league} phase={phase} />}
         {tab === 'standings' && <StandingsTab leagueId={id!} league={league} />}
-        {tab === 'players' && <PlayersTab leagueId={id!} league={league} />}
+        {tab === 'players' && (
+          <PlayersTab
+            leagueId={id!}
+            league={league}
+            onProposeTrade={(teamId, artistId) => { setTradeDraft({ teamId, artistId }); setTab('myteam'); }}
+          />
+        )}
         {tab === 'settings' && <SettingsTab leagueId={id!} league={league} />}
       </main>
     </div>

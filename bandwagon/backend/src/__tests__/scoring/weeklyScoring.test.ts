@@ -22,6 +22,8 @@ vi.mock('../../db/prisma', () => ({
     },
     team:        { update: vi.fn() },
     rosterSpot:  { findMany: vi.fn().mockResolvedValue([]) },
+    trade:       { findMany: vi.fn().mockResolvedValue([]), updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
+    tradeItem:   { findMany: vi.fn().mockResolvedValue([]) },
     $disconnect: vi.fn().mockResolvedValue(undefined),
   },
 }));

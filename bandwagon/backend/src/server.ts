@@ -17,6 +17,7 @@ import authRoutes from './api/routes/auth';
 import leagueRoutes from './api/routes/leagues';
 import artistRoutes from './api/routes/artists';
 import draftRoutes from './api/routes/draft';
+import tradeRoutes from './api/routes/trades';
 import notificationRoutes from './api/routes/notifications';
 import { errorHandler, notFound } from './api/middleware/errorHandler';
 import { registerDraftSocket, startDraftScheduler } from './sockets/draft';
@@ -43,6 +44,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/leagues', leagueRoutes);
 app.use('/api/artists', artistRoutes);
 app.use('/api/leagues', draftRoutes);
+app.use('/api/leagues', tradeRoutes);
 app.use('/api/notifications', notificationRoutes);
 
 if (process.env.NODE_ENV === 'test') {

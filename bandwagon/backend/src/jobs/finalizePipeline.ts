@@ -6,6 +6,7 @@ import {
   PLAYOFF_SEMIS_WEEK,
   REGULAR_SEASON_WEEKS,
 } from '../playoffs/bracket';
+import { runTradeFinalizeSteps } from '../trades/engine';
 
 export async function bestArtistScore(teamId: string, week: number, year: number): Promise<number> {
   const spots = await prisma.rosterSpot.findMany({
@@ -54,8 +55,9 @@ export async function finalizeLeagueWeek(leagueId: string, week: number, year: n
   if (count === 0) {
     console.log(`[finalize] league ${leagueId} week ${week} — already finalized, skipped`);
     // A previous run may have crashed after the isFinalized flip but before the
-    // bracket/advance steps — re-run them (all idempotent) so the league can't
-    // get stranded at a playoff boundary.
+    // trade/bracket/advance steps — re-run them (all idempotent) so the league
+    // can't get stranded mid-boundary.
+    await runTradeFinalizeSteps(leagueId, week);
     if (week >= REGULAR_SEASON_WEEKS) await advanceSeason(leagueId, week);
     return;
   }
@@ -86,6 +88,10 @@ export async function finalizeLeagueWeek(leagueId: string, week: number, year: n
       }
     }
   }
+
+  // End of the scoring week: execute accepted trades (and cancel stale
+  // proposals once the trade deadline passes) before the week advances.
+  await runTradeFinalizeSteps(leagueId, week);
 
   await advanceSeason(leagueId, week);
 }
