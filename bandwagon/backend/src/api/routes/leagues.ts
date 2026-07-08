@@ -627,16 +627,20 @@ router.get('/:id/matchups/previous', requireAuth, async (req: AuthRequest, res, 
   }
 });
 
-// All matchups for the league
+// All matchups for the league; ?week=N narrows to a single week
 router.get('/:id/matchups', requireAuth, async (req: AuthRequest, res, next) => {
   try {
+    const week = req.query.week ? parseInt(req.query.week as string, 10) : undefined;
     const matchups = await prisma.matchup.findMany({
-      where: { leagueId: req.params.id },
+      where: {
+        leagueId: req.params.id,
+        ...(week !== undefined && !isNaN(week) && { week }),
+      },
       include: {
         homeTeam: { select: { id: true, name: true, logoUrl: true } },
         awayTeam: { select: { id: true, name: true, logoUrl: true } },
       },
-      orderBy: { week: 'asc' },
+      orderBy: [{ week: 'asc' }, { homeSeed: 'asc' }],
     });
     res.json(matchups);
   } catch (err) {

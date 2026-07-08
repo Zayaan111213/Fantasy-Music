@@ -139,6 +139,22 @@ export interface Bracket {
   matchups: BracketMatchup[];
 }
 
+export interface LeagueMatchup {
+  id: string;
+  week: number;
+  matchupType: string;
+  homeTeamId: string;
+  awayTeamId: string;
+  homeScore: number;
+  awayScore: number;
+  winnerId: string | null;
+  isFinalized: boolean;
+  homeSeed: number | null;
+  awaySeed: number | null;
+  homeTeam: { id: string; name: string; logoUrl: string | null };
+  awayTeam: { id: string; name: string; logoUrl: string | null };
+}
+
 export interface StandingsEntry {
   rank: number;
   teamId: string;

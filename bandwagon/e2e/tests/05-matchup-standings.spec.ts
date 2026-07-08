@@ -32,6 +32,11 @@ test.describe('Matchup and standings views', () => {
     // Scores set by the fixture: A=42.5, D=38.0
     await expect(page.getByText('42.5').or(page.getByText('38.0')).first()).toBeVisible({ timeout: 5_000 });
 
+    // Around the League shows the week's other game too (B vs C)
+    await expect(page.getByText('Around the League')).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('E2E Team B')).toBeVisible();
+    await expect(page.getByText('E2E Team C')).toBeVisible();
+
     await ctx.close();
   });
 
