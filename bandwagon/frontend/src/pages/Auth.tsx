@@ -97,14 +97,22 @@ export function Auth() {
           </form>
 
           <div className="mt-4 p-3 bg-white/5 rounded-lg">
-            <p className="text-xs text-gray-400 text-center mb-1">Demo accounts</p>
-            <div className="flex gap-2 text-xs text-gray-500">
-              <button onClick={() => { setEmail('demo1@bandwagon.app'); setPassword('password123'); setMode('login'); }} className="flex-1 text-center hover:text-gray-300 transition-colors">
-                demo1 / password123
-              </button>
-              <button onClick={() => { setEmail('demo2@bandwagon.app'); setPassword('password123'); setMode('login'); }} className="flex-1 text-center hover:text-gray-300 transition-colors">
-                demo2 / password123
-              </button>
+            <p className="text-xs text-gray-400 text-center mb-2">Demo accounts — click to fill</p>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              {[
+                { email: 'demo1@bandwagon.app', label: 'MusicMaven' },
+                { email: 'demo2@bandwagon.app', label: 'ChartWatcher' },
+                { email: 'demo3@bandwagon.app', label: 'BeatBroker' },
+                { email: 'demo4@bandwagon.app', label: 'HookHunter' },
+              ].map((demo) => (
+                <button
+                  key={demo.email}
+                  onClick={() => { setEmail(demo.email); setPassword('password123'); setMode('login'); }}
+                  className="px-2 py-1.5 rounded-md bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  {demo.label}
+                </button>
+              ))}
             </div>
           </div>
         </div>

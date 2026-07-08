@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Music2, ChevronLeft, Trophy, Users, Settings, Swords, Search, ArrowUpDown, User, Pencil, X, Check, Lock, ChevronRight, ChevronDown } from 'lucide-react';
@@ -69,29 +69,32 @@ function weekTitle(week: number): string {
   return `Week ${week}`;
 }
 
+const BRACKET_LINE = 'border-white/25';
+
 function BracketGame({ m, showScores }: { m: BracketMatchup; showScores: boolean }) {
   const tag = m.week === PLAYOFF_FINAL_WEEK || m.matchupType === 'fifth_place' ? PLAYOFF_TAGS[m.matchupType] : undefined;
-  const row = (teamId: string, name: string, seed: number | null, score: number) => {
-    const isWinner = m.isFinalized && m.winnerId === teamId;
+  const row = (team: BracketMatchup['homeTeam'], seed: number | null, score: number) => {
+    const isWinner = m.isFinalized && m.winnerId === team.id;
     return (
-      <div className="flex items-center gap-2 py-0.5">
+      <div className="flex items-center gap-1.5 py-0.5 min-w-0">
         <span className="w-5 shrink-0 text-center text-[10px] font-mono rounded bg-white/10 text-gray-400">{seed ?? '–'}</span>
-        <span className={`flex-1 text-sm truncate ${isWinner ? 'text-green-400 font-semibold' : 'text-white'}`}>{name}</span>
+        <span className={`truncate text-sm ${isWinner ? 'text-green-400 font-semibold' : 'text-white'}`}>{team.name}</span>
+        <span className="shrink-0 text-[10px] font-mono text-gray-500">{team.wins}-{team.losses}</span>
         {showScores && (
-          <span className={`font-mono text-xs ${isWinner ? 'text-green-400' : 'text-gray-400'}`}>{score.toFixed(1)}</span>
+          <span className={`ml-auto shrink-0 font-mono text-xs ${isWinner ? 'text-green-400' : 'text-gray-400'}`}>{score.toFixed(1)}</span>
         )}
       </div>
     );
   };
   return (
-    <div className="bg-white/5 rounded-lg px-3 py-2">
+    <div className="bg-white/5 border border-white/10 rounded-lg px-3 py-2">
       {tag && (
         <span className={`inline-flex items-center text-[10px] font-semibold border rounded px-1.5 py-0.5 mb-1 ${tag.className}`}>
           {tag.label}
         </span>
       )}
-      {row(m.homeTeamId, m.homeTeam.name, m.homeSeed, m.homeScore)}
-      {row(m.awayTeamId, m.awayTeam.name, m.awaySeed, m.awayScore)}
+      {row(m.homeTeam, m.homeSeed, m.homeScore)}
+      {row(m.awayTeam, m.awaySeed, m.awayScore)}
     </div>
   );
 }
@@ -99,13 +102,58 @@ function BracketGame({ m, showScores }: { m: BracketMatchup; showScores: boolean
 function BracketTbd({ matchupType, label }: { matchupType: string; label: string }) {
   const tag = PLAYOFF_TAGS[matchupType];
   return (
-    <div className="bg-white/5 rounded-lg px-3 py-2 border border-dashed border-white/10">
+    <div className="bg-white/5 rounded-lg px-3 py-2 border border-dashed border-white/15">
       {tag && (
         <span className={`inline-flex items-center text-[10px] font-semibold border rounded px-1.5 py-0.5 mb-1 ${tag.className}`}>
           {tag.label}
         </span>
       )}
       <div className="text-xs text-gray-500 italic py-1">{label}</div>
+    </div>
+  );
+}
+
+// Two-round bracket row with classic connector lines: round-1 games on the
+// left fork into the round-2 game on the right. With a single round-1 game
+// the connector is a straight line. `tail` (championship only) draws the
+// final line out to the winner slot.
+function BracketPair({ games, final, tail }: { games: ReactNode[]; final: ReactNode; tail?: string | null }) {
+  return (
+    <div className="flex items-stretch">
+      <div className="flex-1 min-w-0 flex flex-col justify-around gap-2">{games}</div>
+      {games.length > 1 ? (
+        <div className="w-4 shrink-0 flex flex-col" aria-hidden="true">
+          <div className="flex-1" />
+          <div className={`flex-1 border-t border-r ${BRACKET_LINE}`} />
+          <div className={`flex-1 border-b border-r ${BRACKET_LINE}`} />
+          <div className="flex-1" />
+        </div>
+      ) : (
+        <div className={`w-4 shrink-0 self-center border-t ${BRACKET_LINE}`} aria-hidden="true" />
+      )}
+      <div className={`w-3 shrink-0 self-center border-t ${BRACKET_LINE}`} aria-hidden="true" />
+      <div className="flex-1 min-w-0 flex flex-col justify-center">{final}</div>
+      {tail !== undefined && (
+        <div className="hidden sm:flex w-28 shrink-0 items-center min-w-0">
+          <div className={`w-3 shrink-0 border-t ${BRACKET_LINE}`} aria-hidden="true" />
+          <span className={`pl-1.5 text-xs truncate ${tail ? 'text-green-400 font-semibold' : 'text-gray-600 italic'}`}>
+            {tail ? `🏆 ${tail}` : 'Winner'}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Spacer-aligned row that sits under a BracketPair's round-2 column
+// (used for the 3rd and 7th place games).
+function BracketUnderFinal({ children, withTail }: { children: ReactNode; withTail?: boolean }) {
+  return (
+    <div className="flex mt-2">
+      <div className="flex-1 min-w-0" />
+      <div className="w-7 shrink-0" />
+      <div className="flex-1 min-w-0">{children}</div>
+      {withTail && <div className="hidden sm:block w-28 shrink-0" />}
     </div>
   );
 }
@@ -124,6 +172,9 @@ function BracketCard({ bracket }: { bracket: Bracket }) {
   const fifthInFinals = fifth && fifth.week === PLAYOFF_FINAL_WEEK ? fifth : undefined;
   const showScores = !bracket.projected;
   const hasConsolation = consSemis.length > 0 || fifthInRound1 != null;
+  const champion = championship?.isFinalized && championship.winnerId
+    ? (championship.winnerId === championship.homeTeamId ? championship.homeTeam.name : championship.awayTeam.name)
+    : null;
 
   return (
     <Card className="p-4">
@@ -139,45 +190,54 @@ function BracketCard({ bracket }: { bracket: Bracket }) {
       {bracket.projected && (
         <p className="text-xs text-gray-500 mb-3">If the season ended today</p>
       )}
-      <div className={`grid grid-cols-2 gap-3 ${bracket.projected ? '' : 'mt-2'}`}>
-        <div className="space-y-2">
-          <div className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">Semifinals · Week 11</div>
-          {semis.map((m) => <BracketGame key={m.id} m={m} showScores={showScores} />)}
-        </div>
-        <div className="space-y-2">
-          <div className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">Week 12</div>
-          {championship
-            ? <BracketGame m={championship} showScores={showScores} />
-            : <BracketTbd matchupType="championship" label="Semifinal winners" />}
-          {third
-            ? <BracketGame m={third} showScores={showScores} />
-            : <BracketTbd matchupType="third_place" label="Semifinal losers" />}
-        </div>
+      <div className={`flex mb-2 ${bracket.projected ? '' : 'mt-2'}`}>
+        <div className="flex-1 min-w-0 text-[10px] text-gray-500 uppercase tracking-wider font-medium">Semifinals · Week 11</div>
+        <div className="w-7 shrink-0" />
+        <div className="flex-1 min-w-0 text-[10px] text-gray-500 uppercase tracking-wider font-medium">Championship Week · Week 12</div>
+        <div className="hidden sm:block w-28 shrink-0" />
       </div>
+      <BracketPair
+        games={semis.map((m) => <BracketGame key={m.id} m={m} showScores={showScores} />)}
+        final={championship
+          ? <BracketGame m={championship} showScores={showScores} />
+          : <BracketTbd matchupType="championship" label="Semifinal winners" />}
+        tail={champion}
+      />
+      <BracketUnderFinal withTail>
+        {third
+          ? <BracketGame m={third} showScores={showScores} />
+          : <BracketTbd matchupType="third_place" label="Semifinal losers" />}
+      </BracketUnderFinal>
       {hasConsolation && (
-        <div className="mt-3 pt-3 border-t border-white/10">
+        <div className="mt-4 pt-3 border-t border-white/10">
           <div className="text-[10px] text-gray-500 uppercase tracking-wider font-medium mb-2">Consolation Bracket</div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              {consSemis.map((m) => <BracketGame key={m.id} m={m} showScores={showScores} />)}
-              {fifthInRound1 && <BracketGame m={fifthInRound1} showScores={showScores} />}
+          {fifthInRound1 ? (
+            // 6-team league: a single week-11 game decides 5th place outright
+            <div className="flex">
+              <div className="flex-1 min-w-0"><BracketGame m={fifthInRound1} showScores={showScores} /></div>
+              <div className="w-7 shrink-0" />
+              <div className="flex-1 min-w-0" />
             </div>
-            <div className="space-y-2">
-              {consSemis.length > 0 && (
-                fifthInFinals
+          ) : (
+            <>
+              <BracketPair
+                games={consSemis.map((m) => <BracketGame key={m.id} m={m} showScores={showScores} />)}
+                final={fifthInFinals
                   ? <BracketGame m={fifthInFinals} showScores={showScores} />
                   : <BracketTbd
                       matchupType="fifth_place"
                       label={consSemis.length === 2 ? 'Consolation winners' : 'Seed 5 vs consolation winner'}
-                    />
-              )}
+                    />}
+              />
               {consSemis.length === 2 && (
-                seventh
-                  ? <BracketGame m={seventh} showScores={showScores} />
-                  : <BracketTbd matchupType="seventh_place" label="Consolation losers" />
+                <BracketUnderFinal>
+                  {seventh
+                    ? <BracketGame m={seventh} showScores={showScores} />
+                    : <BracketTbd matchupType="seventh_place" label="Consolation losers" />}
+                </BracketUnderFinal>
               )}
-            </div>
-          </div>
+            </>
+          )}
         </div>
       )}
     </Card>
