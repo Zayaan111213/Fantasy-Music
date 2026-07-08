@@ -18,14 +18,19 @@ const DEMO_USERS = [
 ];
 const TEAM_COUNT = DEMO_USERS.length;
 
+const DEMO_INVITE_CODES = ['CHART-2026', 'PUBLIC-2026'];
+
 type ArtistWithScores = Awaited<ReturnType<typeof prisma.artist.findMany<{
   include: { weeklyScores: true };
 }>>>[number];
 
 async function main() {
-  // 1. Delete all leagues (cascades to teams, roster spots, matchups, picks, draft state)
-  const deleted = await prisma.league.deleteMany();
-  console.log(`Deleted ${deleted.count} league(s)`);
+  // 1. Delete only the demo leagues (cascades to teams, roster spots, matchups,
+  // picks, draft state). User-created leagues are left untouched.
+  const deleted = await prisma.league.deleteMany({
+    where: { inviteCode: { in: DEMO_INVITE_CODES } },
+  });
+  console.log(`Deleted ${deleted.count} demo league(s)`);
 
   // 2. Ensure demo users exist
   const passwordHash = await bcrypt.hash('password123', 10);
@@ -133,7 +138,7 @@ async function main() {
       teamCount: TEAM_COUNT,
       isPrivate: true,
       status: 'active',
-      inviteCode: 'CHART-2026',
+      inviteCode: DEMO_INVITE_CODES[0],
       currentWeek: WEEK,
       seasonYear: YEAR,
     },
@@ -192,7 +197,7 @@ async function main() {
       teamCount: 8,
       isPrivate: false,
       status: 'pending',
-      inviteCode: 'PUBLIC-2026',
+      inviteCode: DEMO_INVITE_CODES[1],
       currentWeek: 1,
       seasonYear: YEAR,
       draftTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
