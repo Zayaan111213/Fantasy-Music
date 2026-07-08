@@ -14,6 +14,48 @@ interface PlayoffsFixture {
   teams: { id: string; name: string; seed: number }[];
 }
 
+// 8-team league still in the regular season (week 10 not finalized): the
+// Standings tab shows the full projected bracket — semifinals 1v4/2v3 plus
+// the 5v8/6v7 consolation bracket.
+test.describe('Projected bracket (8 teams)', () => {
+  let fx: PlayoffsFixture;
+
+  test.beforeAll(async () => {
+    fx = await apiPost<PlayoffsFixture>('', '/api/test/advance-to-playoffs', { teamCount: 8 });
+  });
+
+  test.afterAll(async () => {
+    await teardownLeague(fx.leagueId, fx.userIds);
+  });
+
+  test('standings shows projected semifinals and consolation bracket', async ({ browser }) => {
+    const ctx = await browser.newContext();
+    await injectAuth(ctx, fx.tokens[0]);
+    const page = await ctx.newPage();
+
+    await page.goto(`/leagues/${fx.leagueId}`);
+    await page.getByRole('button', { name: 'Standings' }).click();
+
+    await expect(page.getByText('Playoff Bracket')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('Projected')).toBeVisible();
+    await expect(page.getByText('If the season ended today')).toBeVisible();
+    await expect(page.getByText('Consolation Bracket')).toBeVisible();
+
+    // Every seed appears in the bracket card (once in standings, once in bracket)
+    for (let seed = 1; seed <= 8; seed++) {
+      await expect(page.getByText(`Seed ${seed} Team`)).toHaveCount(2);
+    }
+    // Finals boxes are TBD until the semifinals are played
+    await expect(page.getByText('🏆 Championship')).toBeVisible();
+    await expect(page.getByText('🥉 3rd Place Game')).toBeVisible();
+    await expect(page.getByText('Consolation winners')).toBeVisible();
+    await expect(page.getByText('Consolation losers')).toBeVisible();
+
+    await page.screenshot({ path: test.info().outputPath('projected-bracket-8team.png'), fullPage: true });
+    await ctx.close();
+  });
+});
+
 test.describe('Playoffs', () => {
   let fx: PlayoffsFixture;
 

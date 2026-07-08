@@ -1,12 +1,26 @@
 import bcrypt from 'bcryptjs';
 import { prisma } from '../db/prisma';
 import { updateMatchupScores } from '../scoring/engine';
+import { buildRoundRobin } from '../utils/schedule';
 
 const WEEK = 3;
 const YEAR = 2026;
 const WEEK_DATE = new Date('2026-06-23');
 
 const MAIN_GENRES = ['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country'];
+
+// 4 demo teams so the playoff bracket (top 4, 1v4 / 2v3) is visible in the demo league.
+const DEMO_USERS = [
+  { email: 'demo1@bandwagon.app', username: 'MusicMaven' },
+  { email: 'demo2@bandwagon.app', username: 'ChartWatcher' },
+  { email: 'demo3@bandwagon.app', username: 'BeatBroker' },
+  { email: 'demo4@bandwagon.app', username: 'HookHunter' },
+];
+const TEAM_COUNT = DEMO_USERS.length;
+
+type ArtistWithScores = Awaited<ReturnType<typeof prisma.artist.findMany<{
+  include: { weeklyScores: true };
+}>>>[number];
 
 async function main() {
   // 1. Delete all leagues (cascades to teams, roster spots, matchups, picks, draft state)
@@ -15,18 +29,15 @@ async function main() {
 
   // 2. Ensure demo users exist
   const passwordHash = await bcrypt.hash('password123', 10);
-  const [user1, user2] = await Promise.all([
-    prisma.user.upsert({
-      where: { email: 'demo1@bandwagon.app' },
-      create: { email: 'demo1@bandwagon.app', username: 'MusicMaven', passwordHash },
-      update: {},
-    }),
-    prisma.user.upsert({
-      where: { email: 'demo2@bandwagon.app' },
-      create: { email: 'demo2@bandwagon.app', username: 'ChartWatcher', passwordHash },
-      update: {},
-    }),
-  ]);
+  const users = await Promise.all(
+    DEMO_USERS.map((u) =>
+      prisma.user.upsert({
+        where: { email: u.email },
+        create: { email: u.email, username: u.username, passwordHash },
+        update: {},
+      }),
+    ),
+  );
 
   // 3. Find artists with real chart data for this week
   const [songRows, albumRows] = await Promise.all([
@@ -68,33 +79,40 @@ async function main() {
     bucket.sort((a, b) => (b.weeklyScores[0]?.totalPoints ?? 0) - (a.weeklyScores[0]?.totalPoints ?? 0));
   }
 
-  function take(bucket: string, n: number) {
-    const pool = bySlot[bucket];
-    const picked = pool.splice(0, n);
-    if (picked.length < n) throw new Error(`Not enough ${bucket} artists (need ${n}, have ${picked.length})`);
+  // A dry bucket pads with null (empty roster slot) instead of throwing —
+  // the leagues are already deleted by this point, so crashing would leave
+  // production with no demo data at all.
+  function takeUpTo(bucket: string, n: number): (ArtistWithScores | null)[] {
+    const picked: (ArtistWithScores | null)[] = bySlot[bucket].splice(0, n);
+    while (picked.length < n) {
+      console.warn(`⚠ Not enough ${bucket} artists — leaving slot empty`);
+      picked.push(null);
+    }
     return picked;
   }
 
-  const rnb     = take('R&B/Hip-Hop', 2);
-  const pop     = take('Pop', 2);
-  const rock    = take('Rock & Alternative', 2);
-  const country = take('Country', 2);
-  const other   = take('Other', 2);
+  const rnb     = takeUpTo('R&B/Hip-Hop', TEAM_COUNT);
+  const pop     = takeUpTo('Pop', TEAM_COUNT);
+  const rock    = takeUpTo('Rock & Alternative', TEAM_COUNT);
+  const country = takeUpTo('Country', TEAM_COUNT);
+  const other   = takeUpTo('Other', TEAM_COUNT);
 
-  const remaining = [
+  const remaining: (ArtistWithScores | null)[] = [
     ...bySlot['R&B/Hip-Hop'],
     ...bySlot['Pop'],
     ...bySlot['Rock & Alternative'],
     ...bySlot['Country'],
     ...bySlot['Other'].filter(a => a.primaryGenre !== "Children's Music"),
-  ].sort((a, b) => (b.weeklyScores[0]?.totalPoints ?? 0) - (a.weeklyScores[0]?.totalPoints ?? 0));
+  ].sort((a, b) => (b!.weeklyScores[0]?.totalPoints ?? 0) - (a!.weeklyScores[0]?.totalPoints ?? 0));
 
-  const flex  = remaining.splice(0, 2);
-  const bench = remaining.splice(0, 6);
-  if (bench.length < 6) throw new Error('Not enough bench artists');
+  const flexNeeded = TEAM_COUNT;
+  const benchNeeded = TEAM_COUNT * 3;
+  while (remaining.length < flexNeeded + benchNeeded) remaining.push(null);
+  const flex  = remaining.splice(0, flexNeeded);
+  const bench = remaining.splice(0, benchNeeded);
 
   const buildRoster = (idx: number) => [
-    { slot: 'R&B/Hip-Hop',       artist: rnb[idx] },
+    { slot: 'R&B/Hip-Hop',        artist: rnb[idx] },
     { slot: 'Pop',                artist: pop[idx] },
     { slot: 'Rock & Alternative', artist: rock[idx] },
     { slot: 'Country',            artist: country[idx] },
@@ -105,15 +123,14 @@ async function main() {
     { slot: 'Bench 3',            artist: bench[idx * 3 + 2] },
   ];
 
-  const roster1 = buildRoster(0);
-  const roster2 = buildRoster(1);
+  const rosters = Array.from({ length: TEAM_COUNT }, (_, i) => buildRoster(i));
 
   // 5. Create active private league
   const league = await prisma.league.create({
     data: {
       name: 'Chart Toppers 2026',
-      commissionerId: user1.id,
-      teamCount: 2,
+      commissionerId: users[0].id,
+      teamCount: TEAM_COUNT,
       isPrivate: true,
       status: 'active',
       inviteCode: 'CHART-2026',
@@ -122,37 +139,47 @@ async function main() {
     },
   });
 
-  const [team1, team2] = await Promise.all([
-    prisma.team.create({ data: { leagueId: league.id, userId: user1.id, name: 'MusicMaven', draftPosition: 1, wins: 2, losses: 0 } }),
-    prisma.team.create({ data: { leagueId: league.id, userId: user2.id, name: 'ChartWatcher', draftPosition: 2, wins: 0, losses: 2 } }),
-  ]);
+  const teams: { id: string; name: string }[] = [];
+  for (let i = 0; i < TEAM_COUNT; i++) {
+    teams.push(
+      await prisma.team.create({
+        data: { leagueId: league.id, userId: users[i].id, name: users[i].username!, draftPosition: i + 1 },
+      }),
+    );
+  }
 
   await prisma.rosterSpot.createMany({
-    data: [
-      ...roster1.map(({ slot, artist }) => ({ teamId: team1.id, artistId: artist.id, slot })),
-      ...roster2.map(({ slot, artist }) => ({ teamId: team2.id, artistId: artist.id, slot })),
-    ],
+    data: rosters.flatMap((roster, i) =>
+      roster.map(({ slot, artist }) => ({ teamId: teams[i].id, artistId: artist?.id ?? null, slot })),
+    ),
   });
 
-  // Create all 10 weeks of matchups (2-team league: same pairing every week)
-  for (let w = 1; w <= 10; w++) {
-    const isFinalized = w < WEEK;
-    // Fabricate alternating winners for past weeks so the history looks realistic
-    const homeWon = w % 2 === 1; // week 1: home wins, week 2: away wins
-    await prisma.matchup.create({
-      data: {
-        leagueId: league.id,
-        week: w,
-        homeTeamId: team1.id,
-        awayTeamId: team2.id,
-        ...(isFinalized && {
-          homeScore: homeWon ? 78.5 + w : 61.0 + w,
-          awayScore: homeWon ? 61.0 + w : 78.5 + w,
-          winnerId: homeWon ? team1.id : team2.id,
-          isFinalized: true,
-        }),
-      },
-    });
+  // Round-robin matchups for all 10 weeks. Past weeks get fabricated scores
+  // (earlier draft positions trend higher) and the records accumulate from
+  // those results so standings, seeds, and history all agree.
+  const stats = new Map(teams.map((t) => [t.id, { wins: 0, losses: 0, pointsFor: 0 }]));
+  const posOf = new Map(teams.map((t, i) => [t.id, i + 1]));
+  const fabricatedScore = (teamId: string, week: number) => {
+    const pos = posOf.get(teamId)!;
+    return 60 + (TEAM_COUNT - pos) * 6 + ((week * 13 + pos * 7) % 11);
+  };
+
+  const allMatchups = buildRoundRobin(teams.map((t) => t.id), league.id, 10).map((m) => {
+    if (m.week >= WEEK) return m;
+    const homeScore = fabricatedScore(m.homeTeamId, m.week);
+    const awayScore = fabricatedScore(m.awayTeamId, m.week);
+    const winnerId = homeScore >= awayScore ? m.homeTeamId : m.awayTeamId;
+    const loserId = winnerId === m.homeTeamId ? m.awayTeamId : m.homeTeamId;
+    stats.get(winnerId)!.wins++;
+    stats.get(loserId)!.losses++;
+    stats.get(m.homeTeamId)!.pointsFor += homeScore;
+    stats.get(m.awayTeamId)!.pointsFor += awayScore;
+    return { ...m, homeScore, awayScore, winnerId, isFinalized: true };
+  });
+  await prisma.matchup.createMany({ data: allMatchups });
+
+  for (const team of teams) {
+    await prisma.team.update({ where: { id: team.id }, data: stats.get(team.id)! });
   }
 
   await updateMatchupScores(league.id, WEEK, YEAR);
@@ -161,7 +188,7 @@ async function main() {
   const publicLeague = await prisma.league.create({
     data: {
       name: 'Open Draft 2026',
-      commissionerId: user1.id,
+      commissionerId: users[0].id,
       teamCount: 8,
       isPrivate: false,
       status: 'pending',
@@ -171,21 +198,23 @@ async function main() {
       draftTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     },
   });
-  await prisma.team.create({ data: { leagueId: publicLeague.id, userId: user1.id, name: 'MusicMaven' } });
+  await prisma.team.create({ data: { leagueId: publicLeague.id, userId: users[0].id, name: 'MusicMaven' } });
 
   // 7. Print summary
-  const updatedMatchup = await prisma.matchup.findFirst({ where: { leagueId: league.id, week: WEEK } });
-  console.log(`\nLeague: ${league.name} (invite: ${league.inviteCode})`);
-  console.log(`Week ${WEEK} matchup — MusicMaven: ${updatedMatchup?.homeScore.toFixed(1)} | ChartWatcher: ${updatedMatchup?.awayScore.toFixed(1)}\n`);
+  console.log(`\nLeague: ${league.name} (invite: ${league.inviteCode}) — ${TEAM_COUNT} teams`);
+  for (const team of teams) {
+    const s = stats.get(team.id)!;
+    console.log(`  ${team.name.padEnd(14)} ${s.wins}-${s.losses}  pointsFor ${s.pointsFor.toFixed(1)}`);
+  }
+  console.log();
 
-  for (const [label, roster] of [['MusicMaven', roster1], ['ChartWatcher', roster2]] as const) {
-    console.log(`${label}:`);
+  for (let i = 0; i < TEAM_COUNT; i++) {
+    console.log(`${teams[i].name}:`);
     let starters = 0;
-    for (const { slot, artist } of roster) {
-      const ws = artist.weeklyScores[0];
-      const pts = ws?.totalPoints ?? 0;
+    for (const { slot, artist } of rosters[i]) {
+      const pts = artist?.weeklyScores[0]?.totalPoints ?? 0;
       if (!slot.startsWith('Bench')) starters += pts;
-      console.log(`  ${slot.padEnd(20)} ${artist.name.padEnd(32)} (${artist.primaryGenre}) → ${pts.toFixed(1)} pts`);
+      console.log(`  ${slot.padEnd(20)} ${(artist?.name ?? '(empty)').padEnd(32)} (${artist?.primaryGenre ?? '—'}) → ${pts.toFixed(1)} pts`);
     }
     console.log(`  ${'Starter total'.padEnd(52)} ${starters.toFixed(1)}\n`);
   }
