@@ -270,6 +270,23 @@ describe('GET /leagues/:id/players', () => {
     expect(res.body[0].lastWeekPoints).toBe(0);
     expect(res.body[0].avgLast5Points).toBe(0);
   });
+
+  it('genre=Other matches every non-main genre (Other-slot eligibility), not the literal tag', async () => {
+    pm.league.findUnique.mockResolvedValue({ scoringConfig: null, currentWeek: 2, seasonYear: 2026 });
+    pm.artist.findMany.mockResolvedValue([]);
+
+    await request(app).get('/leagues/l1/players?genre=Other');
+    expect(pm.artist.findMany).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        primaryGenre: { notIn: ['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country'] },
+      }),
+    }));
+
+    await request(app).get('/leagues/l1/players?genre=Pop');
+    expect(pm.artist.findMany).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ primaryGenre: 'Pop' }),
+    }));
+  });
 });
 
 // ---------------------------------------------------------------------------

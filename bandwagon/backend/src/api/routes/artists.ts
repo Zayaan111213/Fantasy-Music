@@ -11,6 +11,7 @@ import {
 } from '../../scoring/tiers';
 import { applyCustomScoringToWeeklyScore, computeChartScoreForWeek } from '../../scoring/engine';
 import { getCurrentWeekDate } from '../../jobs/ingestCharts';
+import { genreFilterToWhere } from './leagues';
 
 const router = Router();
 
@@ -30,7 +31,7 @@ router.get('/', requireAuth, async (req, res, next) => {
     const artists = await prisma.artist.findMany({
       where: {
         ...(q && { name: { contains: q, mode: 'insensitive' } }),
-        ...(genre && { primaryGenre: genre }),
+        ...(genre && genreFilterToWhere(genre)),
       },
       include: {
         weeklyScores: { orderBy: { week: 'desc' }, take: 5 },
