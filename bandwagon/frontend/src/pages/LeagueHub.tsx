@@ -9,7 +9,7 @@ import { Badge } from '../components/ui/Badge';
 import { Avatar } from '../components/ui/Avatar';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
-import type { Bracket, BracketMatchup, League, Matchup, StandingsEntry, PlayerEntry, RosterSpot, Team } from '../api/types';
+import type { Bracket, BracketMatchup, League, LeagueMatchup, Matchup, StandingsEntry, PlayerEntry, RosterSpot, Team } from '../api/types';
 
 type Tab = 'myteam' | 'matchup' | 'standings' | 'players' | 'settings';
 
@@ -578,6 +578,65 @@ function MyTeamTab({ leagueId, league, phase }: { leagueId: string; league: Leag
   );
 }
 
+// Every matchup in the league for one week — shown under the user's own
+// matchup so any week's full slate (including games you're not in) is visible.
+function LeagueMatchupsCard({ leagueId, week, myTeamId, upcoming = false }: {
+  leagueId: string;
+  week: number;
+  myTeamId?: string;
+  upcoming?: boolean;
+}) {
+  const { data } = useQuery({
+    queryKey: ['leagueMatchups', leagueId, week],
+    queryFn: () => api.get<LeagueMatchup[]>(`/leagues/${leagueId}/matchups?week=${week}`),
+  });
+  if (!data || data.length === 0) return null;
+
+  return (
+    <Card className="p-4">
+      <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+        <Swords className="w-4 h-4" />
+        Around the League
+      </h3>
+      <div className="divide-y divide-white/5">
+        {data.map((m) => {
+          const homeWon = m.isFinalized && m.winnerId === m.homeTeamId;
+          const awayWon = m.isFinalized && m.winnerId === m.awayTeamId;
+          const mine = myTeamId != null && (m.homeTeamId === myTeamId || m.awayTeamId === myTeamId);
+          return (
+            <div key={m.id} className={`py-2.5 ${mine ? 'bg-indigo-500/5 -mx-2 px-2 rounded' : ''}`}>
+              <div className="grid grid-cols-12 items-center gap-2">
+                <div className="col-span-4 flex items-center gap-2 min-w-0">
+                  <Avatar src={m.homeTeam.logoUrl} name={m.homeTeam.name} size="sm" />
+                  <span className={`truncate text-sm ${homeWon ? 'text-green-400 font-semibold' : 'text-white'}`}>{m.homeTeam.name}</span>
+                </div>
+                <div className="col-span-4 flex flex-col items-center gap-0.5">
+                  <div className="font-mono text-sm whitespace-nowrap">
+                    {upcoming ? (
+                      <span className="text-gray-600">— vs —</span>
+                    ) : (
+                      <>
+                        <span className={homeWon ? 'text-green-400 font-semibold' : 'text-gray-300'}>{m.homeScore.toFixed(1)}</span>
+                        <span className="text-gray-600 mx-1.5">–</span>
+                        <span className={awayWon ? 'text-green-400 font-semibold' : 'text-gray-300'}>{m.awayScore.toFixed(1)}</span>
+                      </>
+                    )}
+                  </div>
+                  <PlayoffTag matchupType={m.matchupType} />
+                </div>
+                <div className="col-span-4 flex items-center gap-2 justify-end min-w-0">
+                  <span className={`truncate text-sm text-right ${awayWon ? 'text-green-400 font-semibold' : 'text-white'}`}>{m.awayTeam.name}</span>
+                  <Avatar src={m.awayTeam.logoUrl} name={m.awayTeam.name} size="sm" />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
 function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: League; phase: WeekPhase }) {
   const { user } = useAuth();
   const [viewWeek, setViewWeek] = useState(league.currentWeek);
@@ -700,6 +759,7 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
               ? `Week ${viewWeek} matchup hasn't been played yet.`
               : 'No matchup found for this week.'}
         </div>
+        <LeagueMatchupsCard leagueId={leagueId} week={viewWeek} upcoming={isFutureWeek} />
       </div>
     );
   }
@@ -769,6 +829,7 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
           <TeamRosterCard title={myTeamData?.name ?? 'Your Team'} roster={myTeamData?.rosterSpots ?? []} leagueId={leagueId} />
           <TeamRosterCard title={oppTeamData?.name ?? 'Opponent'} roster={oppTeamData?.rosterSpots ?? []} reverse leagueId={leagueId} />
         </div>
+        <LeagueMatchupsCard leagueId={leagueId} week={viewWeek} myTeamId={myTeamId} />
       </div>
     );
   }
@@ -795,6 +856,7 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
             </div>
           </div>
         </Card>
+        <LeagueMatchupsCard leagueId={leagueId} week={viewWeek} myTeamId={myTeamId} upcoming />
       </div>
     );
   }
@@ -879,6 +941,7 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
         {hasPrevScores && (
           <p className="text-xs text-center text-gray-600">Scores shown are from Week {league.currentWeek - 1}</p>
         )}
+        <LeagueMatchupsCard leagueId={leagueId} week={league.currentWeek} myTeamId={myTeamId} />
       </div>
     );
   }
@@ -917,6 +980,7 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
         <TeamRosterCard title={myTeamData?.name ?? 'Your Team'} roster={myTeamData?.rosterSpots ?? []} leagueId={leagueId} />
         <TeamRosterCard title={oppTeamData?.name ?? 'Opponent'} roster={oppTeamData?.rosterSpots ?? []} reverse leagueId={leagueId} />
       </div>
+      <LeagueMatchupsCard leagueId={leagueId} week={league.currentWeek} myTeamId={myTeamId} />
     </div>
   );
 }

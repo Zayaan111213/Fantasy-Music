@@ -78,11 +78,17 @@ test.describe('Playoffs', () => {
     await page.getByRole('button', { name: 'Matchup' }).click();
 
     await expect(page.getByText('Week 11 · Semifinals')).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText('Semifinal', { exact: true })).toBeVisible();
+    await expect(page.getByText('Semifinal', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('Seed 1 Team').first()).toBeVisible();
     await expect(page.getByText('Seed 4 Team').first()).toBeVisible();
 
-    await page.screenshot({ path: test.info().outputPath('week11-semifinal.png') });
+    // Around the League lists the whole week-11 slate, including the
+    // consolation games this user isn't in
+    await expect(page.getByText('Around the League')).toBeVisible();
+    await expect(page.getByText('Seed 5 Team')).toBeVisible();
+    await expect(page.getByText('Seed 8 Team')).toBeVisible();
+
+    await page.screenshot({ path: test.info().outputPath('week11-semifinal.png'), fullPage: true });
     await ctx.close();
   });
 
@@ -133,7 +139,7 @@ test.describe('Playoffs', () => {
     await page.getByRole('button', { name: 'Matchup' }).click();
 
     await expect(page.getByText('Week 12 · Championship Week')).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText('🏆 Championship')).toBeVisible();
+    await expect(page.getByText('🏆 Championship').first()).toBeVisible();
     await expect(page.getByText('Seed 2 Team').first()).toBeVisible();
     await page.screenshot({ path: test.info().outputPath('week12-championship.png') });
 
@@ -143,7 +149,7 @@ test.describe('Playoffs', () => {
     const page3 = await ctx3.newPage();
     await page3.goto(`/leagues/${fx.leagueId}`);
     await page3.getByRole('button', { name: 'Matchup' }).click();
-    await expect(page3.getByText('🥉 3rd Place Game')).toBeVisible({ timeout: 10_000 });
+    await expect(page3.getByText('🥉 3rd Place Game').first()).toBeVisible({ timeout: 10_000 });
     await page3.screenshot({ path: test.info().outputPath('week12-third-place.png') });
     await ctx3.close();
 
