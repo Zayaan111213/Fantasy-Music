@@ -116,7 +116,7 @@ bandwagon/
       jobs/
         dailyPipeline.ts  # Ingests Apple Music charts → scores all artists → updates matchups
         finalizePipeline.ts # Finalizes week, sets winnerId, advances currentWeek
-        resetLeagues.ts   # Admin script: deletes all leagues, rebuilds demo leagues with real-chart artists
+        resetLeagues.ts   # Admin script: deletes the demo leagues (by invite code) and rebuilds them with real-chart artists; user-created leagues untouched
   frontend/
     src/
       pages/
@@ -191,7 +191,7 @@ cd bandwagon && npm run db:studio
 cd bandwagon/backend && npm run pipeline:daily
 cd bandwagon/backend && npm run pipeline:finalize
 
-# Reset demo leagues on production (deletes all leagues, rebuilds with real-chart artists)
+# Reset demo leagues on production (deletes only CHART-2026/PUBLIC-2026, rebuilds with real-chart artists)
 cd bandwagon/backend && DATABASE_URL="<prod-url>" npx tsx src/jobs/resetLeagues.ts
 
 # Typecheck / build
@@ -210,9 +210,11 @@ cd bandwagon && railway up
 **Demo accounts** (both use `password123`):
 - `demo1@bandwagon.app` — MusicMaven (commissioner of demo league + public league)
 - `demo2@bandwagon.app` — ChartWatcher
+- `demo3@bandwagon.app` — BeatBroker
+- `demo4@bandwagon.app` — HookHunter
 
 **Production demo leagues** (created by `resetLeagues.ts`, NOT seed.ts):
-- `CHART-2026` — "Chart Toppers 2026", private, `active`, week 3, real-chart artists (for testing roster/matchup/standings)
+- `CHART-2026` — "Chart Toppers 2026", private, `active`, week 3, 4 demo teams, real-chart artists (for testing roster/matchup/standings/playoff bracket)
 - `PUBLIC-2026` — "Open Draft 2026", public, `pending`, 8-team cap, 1 member (for testing join flow)
 
 ## Key Implementation Notes
