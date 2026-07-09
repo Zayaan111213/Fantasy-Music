@@ -40,11 +40,14 @@ function tradingClosed(league: { status: string; currentWeek: number }): string 
   return null;
 }
 
-// Every team's roster — feeds the propose-trade modal.
+// Every team's roster — feeds the My Team roster browser and trade flows.
+// Artists carry their current-week score (same shape as GET /:id/roster) so
+// roster rows can show points for other teams too.
 router.get('/:id/teams-with-rosters', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const ctx = await leagueAndMyTeam(req.params.id, req.userId!);
     if (ctx.error !== undefined) { res.status(ctx.status).json({ error: ctx.error }); return; }
+    const { league } = ctx;
 
     const teams = await prisma.team.findMany({
       where: { leagueId: req.params.id },
@@ -53,7 +56,20 @@ router.get('/:id/teams-with-rosters', requireAuth, async (req: AuthRequest, res,
         name: true,
         logoUrl: true,
         userId: true,
-        rosterSpots: { select: { slot: true, artist: artistSelect } },
+        rosterSpots: {
+          select: {
+            slot: true,
+            artist: {
+              select: {
+                id: true,
+                name: true,
+                primaryGenre: true,
+                imageUrl: true,
+                weeklyScores: { where: { week: league.currentWeek, seasonYear: league.seasonYear } },
+              },
+            },
+          },
+        },
       },
       orderBy: { name: 'asc' },
     });

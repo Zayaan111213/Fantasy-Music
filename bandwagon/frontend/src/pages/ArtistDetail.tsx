@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ExternalLink, Music2, BarChart2, TrendingUp, Radio } from 'lucide-react';
+import { ChevronLeft, ExternalLink, Music2, BarChart2, TrendingUp, Radio, ArrowLeftRight } from 'lucide-react';
 import { api } from '../api/client';
 import { Badge } from '../components/ui/Badge';
 import { Card } from '../components/ui/Card';
@@ -128,6 +128,15 @@ export function ArtistDetail() {
               <Badge genre={artist.primaryGenre}>{artist.primaryGenre}</Badge>
             </div>
             <div className="flex gap-2">
+              {leagueId && (
+                <Link
+                  to={`/leagues/${leagueId}/trade?artistId=${artist.id}`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-500/20 border border-indigo-500/30 rounded-lg text-indigo-400 text-xs font-medium hover:bg-indigo-500/30 transition-colors"
+                >
+                  <ArrowLeftRight className="w-3.5 h-3.5" />
+                  Trade
+                </Link>
+              )}
               {artist.spotifyId && (
                 <a
                   href={`https://open.spotify.com/artist/${artist.spotifyId}`}

@@ -33,7 +33,7 @@ test.describe('Trades', () => {
     await teardownLeague(fx.leagueId, [fx.user1.id, fx.user2.id, fx.user3.id, fx.user4.id]);
   });
 
-  test('players-tab trade icon opens a pre-targeted propose modal', async ({ browser }) => {
+  test('players-tab icon and artist profile both open the pre-targeted trade page', async ({ browser }) => {
     const ctx = await browser.newContext();
     await injectAuth(ctx, fx.user1.token);
     const page = await ctx.newPage();
@@ -42,20 +42,52 @@ test.describe('Trades', () => {
     await page.getByRole('button', { name: 'Players' }).click();
     await expect(page.getByText('Free Agents Only')).toBeVisible({ timeout: 10_000 });
 
-    // Icon appears only on artists rostered by other teams
+    // Icon appears only on artists rostered by other teams; it navigates to
+    // the trade page with the owning team + artist pre-selected
     const tradeIcon = page.getByRole('button', { name: /Propose trade for/ }).first();
     await expect(tradeIcon).toBeVisible({ timeout: 10_000 });
     await tradeIcon.click();
 
-    // Jumps to My Team with the propose modal open and a team pre-selected
-    await expect(page.getByText('Pick a team, then select players on both sides')).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator('.fixed select')).not.toHaveValue('');
-    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(page).toHaveURL(new RegExp(`/leagues/${fx.leagueId}/trade`));
+    await expect(page.getByRole('heading', { name: 'Propose Trade' })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('You receive (1)')).toBeVisible({ timeout: 10_000 });
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(page.getByText('Free Agents Only')).not.toBeVisible();
+
+    // Artist-profile entry point: Trade button pre-includes that artist
+    const theirs = await rosterArtists(fx.user1.token, fx.leagueId, fx.team2Id);
+    await page.goto(`/artists/${theirs[0].id}?leagueId=${fx.leagueId}`);
+    await page.getByRole('link', { name: 'Trade' }).click();
+    await expect(page).toHaveURL(new RegExp(`/leagues/${fx.leagueId}/trade`));
+    await expect(page.getByText('You receive (1)')).toBeVisible({ timeout: 10_000 });
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await ctx.close();
+  });
+
+  test('my team dropdown browses every roster read-only', async ({ browser }) => {
+    const ctx = await browser.newContext();
+    await injectAuth(ctx, fx.user1.token);
+    const page = await ctx.newPage();
+
+    // Pin the clock to a Monday so the lineup is unlocked and the swap hint shows
+    await page.clock.setFixedTime(new Date('2026-06-22T10:00:00'));
+    await page.goto(`/leagues/${fx.leagueId}`);
+    await expect(page.getByText('Tap two slots to swap')).toBeVisible({ timeout: 10_000 });
+
+    await page.getByRole('button', { name: 'E2E Team A' }).click();
+    await page.getByRole('button', { name: /E2E Team C/ }).click();
+
+    await expect(page.getByText("Viewing E2E Team C's roster")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('Tap two slots to swap')).not.toBeVisible();
+    await page.screenshot({ path: test.info().outputPath('roster-browser.png'), fullPage: true });
+
+    await page.getByRole('button', { name: 'Back to my team' }).click();
+    await expect(page.getByText('Tap two slots to swap')).toBeVisible({ timeout: 10_000 });
     await ctx.close();
   });
 
   test('full flow: propose in UI, accept in UI, sub-threshold veto, executes at finalize', async ({ browser }) => {
-    // --- user1 proposes to Team B via the modal ---
+    // --- user1 proposes to Team B on the dedicated trade page ---
     const ctx1 = await browser.newContext();
     await injectAuth(ctx1, fx.user1.token);
     const page1 = await ctx1.newPage();
@@ -63,20 +95,34 @@ test.describe('Trades', () => {
     const minePop = byGenre(await rosterArtists(fx.user1.token, fx.leagueId, fx.team1Id), 'Pop')[0];
     const theirsPop = byGenre(await rosterArtists(fx.user1.token, fx.leagueId, fx.team2Id), 'Pop')[0];
 
+    // "Propose Trade" in My Team navigates to the page
     await page1.goto(`/leagues/${fx.leagueId}`);
     await expect(page1.getByText('Trades', { exact: true })).toBeVisible({ timeout: 10_000 });
     await page1.getByRole('button', { name: 'Propose Trade' }).click();
-    await page1.locator('.fixed select').selectOption(fx.team2Id);
+    await expect(page1).toHaveURL(new RegExp(`/leagues/${fx.leagueId}/trade`));
 
-    const columns = page1.locator('.fixed .grid > div');
-    await columns.nth(0).getByRole('button', { name: new RegExp(minePop.name) }).click();
-    await columns.nth(1).getByRole('button', { name: new RegExp(theirsPop.name) }).click();
+    // Team picker is clickable cards, not a dropdown
+    await page1.getByRole('button', { name: /E2E Team B/ }).click();
+    const sendCol = page1.locator('main .grid > div').nth(0);
+    const recvCol = page1.locator('main .grid > div').nth(1);
+    await sendCol.getByRole('button', { name: new RegExp(minePop.name) }).click();
+    await recvCol.getByRole('button', { name: new RegExp(theirsPop.name) }).click();
+    await expect(page1.getByText('You receive (1)')).toBeVisible();
+
+    // Clicking a player's name opens their stats; the draft survives the round trip
+    await recvCol.getByRole('link', { name: theirsPop.name }).click();
+    await expect(page1.getByText('Chart History')).toBeVisible({ timeout: 10_000 });
+    await page1.goBack();
+    await expect(page1.getByText('You receive (1)')).toBeVisible({ timeout: 10_000 });
+    await expect(page1.getByText('You send (1)')).toBeVisible();
+    await page1.screenshot({ path: test.info().outputPath('trade-page.png'), fullPage: true });
 
     const [proposeRes] = await Promise.all([
       page1.waitForResponse((r) => r.url().includes('/trades') && r.request().method() === 'POST', { timeout: 15_000 }),
-      page1.locator('.fixed').getByRole('button', { name: 'Propose Trade' }).click(),
+      page1.getByRole('button', { name: 'Propose Trade', exact: true }).click(),
     ]);
     expect(proposeRes.status()).toBe(200);
+    // Lands back on the league hub with the pending trade listed
     await expect(page1.getByText('Pending')).toBeVisible({ timeout: 10_000 });
     await ctx1.close();
 

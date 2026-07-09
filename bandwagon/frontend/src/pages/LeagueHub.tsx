@@ -10,7 +10,7 @@ import { Avatar } from '../components/ui/Avatar';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
 import { TradesSection } from '../components/TradesSection';
-import type { Bracket, BracketMatchup, League, LeagueMatchup, Matchup, StandingsEntry, PlayerEntry, RosterSpot, Team } from '../api/types';
+import type { Bracket, BracketMatchup, League, LeagueMatchup, Matchup, StandingsEntry, PlayerEntry, RosterSpot, Team, TeamWithRoster } from '../api/types';
 
 type Tab = 'myteam' | 'matchup' | 'standings' | 'players' | 'settings';
 
@@ -353,15 +353,12 @@ function TeamRosterCard({ title, roster, reverse = false, leagueId, prevScoreMap
 const MAX_LOGO_SIZE = 5 * 1024 * 1024;
 const ALLOWED_LOGO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
-function MyTeamTab({ leagueId, league, phase, tradeDraft, onTradeDraftConsumed }: {
-  leagueId: string;
-  league: League;
-  phase: WeekPhase;
-  tradeDraft?: { teamId: string; artistId: string } | null;
-  onTradeDraftConsumed?: () => void;
-}) {
+function MyTeamTab({ leagueId, league, phase }: { leagueId: string; league: League; phase: WeekPhase }) {
   const queryClient = useQueryClient();
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  // Roster browser: null = my own team, otherwise the league team being viewed
+  const [viewTeamId, setViewTeamId] = useState<string | null>(null);
+  const [teamMenuOpen, setTeamMenuOpen] = useState(false);
 
   // Team identity editing
   const [editing, setEditing] = useState(false);
@@ -376,6 +373,12 @@ function MyTeamTab({ leagueId, league, phase, tradeDraft, onTradeDraftConsumed }
   const { data: myTeam, isLoading } = useQuery({
     queryKey: ['myTeam', leagueId],
     queryFn: () => api.get<Team & { rosterSpots: RosterSpot[] }>(`/leagues/${leagueId}/roster`),
+  });
+
+  const { data: allTeams } = useQuery({
+    queryKey: ['tradeTargets', leagueId],
+    queryFn: () => api.get<TeamWithRoster[]>(`/leagues/${leagueId}/teams-with-rosters`),
+    enabled: league.status === 'active' || league.status === 'complete',
   });
 
   const swapMutation = useMutation({
@@ -443,6 +446,100 @@ function MyTeamTab({ leagueId, league, phase, tradeDraft, onTradeDraftConsumed }
   const seasonOver = phase === 'complete';
   const isLocked = phase === 'scoring' || seasonOver;
 
+  // Team name doubles as a roster browser: pick any league team to view its roster
+  function TeamSwitcher({ currentName }: { currentName: string }) {
+    return (
+      <div className="relative">
+        <button
+          onClick={() => setTeamMenuOpen((o) => !o)}
+          className="flex items-center gap-1 font-semibold text-white text-lg hover:text-indigo-300 transition-colors min-w-0"
+        >
+          <span className="truncate">{currentName}</span>
+          <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform shrink-0 ${teamMenuOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {teamMenuOpen && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setTeamMenuOpen(false)} />
+            <div className="absolute left-0 top-full mt-1 z-20 w-60 max-h-72 overflow-y-auto bg-gray-900 border border-white/10 rounded-lg shadow-2xl py-1">
+              {(allTeams ?? []).map((t) => {
+                const isMine = t.id === myTeam!.id;
+                const active = (viewTeamId ?? myTeam!.id) === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => { setViewTeamId(isMine ? null : t.id); setTeamMenuOpen(false); }}
+                    className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors ${
+                      active ? 'bg-indigo-500/20 text-indigo-300' : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                    }`}
+                  >
+                    <Avatar src={t.logoUrl} name={t.name} size="sm" />
+                    <span className="truncate">{t.name}</span>
+                    {isMine && <span className="ml-auto text-[10px] text-gray-500 shrink-0">You</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // Viewing another team's roster: read-only starters/bench, no edit affordances
+  const viewedTeam = viewTeamId && viewTeamId !== myTeam.id ? allTeams?.find((t) => t.id === viewTeamId) : null;
+  if (viewedTeam) {
+    const viewedRoster: RosterSpot[] = viewedTeam.rosterSpots.map((rs) => ({
+      id: `${viewedTeam.id}-${rs.slot}`,
+      teamId: viewedTeam.id,
+      artistId: rs.artist?.id ?? null,
+      slot: rs.slot,
+      artist: rs.artist
+        ? ({ ...rs.artist, weeklyScores: rs.artist.weeklyScores ?? [] } as unknown as RosterSpot['artist'])
+        : null,
+    }));
+    const spotOf = (slot: string) => getRosterSpot(viewedRoster, slot);
+    return (
+      <div className="space-y-4">
+        {/* The Card's backdrop-blur creates a stacking context — lift it while
+            the team menu is open so the dropdown isn't painted under siblings */}
+        <Card className={`p-5 ${teamMenuOpen ? 'relative z-30' : ''}`}>
+          <div className="flex items-center gap-3">
+            <Avatar src={viewedTeam.logoUrl ?? undefined} name={viewedTeam.name} size="xl" />
+            <div className="flex-1 min-w-0">
+              <div className="text-xs text-gray-500 mb-0.5">Week {league.currentWeek}</div>
+              <TeamSwitcher currentName={viewedTeam.name} />
+            </div>
+          </div>
+        </Card>
+
+        <div className="bg-white/5 border border-white/10 rounded-lg p-3 text-sm text-gray-400 flex items-center justify-between gap-2">
+          <span>Viewing {viewedTeam.name}'s roster</span>
+          <button onClick={() => setViewTeamId(null)} className="text-indigo-400 hover:text-white text-xs font-medium shrink-0">
+            Back to my team
+          </button>
+        </div>
+
+        <Card className="p-4">
+          <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Starters</h3>
+          <div className="space-y-1">
+            {ALL_STARTER_SLOTS.map((slot) => (
+              <RosterRow key={slot} spot={spotOf(slot)} readOnly leagueId={leagueId} />
+            ))}
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Bench</h3>
+          <div className="space-y-1">
+            {ALL_BENCH_SLOTS.map((slot) => (
+              <RosterRow key={slot} spot={spotOf(slot)} readOnly leagueId={leagueId} />
+            ))}
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   function handleSlotClick(slot: string) {
     if (isLocked) return;
     if (!selectedSlot) { setSelectedSlot(slot); return; }
@@ -460,7 +557,8 @@ function MyTeamTab({ leagueId, league, phase, tradeDraft, onTradeDraftConsumed }
 
   return (
     <div className="space-y-4">
-      <Card className="p-5">
+      {/* Lift above sibling stacking contexts while the team menu is open */}
+      <Card className={`p-5 ${teamMenuOpen ? 'relative z-30' : ''}`}>
         {editing ? (
           <div className="space-y-3">
             <div className="flex items-center gap-3">
@@ -511,7 +609,7 @@ function MyTeamTab({ leagueId, league, phase, tradeDraft, onTradeDraftConsumed }
             <Avatar src={myTeam.logoUrl ?? undefined} name={myTeam.name} size="xl" />
             <div className="flex-1 min-w-0">
               <div className="text-xs text-gray-500 mb-0.5">Week {league.currentWeek}</div>
-              <div className="font-semibold text-white text-lg truncate">{myTeam.name}</div>
+              <TeamSwitcher currentName={myTeam.name} />
             </div>
             <button
               onClick={startEditing}
@@ -582,12 +680,7 @@ function MyTeamTab({ leagueId, league, phase, tradeDraft, onTradeDraftConsumed }
         </div>
       </Card>
 
-      <TradesSection
-        leagueId={leagueId}
-        league={league}
-        initialProposal={tradeDraft}
-        onProposalConsumed={onTradeDraftConsumed}
-      />
+      <TradesSection leagueId={leagueId} league={league} />
     </div>
   );
 }
@@ -1751,8 +1844,6 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League })
 export function LeagueHub() {
   const { id } = useParams<{ id: string }>();
   const [tab, setTab] = useState<Tab>('myteam');
-  // Set by the Players tab's trade icon; consumed by the My Team Trades section
-  const [tradeDraft, setTradeDraft] = useState<{ teamId: string; artistId: string } | null>(null);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -1823,22 +1914,14 @@ export function LeagueHub() {
       </header>
 
       <main className="relative max-w-3xl mx-auto px-4 py-6">
-        {tab === 'myteam' && (
-          <MyTeamTab
-            leagueId={id!}
-            league={league}
-            phase={phase}
-            tradeDraft={tradeDraft}
-            onTradeDraftConsumed={() => setTradeDraft(null)}
-          />
-        )}
+        {tab === 'myteam' && <MyTeamTab leagueId={id!} league={league} phase={phase} />}
         {tab === 'matchup' && <MatchupTab leagueId={id!} league={league} phase={phase} />}
         {tab === 'standings' && <StandingsTab leagueId={id!} league={league} />}
         {tab === 'players' && (
           <PlayersTab
             leagueId={id!}
             league={league}
-            onProposeTrade={(teamId, artistId) => { setTradeDraft({ teamId, artistId }); setTab('myteam'); }}
+            onProposeTrade={(_teamId, artistId) => navigate(`/leagues/${id}/trade?artistId=${artistId}`)}
           />
         )}
         {tab === 'settings' && <SettingsTab leagueId={id!} league={league} />}
