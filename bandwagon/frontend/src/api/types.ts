@@ -195,7 +195,7 @@ export interface TeamWithRoster {
   name: string;
   logoUrl: string | null;
   userId: string;
-  rosterSpots: { slot: string; artist: TradeArtist | null }[];
+  rosterSpots: { slot: string; artist: (TradeArtist & { weeklyScores?: WeeklyScore[] }) | null }[];
 }
 
 export interface StandingsEntry {

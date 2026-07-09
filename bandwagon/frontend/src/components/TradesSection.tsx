@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeftRight, Check, X } from 'lucide-react';
 import { api } from '../api/client';
@@ -8,8 +9,8 @@ import { Avatar } from './ui/Avatar';
 import type { League, TeamWithRoster, TradeArtist, TradesResponse, TradeView } from '../api/types';
 
 // Drops required to keep a 9-slot roster legal after a trade (mirrors the
-// backend's requiredDropCount).
-function dropsNeededFor(filled: number, give: number, receive: number): number {
+// backend's requiredDropCount). Also used by the TradePropose page.
+export function dropsNeededFor(filled: number, give: number, receive: number): number {
   return Math.max(0, filled - give + receive - 9);
 }
 
@@ -47,139 +48,6 @@ function ArtistRow({ artist, selected, onToggle }: { artist: TradeArtist; select
       </div>
       {selected && <Check className="w-4 h-4 text-indigo-400 shrink-0" />}
     </button>
-  );
-}
-
-function ProposeTradeModal({ leagueId, myTeamId, initialProposal, onClose }: {
-  leagueId: string;
-  myTeamId: string;
-  initialProposal?: { teamId: string; artistId: string } | null;
-  onClose: () => void;
-}) {
-  const queryClient = useQueryClient();
-  const [targetTeamId, setTargetTeamId] = useState<string>(initialProposal?.teamId ?? '');
-  const [give, setGive] = useState<Set<string>>(new Set());
-  const [receive, setReceive] = useState<Set<string>>(new Set(initialProposal ? [initialProposal.artistId] : []));
-  const [drops, setDrops] = useState<Set<string>>(new Set());
-  const [error, setError] = useState('');
-
-  const { data: teams } = useQuery({
-    queryKey: ['tradeTargets', leagueId],
-    queryFn: () => api.get<TeamWithRoster[]>(`/leagues/${leagueId}/teams-with-rosters`),
-  });
-
-  const myTeam = teams?.find((t) => t.id === myTeamId);
-  const targetTeam = teams?.find((t) => t.id === targetTeamId);
-  const myArtists = (myTeam?.rosterSpots ?? []).filter((s) => s.artist).map((s) => s.artist!);
-  const theirArtists = (targetTeam?.rosterSpots ?? []).filter((s) => s.artist).map((s) => s.artist!);
-
-  const dropsNeeded = dropsNeededFor(myArtists.length, give.size, receive.size);
-  const dropCandidates = myArtists.filter((a) => !give.has(a.id));
-
-  // Trim drops that are no longer needed or now part of the give set
-  useEffect(() => {
-    setDrops((prev) => {
-      const next = new Set([...prev].filter((id) => !give.has(id)));
-      while (next.size > dropsNeeded) next.delete([...next][next.size - 1]);
-      return next.size === prev.size && [...next].every((id) => prev.has(id)) ? prev : next;
-    });
-  }, [give, dropsNeeded]);
-
-  const toggle = (set: Set<string>, setter: (s: Set<string>) => void, id: string) => {
-    const next = new Set(set);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    setter(next);
-  };
-
-  const proposeMutation = useMutation({
-    mutationFn: () => api.post(`/leagues/${leagueId}/trades`, {
-      toTeamId: targetTeamId,
-      give: [...give],
-      receive: [...receive],
-      drops: [...drops],
-    }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['trades', leagueId] });
-      onClose();
-    },
-    onError: (err: Error) => setError(err.message),
-  });
-
-  const canSubmit = targetTeamId && give.size > 0 && receive.size > 0 && drops.size === dropsNeeded && !proposeMutation.isPending;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-      <div className="bg-gray-900 border border-white/10 rounded-xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b border-white/10">
-          <div>
-            <h2 className="font-semibold text-white">Propose Trade</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Pick a team, then select players on both sides</p>
-          </div>
-          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
-        </div>
-
-        <div className="p-4 overflow-y-auto space-y-4">
-          <select
-            value={targetTeamId}
-            onChange={(e) => { setTargetTeamId(e.target.value); setReceive(new Set()); }}
-            className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="">Choose a team to trade with…</option>
-            {(teams ?? []).filter((t) => t.id !== myTeamId).map((t) => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
-
-          {targetTeam && (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <div className="text-[10px] text-gray-500 uppercase tracking-wider font-medium mb-1">You send</div>
-                <div className="space-y-1 max-h-56 overflow-y-auto">
-                  {myArtists.map((a) => (
-                    <ArtistRow key={a.id} artist={a} selected={give.has(a.id)} onToggle={() => toggle(give, setGive, a.id)} />
-                  ))}
-                </div>
-              </div>
-              <div>
-                <div className="text-[10px] text-gray-500 uppercase tracking-wider font-medium mb-1">You receive from {targetTeam.name}</div>
-                <div className="space-y-1 max-h-56 overflow-y-auto">
-                  {theirArtists.map((a) => (
-                    <ArtistRow key={a.id} artist={a} selected={receive.has(a.id)} onToggle={() => toggle(receive, setReceive, a.id)} />
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {dropsNeeded > 0 && (
-            <div>
-              <div className="text-[10px] text-amber-400 uppercase tracking-wider font-medium mb-1">
-                You receive more than you send — drop {dropsNeeded} player{dropsNeeded === 1 ? '' : 's'} ({drops.size}/{dropsNeeded} selected)
-              </div>
-              <div className="space-y-1 max-h-40 overflow-y-auto">
-                {dropCandidates.map((a) => (
-                  <ArtistRow key={a.id} artist={a} selected={drops.has(a.id)} onToggle={() => toggle(drops, setDrops, a.id)} />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {error && <p className="text-xs text-red-400 px-4 pb-2">{error}</p>}
-        <div className="flex gap-2 p-4 border-t border-white/10">
-          <button onClick={onClose} className="flex-1 px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-gray-300 text-sm font-medium transition-colors">
-            Cancel
-          </button>
-          <button
-            disabled={!canSubmit}
-            onClick={() => proposeMutation.mutate()}
-            className="flex-1 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-sm font-medium transition-colors"
-          >
-            {proposeMutation.isPending ? 'Proposing…' : 'Propose Trade'}
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -270,15 +138,12 @@ function AcceptTradeModal({ leagueId, trade, myTeamId, onClose }: {
   );
 }
 
-export function TradesSection({ leagueId, league, initialProposal, onProposalConsumed }: {
+export function TradesSection({ leagueId, league }: {
   leagueId: string;
   league: League;
-  initialProposal?: { teamId: string; artistId: string } | null;
-  onProposalConsumed?: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [proposeOpen, setProposeOpen] = useState(false);
-  const [proposalSeed, setProposalSeed] = useState<{ teamId: string; artistId: string } | null>(null);
+  const navigate = useNavigate();
   const [acceptTarget, setAcceptTarget] = useState<TradeView | null>(null);
   const [actionError, setActionError] = useState('');
 
@@ -287,15 +152,6 @@ export function TradesSection({ leagueId, league, initialProposal, onProposalCon
     queryFn: () => api.get<TradesResponse>(`/leagues/${leagueId}/trades`),
     enabled: league.status === 'active' || league.status === 'complete',
   });
-
-  // A trade icon elsewhere (Players tab) pre-targets a proposal
-  useEffect(() => {
-    if (initialProposal) {
-      setProposalSeed(initialProposal);
-      setProposeOpen(true);
-      onProposalConsumed?.();
-    }
-  }, [initialProposal, onProposalConsumed]);
 
   const actionMutation = useMutation({
     mutationFn: ({ tradeId, action }: { tradeId: string; action: 'reject' | 'cancel' | 'veto' }) =>
@@ -321,7 +177,7 @@ export function TradesSection({ leagueId, league, initialProposal, onProposalCon
         </h3>
         {!tradingClosed && (
           <button
-            onClick={() => { setProposalSeed(null); setProposeOpen(true); }}
+            onClick={() => navigate(`/leagues/${leagueId}/trade`)}
             className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors"
           >
             Propose Trade
@@ -410,14 +266,6 @@ export function TradesSection({ leagueId, league, initialProposal, onProposalCon
         </div>
       )}
 
-      {proposeOpen && (
-        <ProposeTradeModal
-          leagueId={leagueId}
-          myTeamId={myTeamId}
-          initialProposal={proposalSeed}
-          onClose={() => { setProposeOpen(false); setProposalSeed(null); }}
-        />
-      )}
       {acceptTarget && (
         <AcceptTradeModal leagueId={leagueId} trade={acceptTarget} myTeamId={myTeamId} onClose={() => setAcceptTarget(null)} />
       )}

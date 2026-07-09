@@ -9,6 +9,7 @@ import { LeagueCreate } from './pages/LeagueCreate';
 import { LeagueJoin } from './pages/LeagueJoin';
 import { LeagueHub } from './pages/LeagueHub';
 import { DraftRoom } from './pages/DraftRoom';
+import { TradePropose } from './pages/TradePropose';
 import { ArtistDetail } from './pages/ArtistDetail';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -48,6 +49,7 @@ export function App() {
       <Route path="/leagues/join/:code" element={<ProtectedRoute><LeagueJoin /></ProtectedRoute>} />
       <Route path="/leagues/:id" element={<ProtectedRoute><LeagueHub /></ProtectedRoute>} />
       <Route path="/leagues/:id/draft" element={<ProtectedRoute><DraftRoom /></ProtectedRoute>} />
+      <Route path="/leagues/:id/trade" element={<ProtectedRoute><TradePropose /></ProtectedRoute>} />
       <Route path="/artists/:id" element={<ProtectedRoute><ArtistDetail /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/home" replace />} />
     </Routes>
