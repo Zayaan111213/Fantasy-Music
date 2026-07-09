@@ -143,7 +143,7 @@ export function firstScoringTuesdayPT(draftTime: Date): string {
   return firstTuesday.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
 }
 
-async function main(): Promise<void> {
+export async function runFinalizePipeline(): Promise<void> {
   // Single-source week boundary: same Pacific Tue function used by dailyPipeline.
   // At Mon 0:01 AM Pacific (finalize cron time), this returns last Tuesday = week just ended.
   const weekDate = getCurrentWeekDate();
@@ -181,7 +181,7 @@ async function main(): Promise<void> {
 }
 
 if (require.main === module) {
-  main()
+  runFinalizePipeline()
     .catch((err) => { console.error('[finalize] fatal:', err); process.exit(1); })
     .finally(() => prisma.$disconnect());
 }

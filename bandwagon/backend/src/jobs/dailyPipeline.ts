@@ -7,7 +7,7 @@ import { scoreAllArtistsForWeek, updateMatchupScores } from '../scoring/engine';
 const SONGS_URL  = 'https://rss.marketingtools.apple.com/api/v2/us/music/most-played/100/songs.json';
 const ALBUMS_URL = 'https://rss.marketingtools.apple.com/api/v2/us/music/most-played/100/albums.json';
 
-async function main(): Promise<void> {
+export async function runDailyPipeline(): Promise<void> {
   const weekDate = getCurrentWeekDate();
   console.log(`[daily] week of ${weekDate.toISOString().slice(0, 10)}`);
 
@@ -50,6 +50,8 @@ async function main(): Promise<void> {
   console.log('[daily] done');
 }
 
-main()
-  .catch((err) => { console.error('[daily] fatal:', err); process.exit(1); })
-  .finally(() => prisma.$disconnect());
+if (require.main === module) {
+  runDailyPipeline()
+    .catch((err) => { console.error('[daily] fatal:', err); process.exit(1); })
+    .finally(() => prisma.$disconnect());
+}

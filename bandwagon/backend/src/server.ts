@@ -21,6 +21,7 @@ import tradeRoutes from './api/routes/trades';
 import notificationRoutes from './api/routes/notifications';
 import { errorHandler, notFound } from './api/middleware/errorHandler';
 import { registerDraftSocket, startDraftScheduler } from './sockets/draft';
+import { startPipelineScheduler } from './jobs/scheduler';
 
 const app = express();
 const httpServer = createServer(app);
@@ -66,6 +67,7 @@ app.use(errorHandler);
 
 registerDraftSocket(io);
 startDraftScheduler(io);
+startPipelineScheduler(); // no-op under NODE_ENV=test / PIPELINE_SCHEDULER_DISABLED
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 httpServer.listen(PORT, () => {
