@@ -140,6 +140,7 @@ bandwagon/
 
 - **Scoring pipeline**: `jobs/dailyPipeline.ts` fetches the Apple Music Most Played Songs (Top 100) and Albums (Top 100) RSS feeds, ingests them into `ChartEntry` / `AlbumChartEntry` tables, enriches artist genres via iTunes Lookup, then calls `scoreAllArtistsForWeek()`. `scoring/engine.ts`'s `scoreArtistWeekFromCharts()` reads chart positions directly from the DB — no external provider call at score time.
 - **Finalization**: `jobs/finalizePipeline.ts` runs Monday ~00:01 PT. It sets `matchup.isFinalized = true`, resolves ties (highest single artist score among starters), sets `matchup.winnerId`, and advances `league.currentWeek`. Idempotent — safe to re-run.
+- **Pipeline scheduler**: `startPipelineScheduler()` in `jobs/scheduler.ts` runs both pipelines automatically in-process (started from `server.ts`, same pattern as the draft scheduler). 60s tick; daily pipeline once per PT date at `DAILY_PIPELINE_TIME_PT` (default 06:00 PT); finalize Monday ≥00:01 PT (no catch-up on later days). Per-PT-date success dedupe, in-flight overlap guard, 15-min retry backoff on failure; on Mondays the daily run waits until finalize has succeeded (finalize advances `currentWeek` first). No-op under `NODE_ENV=test` or `PIPELINE_SCHEDULER_DISABLED=1`. Pipelines export `runDailyPipeline()` / `runFinalizePipeline()`; both files keep CLI behavior under `require.main === module` guards.
 - **Scoring tiers**: `scoring/tiers.ts` holds pure, DB-free scoring functions. Song and album chart position use identical tiers. Longevity: `Math.min(Math.max(consecutiveWeeks - 1, 0) * 2, 10)`.
 - **Lineup lock**: `PUT /leagues/:id/roster/lineup` enforces lock: returns 403 on Tuesday–Sunday (PT) unless `currentWeek === 1` and today is before the first Tuesday after `league.draftTime`. Both backend and `getWeekPhase()` in `LeagueHub.tsx` use the same day-of-week + date-string comparison logic.
 - **Auth**: `api/middleware/auth.ts` exports `requireAuth` (HTTP) for Express routes. `sockets/draft.ts` verifies the JWT manually on every `draft:join`/`draft:pick`/`draft:skip-countdown` socket event — socket.io has no shared middleware chain with Express here.
@@ -189,7 +190,9 @@ cd bandwagon && npm run db:migrate
 cd bandwagon && npm run db:seed        # Local dev only — populates mock data
 cd bandwagon && npm run db:studio
 
-# Run scoring pipelines (against production DB, use DATABASE_PUBLIC_URL)
+# Run scoring pipelines manually (against production DB, use DATABASE_PUBLIC_URL).
+# Production runs both automatically via the in-process scheduler (jobs/scheduler.ts);
+# manual runs remain safe — both pipelines are idempotent.
 cd bandwagon/backend && npm run pipeline:daily
 cd bandwagon/backend && npm run pipeline:finalize
 
