@@ -12,6 +12,7 @@ import { buildWeek11Matchups } from '../../playoffs/bracket';
 // Circular with trades/engine (which imports artistEligibleForSlot from here);
 // safe because both sides only reference the other's exports at call time.
 import { lockedArtistIds } from '../../trades/engine';
+import { logLeagueEvent } from '../../events/leagueEvents';
 
 const router = Router();
 
@@ -338,6 +339,13 @@ router.post('/join/:code', requireAuth, async (req: AuthRequest, res, next) => {
       },
     });
 
+    await logLeagueEvent(
+      prisma,
+      league.id,
+      'member_joined',
+      `${user?.username ?? 'A new member'} joined the league as ${team.name}`,
+    );
+
     res.status(201).json({ league, team });
   } catch (err) {
     next(err);
@@ -390,6 +398,76 @@ router.get('/:id/standings', requireAuth, async (req: AuthRequest, res, next) =>
       losses: t.losses,
       pointsFor: t.pointsFor,
     })));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Activity feed: league-wide events merged with the requesting user's
+// league-scoped personal notifications, newest first.
+router.get('/:id/activity', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const leagueId = req.params.id;
+    const league = await prisma.league.findUnique({ where: { id: leagueId } });
+    if (!league) { res.status(404).json({ error: 'League not found' }); return; }
+    const myTeam = await prisma.team.findFirst({ where: { leagueId, userId: req.userId! } });
+    if (!myTeam) { res.status(403).json({ error: 'You are not a member of this league' }); return; }
+
+    const [events, personal, unseenCount] = await Promise.all([
+      prisma.leagueEvent.findMany({
+        where: { leagueId },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      }),
+      prisma.notification.findMany({
+        where: { userId: req.userId!, leagueId },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      }),
+      prisma.notification.count({
+        where: { userId: req.userId!, leagueId, seenAt: null },
+      }),
+    ]);
+
+    const items = [
+      ...events.map((e) => ({
+        id: e.id,
+        kind: 'league' as const,
+        type: e.type,
+        message: e.message,
+        meta: e.meta,
+        createdAt: e.createdAt,
+      })),
+      ...personal.map((n) => ({
+        id: n.id,
+        kind: 'personal' as const,
+        type: n.type,
+        message: n.message,
+        seenAt: n.seenAt,
+        createdAt: n.createdAt,
+      })),
+    ]
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, 100);
+
+    res.json({ items, unseenCount });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Mark all of the user's league-scoped notifications seen (badge reset).
+router.post('/:id/notifications/seen', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const leagueId = req.params.id;
+    const myTeam = await prisma.team.findFirst({ where: { leagueId, userId: req.userId! } });
+    if (!myTeam) { res.status(403).json({ error: 'You are not a member of this league' }); return; }
+
+    const { count } = await prisma.notification.updateMany({
+      where: { userId: req.userId!, leagueId, seenAt: null },
+      data: { seenAt: new Date() },
+    });
+    res.json({ ok: true, count });
   } catch (err) {
     next(err);
   }
@@ -957,6 +1035,13 @@ export async function claimFreeAgent(
     where: { id: dropSpot.id },
     data: { artistId },
   });
+
+  await logLeagueEvent(
+    prisma,
+    leagueId,
+    'claim',
+    `${myTeam.name} added ${artist.name}, dropped ${dropSpot.artist?.name ?? 'an artist'}`,
+  );
 
   return { success: true, slot: dropSlot, droppedArtistId, addedArtistId: artistId };
 }

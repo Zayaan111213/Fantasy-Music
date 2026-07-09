@@ -254,6 +254,21 @@ export interface Notification {
   createdAt: string;
 }
 
+export interface ActivityItem {
+  id: string;
+  kind: 'league' | 'personal';
+  type: string;
+  message: string;
+  meta?: Record<string, unknown> | null;
+  seenAt?: string | null;
+  createdAt: string;
+}
+
+export interface ActivityFeed {
+  items: ActivityItem[];
+  unseenCount: number;
+}
+
 export interface LeagueCard {
   id: string;
   name: string;

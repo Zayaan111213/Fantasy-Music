@@ -7,6 +7,7 @@ vi.mock('../../db/prisma', () => ({
     rosterSpot: { findMany: vi.fn().mockResolvedValue([]), update: vi.fn() },
     team: { findMany: vi.fn().mockResolvedValue([]) },
     notification: { createMany: vi.fn() },
+    leagueEvent: { create: vi.fn() },
     $transaction: vi.fn(),
   },
 }));

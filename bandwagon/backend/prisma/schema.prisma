@@ -24,12 +24,15 @@ model User {
 model Notification {
   id        String    @id @default(cuid())
   userId    String
+  leagueId  String? // scopes the notification to a league's activity feed; null for league_deleted
   type      String
   message   String
   seenAt    DateTime?
   createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, leagueId])
 }
 
 model League {
@@ -53,6 +56,20 @@ model League {
   draftPicks DraftPick[]
   draftState DraftState?
   trades     Trade[]
+  events     LeagueEvent[]
+}
+
+model LeagueEvent {
+  id        String   @id @default(cuid())
+  leagueId  String
+  type      String
+  message   String
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId, createdAt])
 }
 
 model Team {

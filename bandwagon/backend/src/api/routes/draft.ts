@@ -5,6 +5,7 @@ import { requireAuth, type AuthRequest } from '../middleware/auth';
 import { buildRoundRobin } from '../../utils/schedule';
 import { scoreArtistWeekFromCharts, updateMatchupScores } from '../../scoring/engine';
 import { getCurrentWeekDate } from '../../jobs/ingestCharts';
+import { logLeagueEvent } from '../../events/leagueEvents';
 
 const router = Router();
 
@@ -219,6 +220,7 @@ export async function makePick(
       await tx.matchup.createMany({ data: matchups });
 
       await tx.league.update({ where: { id: leagueId }, data: { status: 'active', currentWeek: 1 } });
+      await logLeagueEvent(tx, leagueId, 'draft_complete', 'The draft is complete — the season begins!');
     }
   });
 

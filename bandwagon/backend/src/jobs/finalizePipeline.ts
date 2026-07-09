@@ -7,6 +7,7 @@ import {
   REGULAR_SEASON_WEEKS,
 } from '../playoffs/bracket';
 import { runTradeFinalizeSteps } from '../trades/engine';
+import { logLeagueEvent } from '../events/leagueEvents';
 
 export async function bestArtistScore(teamId: string, week: number, year: number): Promise<number> {
   const spots = await prisma.rosterSpot.findMany({
@@ -64,6 +65,11 @@ export async function finalizeLeagueWeek(leagueId: string, week: number, year: n
 
   // winnerId varies per matchup so loop after the bulk isFinalized flip.
   // Scores are frozen at this point; same inputs → same winner on any retry of this block.
+  const teams = await prisma.team.findMany({
+    where: { leagueId },
+    select: { id: true, name: true },
+  });
+  const teamName = new Map(teams.map((t) => [t.id, t.name]));
   const matchups = await prisma.matchup.findMany({ where: { leagueId, week } });
   for (const m of matchups) {
     let winnerId = await resolveWinner(
@@ -75,6 +81,18 @@ export async function finalizeLeagueWeek(leagueId: string, week: number, year: n
     }
     await prisma.matchup.update({ where: { id: m.id }, data: { winnerId } });
     console.log(`[finalize] matchup ${m.id} → winner ${winnerId ?? 'tie'}`);
+
+    // Feed recap — only reachable inside the count>0 gate, so idempotent
+    // re-runs never duplicate events.
+    const home = teamName.get(m.homeTeamId) ?? 'Home team';
+    const away = teamName.get(m.awayTeamId) ?? 'Away team';
+    const outcome = winnerId === null ? 'Tie' : `${teamName.get(winnerId) ?? 'Winner'} wins`;
+    await logLeagueEvent(
+      prisma,
+      leagueId,
+      'week_result',
+      `Week ${week} final: ${home} ${m.homeScore} — ${away} ${m.awayScore} · ${outcome}`,
+    );
 
     // Update team stats: both teams accumulate pointsFor; winner/loser get wins/losses.
     // Playoff games don't count — standings freeze as the regular-season record.
@@ -106,7 +124,24 @@ async function advanceSeason(leagueId: string, week: number): Promise<void> {
       where: { id: leagueId, status: { not: 'complete' } },
       data: { status: 'complete' },
     });
-    if (count > 0) console.log(`[finalize] league ${leagueId} — season complete`);
+    if (count > 0) {
+      console.log(`[finalize] league ${leagueId} — season complete`);
+      const finals = await prisma.matchup.findFirst({
+        where: { leagueId, week: PLAYOFF_FINALS_WEEK, matchupType: 'championship' },
+        select: { winnerId: true },
+      });
+      const champion = finals?.winnerId
+        ? await prisma.team.findUnique({ where: { id: finals.winnerId }, select: { name: true } })
+        : null;
+      await logLeagueEvent(
+        prisma,
+        leagueId,
+        'season_complete',
+        champion
+          ? `🏆 ${champion.name} wins the championship! The season is complete.`
+          : 'The season is complete.',
+      );
+    }
     return;
   }
 
@@ -121,11 +156,29 @@ async function advanceSeason(leagueId: string, week: number): Promise<void> {
     select: { id: true },
   });
   if (next) {
-    await prisma.league.updateMany({
+    const { count: advanced } = await prisma.league.updateMany({
       where: { id: leagueId, currentWeek: { lt: week + 1 } },
       data: { currentWeek: week + 1 },
     });
     console.log(`[finalize] league ${leagueId} week ${week} → ${week + 1}`);
+    // Guarded by the monotonic currentWeek update so crash-recovery re-runs
+    // (count=0 outer gate) never send duplicate reminders.
+    if (advanced > 0) {
+      const members = await prisma.team.findMany({
+        where: { leagueId },
+        select: { userId: true },
+      });
+      if (members.length > 0) {
+        await prisma.notification.createMany({
+          data: members.map((t) => ({
+            userId: t.userId,
+            leagueId,
+            type: 'lineup_reminder',
+            message: `Week ${week + 1} is here — set your lineup before it locks on Tuesday!`,
+          })),
+        });
+      }
+    }
   }
 }
 

@@ -1,4 +1,5 @@
 import { prisma } from '../db/prisma';
+import { logLeagueEvent } from '../events/leagueEvents';
 
 export const PLAYOFF_SEMIS_WEEK = 11;
 export const PLAYOFF_FINALS_WEEK = 12;
@@ -154,6 +155,23 @@ export async function ensurePlayoffMatchups(leagueId: string, completedWeek: num
     const data = buildWeek11Matchups(leagueId, seeds);
     await prisma.matchup.createMany({ data, skipDuplicates: true });
     console.log(`[playoffs] league ${leagueId} — created ${data.length} week-${targetWeek} playoff matchups`);
+
+    // The `existing` early-return above guarantees this fires exactly once.
+    const teams = await prisma.team.findMany({
+      where: { leagueId },
+      select: { id: true, name: true },
+    });
+    const names = new Map(teams.map((t) => [t.id, t.name]));
+    const semis = data
+      .filter((m) => m.matchupType === 'semifinal')
+      .map((m) => `${names.get(m.homeTeamId) ?? '?'} (${m.homeSeed}) vs ${names.get(m.awayTeamId) ?? '?'} (${m.awaySeed})`)
+      .join(', ');
+    await logLeagueEvent(
+      prisma,
+      leagueId,
+      'playoffs_set',
+      `The playoff bracket is set — semifinals: ${semis}`,
+    );
   } else {
     const week11 = await prisma.matchup.findMany({
       where: { leagueId, week: PLAYOFF_SEMIS_WEEK, isFinalized: true, matchupType: { not: 'regular' } },
