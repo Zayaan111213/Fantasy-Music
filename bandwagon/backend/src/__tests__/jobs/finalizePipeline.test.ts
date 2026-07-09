@@ -33,7 +33,12 @@ vi.mock('../../jobs/ingestCharts', () => ({
   getCurrentWeekDate: vi.fn().mockReturnValue(new Date('2026-06-17T19:00:00Z')),
 }));
 
+vi.mock('../../waivers/engine', () => ({
+  resolveWaivers: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { prisma } from '../../db/prisma';
+import { resolveWaivers } from '../../waivers/engine';
 import { resolveWinner, finalizeLeagueWeek, firstScoringTuesdayPT } from '../../jobs/finalizePipeline';
 
 const rosterFindMany = vi.mocked(prisma.rosterSpot.findMany);
@@ -227,6 +232,24 @@ describe('finalizeLeagueWeek', () => {
     // matchup.updateMany default returns { count: 0 }
     await finalizeLeagueWeek('league1', 1, 2026);
     expect(prisma.leagueEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('resolves waivers on the normal finalize path', async () => {
+    vi.mocked(resolveWaivers).mockClear();
+    vi.mocked(prisma.matchup.updateMany).mockResolvedValueOnce({ count: 1 } as never);
+    vi.mocked(prisma.matchup.findMany).mockResolvedValueOnce([] as never);
+
+    await finalizeLeagueWeek('league1', 1, 2026);
+
+    expect(resolveWaivers).toHaveBeenCalledWith('league1');
+  });
+
+  it('resolves waivers on the count=0 crash-recovery path too', async () => {
+    vi.mocked(resolveWaivers).mockClear();
+    // matchup.updateMany default returns { count: 0 }
+    await finalizeLeagueWeek('league1', 1, 2026);
+
+    expect(resolveWaivers).toHaveBeenCalledWith('league1');
   });
 
   it('sends league-scoped lineup reminders to every member when the week advances', async () => {

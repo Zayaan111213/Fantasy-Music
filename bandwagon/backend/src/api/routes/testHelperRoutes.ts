@@ -44,11 +44,13 @@ router.post('/active-league', async (req, res, next) => {
       },
     });
 
+    // Distinct waiver priorities so waiver-conflict e2e tests are deterministic
+    // (Team A holds the top spot).
     const [team1, team2, team3, team4] = await Promise.all([
-      prisma.team.create({ data: { leagueId: league.id, userId: user1.id, name: 'E2E Team A', draftPosition: 1 } }),
-      prisma.team.create({ data: { leagueId: league.id, userId: user2.id, name: 'E2E Team B', draftPosition: 2 } }),
-      prisma.team.create({ data: { leagueId: league.id, userId: user3.id, name: 'E2E Team C', draftPosition: 3 } }),
-      prisma.team.create({ data: { leagueId: league.id, userId: user4.id, name: 'E2E Team D', draftPosition: 4 } }),
+      prisma.team.create({ data: { leagueId: league.id, userId: user1.id, name: 'E2E Team A', draftPosition: 1, waiverPriority: 1 } }),
+      prisma.team.create({ data: { leagueId: league.id, userId: user2.id, name: 'E2E Team B', draftPosition: 2, waiverPriority: 2 } }),
+      prisma.team.create({ data: { leagueId: league.id, userId: user3.id, name: 'E2E Team C', draftPosition: 3, waiverPriority: 3 } }),
+      prisma.team.create({ data: { leagueId: league.id, userId: user4.id, name: 'E2E Team D', draftPosition: 4, waiverPriority: 4 } }),
     ]);
 
     // Fetch artist pools — need unique artists per slot across all 4 teams.

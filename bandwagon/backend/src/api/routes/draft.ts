@@ -219,6 +219,14 @@ export async function makePick(
       const matchups = buildRoundRobin(allTeams.map((t) => t.id), leagueId, 10);
       await tx.matchup.createMany({ data: matchups });
 
+      // Seed the waiver order as reverse draft order: last pick gets priority 1.
+      for (let i = 0; i < allTeams.length; i++) {
+        await tx.team.update({
+          where: { id: allTeams[i].id },
+          data: { waiverPriority: allTeams.length - i },
+        });
+      }
+
       await tx.league.update({ where: { id: leagueId }, data: { status: 'active', currentWeek: 1 } });
       await logLeagueEvent(tx, leagueId, 'draft_complete', 'The draft is complete — the season begins!');
     }

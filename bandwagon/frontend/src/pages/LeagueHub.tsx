@@ -10,7 +10,7 @@ import { Avatar } from '../components/ui/Avatar';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
 import { TradesSection } from '../components/TradesSection';
-import type { ActivityFeed, ActivityItem, Bracket, BracketMatchup, League, LeagueMatchup, Matchup, StandingsEntry, PlayerEntry, RosterSpot, Team, TeamWithRoster } from '../api/types';
+import type { ActivityFeed, ActivityItem, Bracket, BracketMatchup, League, LeagueMatchup, Matchup, StandingsEntry, PlayerEntry, RosterSpot, Team, TeamWithRoster, WaiversResponse } from '../api/types';
 
 type Tab = 'myteam' | 'matchup' | 'standings' | 'players' | 'notifications' | 'settings';
 
@@ -1115,9 +1115,10 @@ function StandingsTab({ leagueId, league }: { leagueId: string; league: League }
       <div className="p-4 border-b border-white/10">
         <div className="grid grid-cols-12 text-xs text-gray-500 uppercase tracking-wider font-medium">
           <div className="col-span-1">#</div>
-          <div className="col-span-5">Team</div>
-          <div className="col-span-3 text-center">W-L</div>
+          <div className="col-span-4">Team</div>
+          <div className="col-span-2 text-center">W-L</div>
           <div className="col-span-3 text-right">Pts For</div>
+          <div className="col-span-2 text-right">Waiver</div>
         </div>
       </div>
       {inPlayoffs && (
@@ -1136,18 +1137,21 @@ function StandingsTab({ leagueId, league }: { leagueId: string; league: League }
           )}
           <div className="grid grid-cols-12 items-center p-4 hover:bg-white/5 transition-colors">
             <div className="col-span-1 text-gray-500 font-mono text-sm">{entry.rank}</div>
-            <div className="col-span-5 flex items-center gap-2">
+            <div className="col-span-4 flex items-center gap-2">
               <Avatar src={entry.avatarUrl} name={entry.username ?? '?'} size="sm" />
               <div>
                 <div className="text-sm font-medium text-white">{entry.teamName}</div>
                 <div className="text-xs text-gray-500">{entry.username}</div>
               </div>
             </div>
-            <div className="col-span-3 text-center text-sm font-semibold text-white">
+            <div className="col-span-2 text-center text-sm font-semibold text-white">
               {entry.wins}-{entry.losses}
             </div>
             <div className="col-span-3 text-right text-sm text-gray-300 font-mono">
               {entry.pointsFor.toFixed(1)}
+            </div>
+            <div className="col-span-2 text-right text-sm text-gray-500 font-mono">
+              {entry.waiverPriority}
             </div>
           </div>
         </div>
@@ -1211,18 +1215,32 @@ function PlayersTab({ leagueId, league, onProposeTrade }: {
     queryFn: () => api.get<Team & { rosterSpots: RosterSpot[] }>(`/leagues/${leagueId}/roster`),
   });
 
+  const { data: waivers } = useQuery({
+    queryKey: ['waivers', leagueId],
+    queryFn: () => api.get<WaiversResponse>(`/leagues/${leagueId}/waivers`),
+    enabled: league.status === 'active',
+  });
+
+  // Submitting queues a waiver claim — the roster doesn't change until the
+  // claims resolve Sunday night, so only the waivers query needs refreshing.
   const claimMutation = useMutation({
     mutationFn: ({ artistId, dropSlot }: { artistId: string; dropSlot: string }) =>
       api.post(`/leagues/${leagueId}/roster/claim`, { artistId, dropSlot }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['players', leagueId] });
-      queryClient.invalidateQueries({ queryKey: ['myTeam', leagueId] });
+      queryClient.invalidateQueries({ queryKey: ['waivers', leagueId] });
       setClaimArtist(null);
       setDropSlot(null);
       setClaimError('');
     },
     onError: (err: Error) => setClaimError(err.message),
   });
+
+  const cancelClaimMutation = useMutation({
+    mutationFn: (claimId: string) => api.post(`/leagues/${leagueId}/waivers/${claimId}/cancel`, {}),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['waivers', leagueId] }),
+  });
+
+  const pendingArtistIds = new Set((waivers?.claims ?? []).map((c) => c.artist.id));
 
   const genres = ['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country', 'Dance', 'Latin', 'K-Pop', 'Afrobeats', 'Other'];
 
@@ -1259,7 +1277,7 @@ function PlayersTab({ leagueId, league, onProposeTrade }: {
             <div className="flex items-center justify-between p-4 border-b border-white/10">
               <div>
                 <h2 className="font-semibold text-white">Claim {claimArtist.name}</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Select a player to drop</p>
+                <p className="text-xs text-gray-400 mt-0.5">Select a player to drop · claims process Sunday night</p>
               </div>
               <button onClick={() => { setClaimArtist(null); setDropSlot(null); setClaimError(''); }} className="text-gray-500 hover:text-white transition-colors">
                 <X className="w-5 h-5" />
@@ -1305,11 +1323,43 @@ function PlayersTab({ leagueId, league, onProposeTrade }: {
                 onClick={() => dropSlot && claimMutation.mutate({ artistId: claimArtist.id, dropSlot })}
                 className="flex-1 px-3 py-2 rounded-lg bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white text-sm font-medium transition-colors"
               >
-                {claimMutation.isPending ? 'Claiming…' : 'Confirm Claim'}
+                {claimMutation.isPending ? 'Submitting…' : 'Submit Waiver Claim'}
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Pending waiver claims */}
+      {(waivers?.claims.length ?? 0) > 0 && (
+        <Card>
+          <div className="p-3 border-b border-white/10 flex items-center justify-between">
+            <span className="text-sm font-semibold text-white">Pending waiver claims</span>
+            <span className="text-xs text-gray-500">
+              Waiver position #{waivers!.waiverPosition} · processes Sunday night
+            </span>
+          </div>
+          <div className="divide-y divide-white/5">
+            {waivers!.claims.map((claim) => (
+              <div key={claim.id} className="flex items-center gap-3 p-3">
+                <Avatar src={claim.artist.imageUrl} name={claim.artist.name} size="sm" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-white truncate">{claim.artist.name}</div>
+                  <div className="text-xs text-gray-500 truncate">
+                    Drop: {claim.dropArtist.name} ({claim.dropSlot})
+                  </div>
+                </div>
+                <button
+                  onClick={() => cancelClaimMutation.mutate(claim.id)}
+                  disabled={cancelClaimMutation.isPending}
+                  className="shrink-0 px-2 py-1 rounded-md bg-white/10 hover:bg-white/20 disabled:opacity-40 text-gray-300 text-xs font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            ))}
+          </div>
+        </Card>
       )}
 
       <div className="flex gap-2">
@@ -1396,12 +1446,18 @@ function PlayersTab({ leagueId, league, onProposeTrade }: {
                         )}
                       </>
                     ) : league.status === 'active' ? (
-                      <button
-                        onClick={() => { setClaimArtist(artist); setDropSlot(null); setClaimError(''); }}
-                        className="px-2 py-1 rounded-md bg-green-600/20 border border-green-600/30 text-green-400 text-xs font-medium hover:bg-green-600/30 transition-colors"
-                      >
-                        Claim
-                      </button>
+                      pendingArtistIds.has(artist.id) ? (
+                        <span className="px-2 py-1 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-medium">
+                          Claimed
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => { setClaimArtist(artist); setDropSlot(null); setClaimError(''); }}
+                          className="px-2 py-1 rounded-md bg-green-600/20 border border-green-600/30 text-green-400 text-xs font-medium hover:bg-green-600/30 transition-colors"
+                        >
+                          Claim
+                        </button>
+                      )
                     ) : (
                       <span className="text-xs text-green-400 font-medium">Free Agent</span>
                     )}
@@ -1843,6 +1899,8 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League })
 
 const ACTIVITY_ICONS: Record<string, ReactNode> = {
   claim: <UserPlus className="w-4 h-4 text-emerald-400" />,
+  waiver_won: <UserPlus className="w-4 h-4 text-emerald-400" />,
+  waiver_result: <UserPlus className="w-4 h-4 text-indigo-400" />,
   member_joined: <UserPlus className="w-4 h-4 text-indigo-400" />,
   trade_proposed: <Mail className="w-4 h-4 text-indigo-400" />,
   trade_accepted: <ArrowLeftRight className="w-4 h-4 text-amber-400" />,

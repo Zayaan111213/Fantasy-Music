@@ -51,12 +51,32 @@ model League {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  teams      Team[]
-  matchups   Matchup[]
-  draftPicks DraftPick[]
-  draftState DraftState?
-  trades     Trade[]
-  events     LeagueEvent[]
+  teams        Team[]
+  matchups     Matchup[]
+  draftPicks   DraftPick[]
+  draftState   DraftState?
+  trades       Trade[]
+  events       LeagueEvent[]
+  waiverClaims WaiverClaim[]
+}
+
+model WaiverClaim {
+  id           String    @id @default(cuid())
+  leagueId     String
+  teamId       String
+  artistId     String
+  dropSlot     String
+  dropArtistId String // snapshot of the slot occupant at submit time; mismatch at resolution invalidates
+  status       String    @default("pending") // pending | won | lost | invalid | cancelled
+  resolution   String?
+  createdAt    DateTime  @default(now())
+  resolvedAt   DateTime?
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  artist Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId, status])
 }
 
 model LeagueEvent {
@@ -91,9 +111,10 @@ model Team {
   homeMatchups   Matchup[]    @relation("HomeTeam")
   awayMatchups   Matchup[]    @relation("AwayTeam")
   draftPicks     DraftPick[]
-  proposedTrades Trade[]      @relation("ProposedTrades")
-  receivedTrades Trade[]      @relation("ReceivedTrades")
-  tradeVetoes    TradeVeto[]  @relation("TradeVetoes")
+  proposedTrades Trade[]       @relation("ProposedTrades")
+  receivedTrades Trade[]       @relation("ReceivedTrades")
+  tradeVetoes    TradeVeto[]   @relation("TradeVetoes")
+  waiverClaims   WaiverClaim[]
 
   @@unique([leagueId, userId])
 }
@@ -115,6 +136,7 @@ model Artist {
   chartEntries      ChartEntry[]
   albumChartEntries AlbumChartEntry[]
   tradeItems        TradeItem[]
+  waiverClaims      WaiverClaim[]
 }
 
 model ChartEntry {
