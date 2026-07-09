@@ -16,9 +16,9 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  teams              Team[]
-  commissionedLeagues League[] @relation("Commissioner")
-  notifications      Notification[]
+  teams               Team[]
+  commissionedLeagues League[]       @relation("Commissioner")
+  notifications       Notification[]
 }
 
 model Notification {
@@ -52,40 +52,44 @@ model League {
   matchups   Matchup[]
   draftPicks DraftPick[]
   draftState DraftState?
+  trades     Trade[]
 }
 
 model Team {
-  id             String @id @default(cuid())
+  id             String   @id @default(cuid())
   leagueId       String
   userId         String
   name           String
   logoUrl        String?
-  waiverPriority Int    @default(0)
-  wins           Int    @default(0)
-  losses         Int    @default(0)
-  pointsFor      Float  @default(0)
+  waiverPriority Int      @default(0)
+  wins           Int      @default(0)
+  losses         Int      @default(0)
+  pointsFor      Float    @default(0)
   draftPosition  Int?
   createdAt      DateTime @default(now())
 
-  league       League      @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  user         User        @relation(fields: [userId], references: [id])
-  rosterSpots  RosterSpot[]
-  homeMatchups Matchup[]   @relation("HomeTeam")
-  awayMatchups Matchup[]   @relation("AwayTeam")
-  draftPicks   DraftPick[]
+  league         League       @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id])
+  rosterSpots    RosterSpot[]
+  homeMatchups   Matchup[]    @relation("HomeTeam")
+  awayMatchups   Matchup[]    @relation("AwayTeam")
+  draftPicks     DraftPick[]
+  proposedTrades Trade[]      @relation("ProposedTrades")
+  receivedTrades Trade[]      @relation("ReceivedTrades")
+  tradeVetoes    TradeVeto[]  @relation("TradeVetoes")
 
   @@unique([leagueId, userId])
 }
 
 model Artist {
-  id             String   @id @default(cuid())
-  name           String
-  primaryGenre   String
-  imageUrl       String?
-  spotifyId      String?
-  appleMusicId   String?
-  appleArtistId   BigInt?  @unique
-  createdAt       DateTime @default(now())
+  id              String    @id @default(cuid())
+  name            String
+  primaryGenre    String
+  imageUrl        String?
+  spotifyId       String?
+  appleMusicId    String?
+  appleArtistId   BigInt?   @unique
+  createdAt       DateTime  @default(now())
   genreEnrichedAt DateTime?
 
   weeklyScores      WeeklyScore[]
@@ -93,6 +97,7 @@ model Artist {
   draftPicks        DraftPick[]
   chartEntries      ChartEntry[]
   albumChartEntries AlbumChartEntry[]
+  tradeItems        TradeItem[]
 }
 
 model ChartEntry {
@@ -140,38 +145,38 @@ model RosterSpot {
 }
 
 model WeeklyScore {
-  id                  String   @id @default(cuid())
+  id                  String  @id @default(cuid())
   artistId            String
   week                Int
   seasonYear          Int
-  streamingPoints     Float    @default(0)
-  chartPositionPoints Float    @default(0)
-  chartMovementPoints Float    @default(0)
-  longevityPoints     Float    @default(0)
-  totalPoints         Float    @default(0)
-  weeklyStreams        BigInt?
+  streamingPoints     Float   @default(0)
+  chartPositionPoints Float   @default(0)
+  chartMovementPoints Float   @default(0)
+  longevityPoints     Float   @default(0)
+  totalPoints         Float   @default(0)
+  weeklyStreams       BigInt?
   bestChartPosition   Int?
   chartMovement       Int?
-  isFinalized         Boolean  @default(false)
+  isFinalized         Boolean @default(false)
   dataMissing         String?
 
   // Per-signal breakdown, captured at scoring time so past weeks can show
   // why an artist scored what they did (not just the combined totals above).
   songRank            Int?
   songTitle           String?
-  songPositionPoints  Float    @default(0)
+  songPositionPoints  Float   @default(0)
   songMovement        Int?
-  songMovementPoints  Float    @default(0)
-  songIsDebut         Boolean  @default(false)
+  songMovementPoints  Float   @default(0)
+  songIsDebut         Boolean @default(false)
   albumRank           Int?
   albumTitle          String?
-  albumPositionPoints Float    @default(0)
+  albumPositionPoints Float   @default(0)
   albumMovement       Int?
-  albumMovementPoints Float    @default(0)
-  albumIsDebut        Boolean  @default(false)
+  albumMovementPoints Float   @default(0)
+  albumIsDebut        Boolean @default(false)
 
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   artist Artist @relation(fields: [artistId], references: [id])
 
@@ -179,16 +184,16 @@ model WeeklyScore {
 }
 
 model Matchup {
-  id          String  @id @default(cuid())
+  id          String   @id @default(cuid())
   leagueId    String
   week        Int
   homeTeamId  String
   awayTeamId  String
-  homeScore   Float   @default(0)
-  awayScore   Float   @default(0)
+  homeScore   Float    @default(0)
+  awayScore   Float    @default(0)
   winnerId    String?
-  isFinalized Boolean @default(false)
-  matchupType String  @default("regular") // regular | semifinal | championship | third_place | consolation_semifinal | fifth_place | seventh_place
+  isFinalized Boolean  @default(false)
+  matchupType String   @default("regular") // regular | semifinal | championship | third_place | consolation_semifinal | fifth_place | seventh_place
   homeSeed    Int?
   awaySeed    Int?
   createdAt   DateTime @default(now())
@@ -202,15 +207,15 @@ model Matchup {
 }
 
 model DraftPick {
-  id         String   @id @default(cuid())
-  leagueId   String
-  teamId     String
-  artistId   String
-  round      Int
-  pickNumber Int
-  slot       String
-  isAutoDraft Boolean @default(false)
-  pickedAt   DateTime @default(now())
+  id          String   @id @default(cuid())
+  leagueId    String
+  teamId      String
+  artistId    String
+  round       Int
+  pickNumber  Int
+  slot        String
+  isAutoDraft Boolean  @default(false)
+  pickedAt    DateTime @default(now())
 
   league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   team   Team   @relation(fields: [teamId], references: [id])
@@ -220,24 +225,70 @@ model DraftPick {
 }
 
 model DraftState {
-  id           String   @id @default(cuid())
-  leagueId     String   @unique
-  currentPick  Int      @default(0)
-  pickOrder    String[]
-  timerEndsAt  DateTime?
-  isComplete   Boolean  @default(false)
-  updatedAt    DateTime @updatedAt
+  id          String    @id @default(cuid())
+  leagueId    String    @unique
+  currentPick Int       @default(0)
+  pickOrder   String[]
+  timerEndsAt DateTime?
+  isComplete  Boolean   @default(false)
+  updatedAt   DateTime  @updatedAt
 
   league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
 }
 
 model GenreStreamingTier {
-  id         String @id @default(cuid())
+  id         String  @id @default(cuid())
   genre      String
-  minStreams  BigInt
-  maxStreams  BigInt?
+  minStreams BigInt
+  maxStreams BigInt?
   points     Int
   sortOrder  Int
 
   @@index([genre, sortOrder])
+}
+
+model Trade {
+  id             String    @id @default(cuid())
+  leagueId       String
+  proposerTeamId String
+  receiverTeamId String
+  status         String    @default("pending") // pending | accepted | rejected | cancelled | vetoed | executed | failed
+  acceptedAt     DateTime?
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  league       League      @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  proposerTeam Team        @relation("ProposedTrades", fields: [proposerTeamId], references: [id], onDelete: Cascade)
+  receiverTeam Team        @relation("ReceivedTrades", fields: [receiverTeamId], references: [id], onDelete: Cascade)
+  items        TradeItem[]
+  vetoes       TradeVeto[]
+
+  @@index([leagueId, status])
+}
+
+model TradeItem {
+  id         String  @id @default(cuid())
+  tradeId    String
+  artistId   String
+  fromTeamId String
+  toTeamId   String? // null = dropped to free agency
+
+  trade  Trade  @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  artist Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  @@unique([tradeId, artistId])
+  @@index([artistId])
+}
+
+model TradeVeto {
+  id        String   @id @default(cuid())
+  tradeId   String
+  teamId    String
+  createdAt DateTime @default(now())
+
+  trade Trade @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  team  Team  @relation("TradeVetoes", fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([tradeId, teamId])
 }

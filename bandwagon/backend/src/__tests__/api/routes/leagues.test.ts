@@ -6,6 +6,7 @@ vi.mock('../../../db/prisma', () => ({
     league: { findUnique: vi.fn() },
     artist: { findUnique: vi.fn() },
     rosterSpot: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
+    tradeItem: { findMany: vi.fn().mockResolvedValue([]) },
   },
 }));
 

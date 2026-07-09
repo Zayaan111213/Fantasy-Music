@@ -155,6 +155,49 @@ export interface LeagueMatchup {
   awayTeam: { id: string; name: string; logoUrl: string | null };
 }
 
+export interface TradeArtist {
+  id: string;
+  name: string;
+  primaryGenre: string;
+  imageUrl: string | null;
+}
+
+export interface TradeItemView {
+  id: string;
+  artistId: string;
+  fromTeamId: string;
+  toTeamId: string | null; // null = dropped to free agency
+  artist: TradeArtist;
+}
+
+export interface TradeView {
+  id: string;
+  status: string; // pending | accepted | rejected | cancelled | vetoed | executed | failed
+  createdAt: string;
+  acceptedAt: string | null;
+  resolvedAt: string | null;
+  proposerTeam: { id: string; name: string };
+  receiverTeam: { id: string; name: string };
+  items: TradeItemView[];
+  vetoCount: number;
+  myVetoed: boolean;
+}
+
+export interface TradesResponse {
+  myTeamId: string;
+  vetoesNeeded: number;
+  tradingClosed: string | null;
+  trades: TradeView[];
+}
+
+export interface TeamWithRoster {
+  id: string;
+  name: string;
+  logoUrl: string | null;
+  userId: string;
+  rosterSpots: { slot: string; artist: TradeArtist | null }[];
+}
+
 export interface StandingsEntry {
   rank: number;
   teamId: string;

@@ -9,6 +9,9 @@ import { uploadTeamLogo } from '../middleware/upload';
 import { ScoringConfigSchema } from '../../scoring/tiers';
 import { applyCustomScoringToWeeklyScore } from '../../scoring/engine';
 import { buildWeek11Matchups } from '../../playoffs/bracket';
+// Circular with trades/engine (which imports artistEligibleForSlot from here);
+// safe because both sides only reference the other's exports at call time.
+import { lockedArtistIds } from '../../trades/engine';
 
 const router = Router();
 
@@ -939,6 +942,10 @@ export async function claimFreeAgent(
   });
   if (!dropSpot) return { error: 'Invalid slot', status: 400 };
   if (!dropSpot.artistId) return { error: 'That slot is already empty', status: 400 };
+  const locked = await lockedArtistIds(leagueId);
+  if (locked.has(dropSpot.artistId)) {
+    return { error: `${dropSpot.artist?.name ?? 'That player'} is locked in an accepted trade`, status: 400 };
+  }
 
   if (!artistEligibleForSlot(artist.primaryGenre, dropSlot)) {
     return { error: `${artist.name} is not eligible for the ${dropSlot} slot`, status: 400 };
