@@ -58,6 +58,7 @@ vi.mock('../../../db/prisma', () => {
     draftState: { update: vi.fn() },
     team: { findMany: vi.fn() },
     matchup: { createMany: vi.fn() },
+    leagueEvent: { create: vi.fn() },
     $transaction: vi.fn(),
   };
   return { prisma: prismaMock };

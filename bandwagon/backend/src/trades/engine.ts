@@ -1,5 +1,6 @@
 import { prisma } from '../db/prisma';
 import { artistEligibleForSlot } from '../api/routes/leagues';
+import { logLeagueEvent } from '../events/leagueEvents';
 
 // Trades may be proposed/accepted through the end of week 7; accepted trades
 // execute at the weekly finalize (Monday ~00:01 PT = end of the Sunday scoring
@@ -147,6 +148,7 @@ export function sidesFromItems(
 
 async function notifyTeams(
   db: { team: { findMany: (args: any) => Promise<{ userId: string }[]> }; notification: { createMany: (args: any) => Promise<unknown> } },
+  leagueId: string,
   teamIds: string[],
   type: string,
   message: string,
@@ -154,7 +156,7 @@ async function notifyTeams(
   const teams = await db.team.findMany({ where: { id: { in: teamIds } }, select: { userId: true } });
   if (teams.length === 0) return;
   await db.notification.createMany({
-    data: teams.map((t) => ({ userId: t.userId, type, message })),
+    data: teams.map((t) => ({ userId: t.userId, leagueId, type, message })),
   });
 }
 
@@ -208,7 +210,13 @@ export async function executeAcceptedTrades(leagueId: string): Promise<void> {
           }
         }
 
-        await notifyTeams(tx as any, teamIds, 'trade_executed', `Trade executed: ${label}. Check your roster.`);
+        await notifyTeams(tx as any, leagueId, teamIds, 'trade_executed', `Trade executed: ${label}. Check your roster.`);
+        const moves = trade.items
+          .map((i) => (i.toTeamId === null
+            ? `${i.artist.name} to free agency`
+            : `${i.artist.name} to ${i.toTeamId === trade.proposerTeamId ? trade.proposerTeam.name : trade.receiverTeam.name}`))
+          .join(', ');
+        await logLeagueEvent(tx, leagueId, 'trade_executed', `Trade executed: ${label} — ${moves}`);
         console.log(`[trades] executed trade ${trade.id} (${label})`);
       });
     } catch (err) {
@@ -217,7 +225,7 @@ export async function executeAcceptedTrades(leagueId: string): Promise<void> {
           where: { id: trade.id, status: 'accepted' },
           data: { status: 'failed', resolvedAt: new Date() },
         });
-        await notifyTeams(prisma as any, teamIds, 'trade_failed', `Trade ${label} could not be executed: ${err.message}.`);
+        await notifyTeams(prisma as any, leagueId, teamIds, 'trade_failed', `Trade ${label} could not be executed: ${err.message}.`);
         console.warn(`[trades] trade ${trade.id} failed: ${err.message}`);
       } else {
         throw err;
@@ -241,7 +249,7 @@ export async function cancelPendingTradesAtDeadline(leagueId: string): Promise<v
   if (count === 0) return;
 
   const teamIds = [...new Set(pending.flatMap((t) => [t.proposerTeamId, t.receiverTeamId]))];
-  await notifyTeams(prisma as any, teamIds, 'trade_cancelled', 'A pending trade was cancelled: the trade deadline (end of week 7) has passed.');
+  await notifyTeams(prisma as any, leagueId, teamIds, 'trade_cancelled', 'A pending trade was cancelled: the trade deadline (end of week 7) has passed.');
   console.log(`[trades] league ${leagueId} — cancelled ${count} pending trade(s) at the deadline`);
 }
 

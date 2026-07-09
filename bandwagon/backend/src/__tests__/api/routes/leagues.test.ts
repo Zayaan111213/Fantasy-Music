@@ -7,6 +7,7 @@ vi.mock('../../../db/prisma', () => ({
     artist: { findUnique: vi.fn() },
     rosterSpot: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     tradeItem: { findMany: vi.fn().mockResolvedValue([]) },
+    leagueEvent: { create: vi.fn() },
   },
 }));
 
@@ -20,6 +21,7 @@ const pm = prisma as unknown as {
     findUnique: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
   };
+  leagueEvent: { create: ReturnType<typeof vi.fn> };
 };
 
 // All draft times use 19:00 UTC = noon PT (PDT, UTC-7) to avoid date-boundary ambiguity.
@@ -171,7 +173,7 @@ describe('artistEligibleForSlot', () => {
 const LEAGUE = {
   id: 'league-1',
   status: 'active',
-  teams: [{ id: 'team-1', userId: 'user-1' }],
+  teams: [{ id: 'team-1', userId: 'user-1', name: 'Chart Chasers' }],
 };
 
 const ARTIST_POP = { id: 'artist-pop', name: 'Pop Star', primaryGenre: 'Pop' };
@@ -186,7 +188,7 @@ describe('claimFreeAgent', () => {
     pm.league.findUnique.mockResolvedValue(LEAGUE);
     pm.artist.findUnique.mockResolvedValue(ARTIST_POP);
     pm.rosterSpot.findFirst.mockResolvedValue(null); // not rostered
-    pm.rosterSpot.findUnique.mockResolvedValue({ id: 'spot-1', artistId: 'old-artist', artist: null });
+    pm.rosterSpot.findUnique.mockResolvedValue({ id: 'spot-1', artistId: 'old-artist', artist: { name: 'Old Timer' } });
     pm.rosterSpot.update.mockResolvedValue({});
 
     const result = await claimFreeAgent('league-1', 'user-1', 'artist-pop', 'Pop');
@@ -195,6 +197,13 @@ describe('claimFreeAgent', () => {
     expect(pm.rosterSpot.update).toHaveBeenCalledWith({
       where: { id: 'spot-1' },
       data: { artistId: 'artist-pop' },
+    });
+    expect(pm.leagueEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        leagueId: 'league-1',
+        type: 'claim',
+        message: 'Chart Chasers added Pop Star, dropped Old Timer',
+      }),
     });
   });
 

@@ -22,7 +22,9 @@ vi.mock('../../db/prisma', () => ({
       update:     vi.fn(),
       createMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
-    team:    { update: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
+    team:    { update: vi.fn(), findMany: vi.fn().mockResolvedValue([]), findUnique: vi.fn().mockResolvedValue(null) },
+    notification: { createMany: vi.fn() },
+    leagueEvent:  { create: vi.fn() },
     $disconnect: vi.fn().mockResolvedValue(undefined),
   },
 }));
@@ -193,6 +195,90 @@ describe('finalizeLeagueWeek', () => {
         where: { id: 'league1', status: { not: 'complete' } },
         data: { status: 'complete' },
       })
+    );
+  });
+
+  it('emits a week_result feed event per matchup with team names', async () => {
+    vi.mocked(prisma.leagueEvent.create).mockClear();
+    vi.mocked(prisma.matchup.updateMany).mockResolvedValueOnce({ count: 1 } as never);
+    vi.mocked(prisma.team.findMany).mockResolvedValueOnce([
+      { id: 'h', name: 'Heavy Hitters' },
+      { id: 'a', name: 'Airwaves' },
+    ] as never);
+    vi.mocked(prisma.matchup.findMany).mockResolvedValueOnce([{
+      id: 'm1', homeTeamId: 'h', awayTeamId: 'a',
+      homeScore: 100, awayScore: 80,
+      matchupType: 'regular', homeSeed: null, awaySeed: null,
+    }] as never);
+
+    await finalizeLeagueWeek('league1', 1, 2026);
+
+    expect(prisma.leagueEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        leagueId: 'league1',
+        type: 'week_result',
+        message: 'Week 1 final: Heavy Hitters 100 — Airwaves 80 · Heavy Hitters wins',
+      }),
+    });
+  });
+
+  it('emits no feed events on the already-finalized (count = 0) path', async () => {
+    vi.mocked(prisma.leagueEvent.create).mockClear();
+    // matchup.updateMany default returns { count: 0 }
+    await finalizeLeagueWeek('league1', 1, 2026);
+    expect(prisma.leagueEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('sends league-scoped lineup reminders to every member when the week advances', async () => {
+    vi.mocked(prisma.notification.createMany).mockClear();
+    vi.mocked(prisma.matchup.updateMany).mockResolvedValueOnce({ count: 1 } as never);
+    vi.mocked(prisma.matchup.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.team.findMany)
+      .mockResolvedValueOnce([] as never) // recap name lookup
+      .mockResolvedValueOnce([{ userId: 'u1' }, { userId: 'u2' }] as never); // members
+
+    await finalizeLeagueWeek('league1', 1, 2026);
+
+    expect(prisma.notification.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({ userId: 'u1', leagueId: 'league1', type: 'lineup_reminder' }),
+        expect.objectContaining({ userId: 'u2', leagueId: 'league1', type: 'lineup_reminder' }),
+      ],
+    });
+  });
+
+  it('skips lineup reminders when the week does not advance (monotonic guard)', async () => {
+    vi.mocked(prisma.notification.createMany).mockClear();
+    vi.mocked(prisma.matchup.updateMany).mockResolvedValueOnce({ count: 1 } as never);
+    vi.mocked(prisma.matchup.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.league.updateMany).mockResolvedValueOnce({ count: 0 } as never);
+
+    await finalizeLeagueWeek('league1', 1, 2026);
+
+    expect(prisma.notification.createMany).not.toHaveBeenCalled();
+  });
+
+  it('announces the champion when the season completes', async () => {
+    vi.mocked(prisma.leagueEvent.create).mockClear();
+    vi.mocked(prisma.matchup.updateMany).mockResolvedValueOnce({ count: 1 } as never);
+    vi.mocked(prisma.matchup.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.matchup.findFirst).mockResolvedValueOnce({ winnerId: 'h' } as never);
+    vi.mocked(prisma.team.findUnique).mockResolvedValueOnce({ name: 'Heavy Hitters' } as never);
+
+    await finalizeLeagueWeek('league1', 12, 2026);
+
+    expect(prisma.leagueEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        leagueId: 'league1',
+        type: 'season_complete',
+        message: '🏆 Heavy Hitters wins the championship! The season is complete.',
+      }),
+    });
+    // Season is over — no lineup reminder
+    expect(prisma.notification.createMany).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.arrayContaining([expect.objectContaining({ type: 'lineup_reminder' })]),
+      }),
     );
   });
 });

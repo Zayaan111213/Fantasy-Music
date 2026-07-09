@@ -9,6 +9,7 @@ import {
   validateTradeOutcome,
   TRADE_DEADLINE_WEEK,
 } from '../../trades/engine';
+import { logLeagueEvent } from '../../events/leagueEvents';
 
 const router = Router();
 
@@ -218,6 +219,7 @@ router.post('/:id/trades', requireAuth, async (req: AuthRequest, res, next) => {
       await tx.notification.createMany({
         data: [{
           userId: toTeam.userId,
+          leagueId: req.params.id,
           type: 'trade_proposed',
           message: `${myTeam.name} proposed a trade: ${giveNames} for your ${receiveNames}. Review it in My Team → Trades.`,
         }],
@@ -268,6 +270,7 @@ router.post('/:id/trades/:tradeId/accept', requireAuth, async (req: AuthRequest,
       await prisma.notification.createMany({
         data: [{
           userId: trade.proposerTeam.userId,
+          leagueId: req.params.id,
           type: 'trade_cancelled',
           message: `Your trade proposal to ${myTeam.name} was cancelled — a player in it is no longer on the expected roster.`,
         }],
@@ -325,16 +328,24 @@ router.post('/:id/trades/:tradeId/accept', requireAuth, async (req: AuthRequest,
         data: [
           {
             userId: trade.proposerTeam.userId,
+            leagueId: req.params.id,
             type: 'trade_accepted',
             message: `${myTeam.name} accepted your trade. It executes at the end of the scoring week (Sunday night) unless vetoed.`,
           },
           ...nonInvolved.map((t) => ({
             userId: t.userId,
+            leagueId: req.params.id,
             type: 'trade_accepted',
             message: `Trade accepted in your league: ${trade.proposerTeam.name} ↔ ${myTeam.name}. You can veto it in My Team → Trades before Sunday night (unanimous veto required).`,
           })),
         ],
       });
+      await logLeagueEvent(
+        tx,
+        req.params.id,
+        'trade_accepted',
+        `Trade accepted: ${trade.proposerTeam.name} ↔ ${myTeam.name} — executes Sunday night unless vetoed`,
+      );
       return true;
     });
     if (!accepted) { res.status(409).json({ error: 'This trade is no longer pending' }); return; }
@@ -366,7 +377,7 @@ router.post('/:id/trades/:tradeId/reject', requireAuth, async (req: AuthRequest,
     if (count === 0) { res.status(409).json({ error: 'This trade is no longer pending' }); return; }
 
     await prisma.notification.createMany({
-      data: [{ userId: trade.proposerTeam.userId, type: 'trade_rejected', message: `${myTeam.name} rejected your trade proposal.` }],
+      data: [{ userId: trade.proposerTeam.userId, leagueId: req.params.id, type: 'trade_rejected', message: `${myTeam.name} rejected your trade proposal.` }],
     });
     res.json({ id: trade.id, status: 'rejected' });
   } catch (err) {
@@ -395,7 +406,7 @@ router.post('/:id/trades/:tradeId/cancel', requireAuth, async (req: AuthRequest,
     if (count === 0) { res.status(409).json({ error: 'This trade is no longer pending' }); return; }
 
     await prisma.notification.createMany({
-      data: [{ userId: trade.receiverTeam.userId, type: 'trade_cancelled', message: `${myTeam.name} cancelled their trade proposal.` }],
+      data: [{ userId: trade.receiverTeam.userId, leagueId: req.params.id, type: 'trade_cancelled', message: `${myTeam.name} cancelled their trade proposal.` }],
     });
     res.json({ id: trade.id, status: 'cancelled' });
   } catch (err) {
@@ -448,10 +459,17 @@ router.post('/:id/trades/:tradeId/veto', requireAuth, async (req: AuthRequest, r
         await prisma.notification.createMany({
           data: [trade.proposerTeam.userId, trade.receiverTeam.userId].map((userId) => ({
             userId,
+            leagueId: req.params.id,
             type: 'trade_vetoed',
             message: `The trade ${trade.proposerTeam.name} ↔ ${trade.receiverTeam.name} was vetoed unanimously by the rest of the league.`,
           })),
         });
+        await logLeagueEvent(
+          prisma,
+          req.params.id,
+          'trade_vetoed',
+          `Trade vetoed: ${trade.proposerTeam.name} ↔ ${trade.receiverTeam.name} was struck down unanimously by the league`,
+        );
       }
     }
 

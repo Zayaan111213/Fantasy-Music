@@ -14,6 +14,7 @@ vi.mock('../../../db/prisma', () => ({
     tradeItem: { findMany: vi.fn(), createMany: vi.fn() },
     tradeVeto: { create: vi.fn(), count: vi.fn() },
     notification: { createMany: vi.fn() },
+    leagueEvent: { create: vi.fn() },
     $transaction: vi.fn(),
   },
 }));
@@ -220,11 +221,18 @@ describe('POST /leagues/:id/trades/:tradeId/accept', () => {
     const res = await request(app).post('/leagues/l1/trades/t1/accept').send({});
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('accepted');
-    const notified = pm.notification.createMany.mock.calls[0][0].data.map((n: any) => n.userId);
+    const notifiedRows = pm.notification.createMany.mock.calls[0][0].data;
+    const notified = notifiedRows.map((n: any) => n.userId);
     expect(notified).toContain('user-2'); // proposer
     expect(notified).toContain('user-3'); // non-involved
     expect(notified).toContain('user-4');
     expect(notified).not.toContain('user-1');
+    // Every personal notification is league-scoped for the activity feed
+    expect(notifiedRows.every((n: any) => n.leagueId === 'l1')).toBe(true);
+    // And the acceptance lands on the league-wide feed
+    expect(pm.leagueEvent.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ leagueId: 'l1', type: 'trade_accepted' }),
+    }));
   });
 });
 
@@ -279,7 +287,10 @@ describe('POST /leagues/:id/trades/:tradeId/veto', () => {
       data: expect.objectContaining({ status: 'vetoed' }),
     }));
     expect(pm.notification.createMany).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.arrayContaining([expect.objectContaining({ type: 'trade_vetoed' })]),
+      data: expect.arrayContaining([expect.objectContaining({ type: 'trade_vetoed', leagueId: 'l1' })]),
+    }));
+    expect(pm.leagueEvent.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ leagueId: 'l1', type: 'trade_vetoed' }),
     }));
   });
 });

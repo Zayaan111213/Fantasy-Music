@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Music2, ChevronLeft, Trophy, Users, Settings, Swords, Search, ArrowUpDown, User, Pencil, X, Check, Lock, ChevronRight, ChevronDown, ArrowLeftRight } from 'lucide-react';
+import { Music2, ChevronLeft, Trophy, Users, Settings, Swords, Search, ArrowUpDown, User, Pencil, X, Check, Lock, ChevronRight, ChevronDown, ArrowLeftRight, Bell, UserPlus, AlarmClock, Mail, Sparkles } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/ui/Card';
@@ -10,9 +10,9 @@ import { Avatar } from '../components/ui/Avatar';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
 import { TradesSection } from '../components/TradesSection';
-import type { Bracket, BracketMatchup, League, LeagueMatchup, Matchup, StandingsEntry, PlayerEntry, RosterSpot, Team, TeamWithRoster } from '../api/types';
+import type { ActivityFeed, ActivityItem, Bracket, BracketMatchup, League, LeagueMatchup, Matchup, StandingsEntry, PlayerEntry, RosterSpot, Team, TeamWithRoster } from '../api/types';
 
-type Tab = 'myteam' | 'matchup' | 'standings' | 'players' | 'settings';
+type Tab = 'myteam' | 'matchup' | 'standings' | 'players' | 'notifications' | 'settings';
 
 const ALL_STARTER_SLOTS = ['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country', 'Other', 'Flex'];
 const ALL_BENCH_SLOTS = ['Bench-1', 'Bench-2', 'Bench-3'];
@@ -1841,6 +1841,95 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League })
   );
 }
 
+const ACTIVITY_ICONS: Record<string, ReactNode> = {
+  claim: <UserPlus className="w-4 h-4 text-emerald-400" />,
+  member_joined: <UserPlus className="w-4 h-4 text-indigo-400" />,
+  trade_proposed: <Mail className="w-4 h-4 text-indigo-400" />,
+  trade_accepted: <ArrowLeftRight className="w-4 h-4 text-amber-400" />,
+  trade_executed: <ArrowLeftRight className="w-4 h-4 text-emerald-400" />,
+  trade_vetoed: <ArrowLeftRight className="w-4 h-4 text-red-400" />,
+  trade_rejected: <ArrowLeftRight className="w-4 h-4 text-red-400" />,
+  trade_cancelled: <ArrowLeftRight className="w-4 h-4 text-gray-400" />,
+  trade_failed: <ArrowLeftRight className="w-4 h-4 text-red-400" />,
+  week_result: <Trophy className="w-4 h-4 text-amber-400" />,
+  playoffs_set: <Trophy className="w-4 h-4 text-indigo-400" />,
+  season_complete: <Trophy className="w-4 h-4 text-amber-400" />,
+  lineup_reminder: <AlarmClock className="w-4 h-4 text-indigo-400" />,
+  draft_complete: <Sparkles className="w-4 h-4 text-indigo-400" />,
+};
+
+function timeAgo(iso: string): string {
+  const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function NotificationsTab({ leagueId }: { leagueId: string }) {
+  const queryClient = useQueryClient();
+  const { data: feed, isLoading } = useQuery({
+    queryKey: ['activity', leagueId],
+    queryFn: () => api.get<ActivityFeed>(`/leagues/${leagueId}/activity`),
+  });
+
+  const markSeen = useMutation({
+    mutationFn: () => api.post(`/leagues/${leagueId}/notifications/seen`, {}),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['activity', leagueId] }),
+  });
+
+  // Clear the badge whenever unseen items are showing (covers items that
+  // arrive via the poll while the tab is already open).
+  const unseenCount = feed?.unseenCount ?? 0;
+  const { mutate: markSeenMutate, isPending: markSeenPending } = markSeen;
+  useEffect(() => {
+    if (unseenCount > 0 && !markSeenPending) markSeenMutate();
+  }, [unseenCount, markSeenPending, markSeenMutate]);
+
+  if (isLoading) return <div className="flex justify-center py-12"><Spinner className="w-6 h-6" /></div>;
+
+  const items = feed?.items ?? [];
+  if (items.length === 0) {
+    return (
+      <Card className="p-10 flex flex-col items-center gap-3 text-center">
+        <Bell className="w-8 h-8 text-gray-600" />
+        <p className="text-gray-400 text-sm">Nothing yet — league activity will show up here.</p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="divide-y divide-white/5">
+      {items.map((item: ActivityItem) => (
+        <div
+          key={`${item.kind}-${item.id}`}
+          className={`flex items-start gap-3 px-4 py-3 ${
+            item.kind === 'personal' ? 'bg-indigo-500/5 border-l-2 border-indigo-500' : ''
+          }`}
+        >
+          <div className="mt-0.5 shrink-0">{ACTIVITY_ICONS[item.type] ?? <Bell className="w-4 h-4 text-gray-400" />}</div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-gray-200">{item.message}</p>
+            {item.kind === 'personal' && item.type === 'trade_proposed' && (
+              <Link to={`/leagues/${leagueId}/trade`} className="text-xs text-indigo-400 hover:text-indigo-300">
+                View offer →
+              </Link>
+            )}
+          </div>
+          <div className="shrink-0 flex items-center gap-2">
+            {item.kind === 'personal' && <Badge className="text-[10px]">For you</Badge>}
+            <span className="text-xs text-gray-500 whitespace-nowrap">{timeAgo(item.createdAt)}</span>
+          </div>
+        </div>
+      ))}
+    </Card>
+  );
+}
+
 export function LeagueHub() {
   const { id } = useParams<{ id: string }>();
   const [tab, setTab] = useState<Tab>('myteam');
@@ -1853,6 +1942,17 @@ export function LeagueHub() {
     refetchInterval: (query) => { const d = query.state.data; return (!d || d.status === 'pending' || d.status === 'pre_draft') ? 5000 : false; },
   });
 
+  // Shared with NotificationsTab via the query cache; polled so the unseen
+  // badge appears without a page reload.
+  const { data: activityFeed } = useQuery({
+    queryKey: ['activity', id],
+    queryFn: () => api.get<ActivityFeed>(`/leagues/${id}/activity`),
+    refetchInterval: 45_000,
+    enabled: !!id,
+    retry: false,
+  });
+  const unseenCount = activityFeed?.unseenCount ?? 0;
+
   if (isLoading) return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><Spinner className="w-8 h-8" /></div>;
   if (!league) return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-400">League not found</div>;
 
@@ -1864,6 +1964,7 @@ export function LeagueHub() {
     { id: 'matchup', label: 'Matchup', icon: <Swords className="w-4 h-4" /> },
     { id: 'standings', label: 'Standings', icon: <Trophy className="w-4 h-4" /> },
     { id: 'players', label: 'Players', icon: <Users className="w-4 h-4" /> },
+    { id: 'notifications', label: 'Notifications', icon: <Bell className="w-4 h-4" /> },
     { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> },
   ];
 
@@ -1907,6 +2008,11 @@ export function LeagueHub() {
               >
                 {t.icon}
                 {t.label}
+                {t.id === 'notifications' && unseenCount > 0 && (
+                  <span className="ml-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-500 text-white text-[11px] font-semibold flex items-center justify-center">
+                    {unseenCount}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -1924,6 +2030,7 @@ export function LeagueHub() {
             onProposeTrade={(_teamId, artistId) => navigate(`/leagues/${id}/trade?artistId=${artistId}`)}
           />
         )}
+        {tab === 'notifications' && <NotificationsTab leagueId={id!} />}
         {tab === 'settings' && <SettingsTab leagueId={id!} league={league} />}
       </main>
     </div>
