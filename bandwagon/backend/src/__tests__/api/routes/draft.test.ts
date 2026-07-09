@@ -56,7 +56,7 @@ vi.mock('../../../db/prisma', () => {
     artist: { findUnique: vi.fn() },
     rosterSpot: { findUnique: vi.fn(), upsert: vi.fn() },
     draftState: { update: vi.fn() },
-    team: { findMany: vi.fn() },
+    team: { findMany: vi.fn(), update: vi.fn() },
     matchup: { createMany: vi.fn() },
     leagueEvent: { create: vi.fn() },
     $transaction: vi.fn(),
@@ -72,7 +72,7 @@ const prismaMock = prisma as unknown as {
   artist: { findUnique: ReturnType<typeof vi.fn> };
   rosterSpot: { findUnique: ReturnType<typeof vi.fn>; upsert: ReturnType<typeof vi.fn> };
   draftState: { update: ReturnType<typeof vi.fn> };
-  team: { findMany: ReturnType<typeof vi.fn> };
+  team: { findMany: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
   matchup: { createMany: ReturnType<typeof vi.fn> };
   $transaction: ReturnType<typeof vi.fn>;
 };
@@ -238,5 +238,9 @@ describe('makePick', () => {
 
     // Roster slot init: 1 pick upsert + 9 slots × 2 teams = 19 total
     expect(prismaMock.rosterSpot.upsert.mock.calls.length).toBeGreaterThanOrEqual(19);
+
+    // Waiver order seeded as reverse draft order: last pick gets priority 1
+    expect(prismaMock.team.update).toHaveBeenCalledWith({ where: { id: 't1' }, data: { waiverPriority: 2 } });
+    expect(prismaMock.team.update).toHaveBeenCalledWith({ where: { id: 't2' }, data: { waiverPriority: 1 } });
   });
 });

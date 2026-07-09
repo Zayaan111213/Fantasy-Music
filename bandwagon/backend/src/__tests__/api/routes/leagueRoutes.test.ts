@@ -84,7 +84,7 @@ describe('GET /leagues/:id/standings', () => {
     pm.league.findUnique.mockResolvedValue({ id: 'l1' });
     pm.team.findMany.mockResolvedValue([
       { id: 't1', name: 'The Squad', logoUrl: 'logo.png', userId: 'u1', wins: 5, losses: 3, pointsFor: 400,
-        user: { username: 'alice', avatarUrl: 'av.png' } },
+        waiverPriority: 2, user: { username: 'alice', avatarUrl: 'av.png' } },
     ]);
 
     const res = await request(app).get('/leagues/l1/standings');
@@ -93,7 +93,7 @@ describe('GET /leagues/:id/standings', () => {
     expect(entry).toMatchObject({
       rank: 1, teamId: 't1', teamName: 'The Squad', teamLogoUrl: 'logo.png',
       userId: 'u1', username: 'alice', avatarUrl: 'av.png',
-      wins: 5, losses: 3, pointsFor: 400,
+      wins: 5, losses: 3, pointsFor: 400, waiverPriority: 2,
     });
   });
 });

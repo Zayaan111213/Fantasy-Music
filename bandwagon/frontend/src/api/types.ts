@@ -209,6 +209,21 @@ export interface StandingsEntry {
   wins: number;
   losses: number;
   pointsFor: number;
+  waiverPriority: number;
+}
+
+export interface WaiverClaimEntry {
+  id: string;
+  dropSlot: string;
+  createdAt: string;
+  artist: { id: string; name: string; imageUrl: string | null; primaryGenre: string };
+  dropArtist: { id: string; name: string };
+}
+
+export interface WaiversResponse {
+  myTeamId: string;
+  waiverPosition: number;
+  claims: WaiverClaimEntry[];
 }
 
 export interface PlayerEntry {

@@ -7,6 +7,7 @@ import {
   REGULAR_SEASON_WEEKS,
 } from '../playoffs/bracket';
 import { runTradeFinalizeSteps } from '../trades/engine';
+import { resolveWaivers } from '../waivers/engine';
 import { logLeagueEvent } from '../events/leagueEvents';
 
 export async function bestArtistScore(teamId: string, week: number, year: number): Promise<number> {
@@ -59,6 +60,7 @@ export async function finalizeLeagueWeek(leagueId: string, week: number, year: n
     // trade/bracket/advance steps — re-run them (all idempotent) so the league
     // can't get stranded mid-boundary.
     await runTradeFinalizeSteps(leagueId, week);
+    await resolveWaivers(leagueId);
     if (week >= REGULAR_SEASON_WEEKS) await advanceSeason(leagueId, week);
     return;
   }
@@ -108,8 +110,11 @@ export async function finalizeLeagueWeek(leagueId: string, week: number, year: n
   }
 
   // End of the scoring week: execute accepted trades (and cancel stale
-  // proposals once the trade deadline passes) before the week advances.
+  // proposals once the trade deadline passes) before the week advances,
+  // then resolve waiver claims — trades first, so traded artists naturally
+  // invalidate stale claims.
   await runTradeFinalizeSteps(leagueId, week);
+  await resolveWaivers(leagueId);
 
   await advanceSeason(leagueId, week);
 }

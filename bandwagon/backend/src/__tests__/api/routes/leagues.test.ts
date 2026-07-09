@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { isLineupLocked, artistEligibleForSlot, claimFreeAgent } from '../../../api/routes/leagues';
+import { isLineupLocked, artistEligibleForSlot } from '../../../api/routes/leagues';
 
 vi.mock('../../../db/prisma', () => ({
   prisma: {
@@ -163,107 +163,5 @@ describe('artistEligibleForSlot', () => {
 
   it('Other slot rejects null genre', () => {
     expect(artistEligibleForSlot(null, 'Other')).toBe(false);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// claimFreeAgent — mocked Prisma
-// ---------------------------------------------------------------------------
-
-const LEAGUE = {
-  id: 'league-1',
-  status: 'active',
-  teams: [{ id: 'team-1', userId: 'user-1', name: 'Chart Chasers' }],
-};
-
-const ARTIST_POP = { id: 'artist-pop', name: 'Pop Star', primaryGenre: 'Pop' };
-const ARTIST_COUNTRY = { id: 'artist-country', name: 'Country Star', primaryGenre: 'Country' };
-
-beforeEach(() => {
-  vi.clearAllMocks();
-});
-
-describe('claimFreeAgent', () => {
-  it('happy path: swaps artist into the drop slot', async () => {
-    pm.league.findUnique.mockResolvedValue(LEAGUE);
-    pm.artist.findUnique.mockResolvedValue(ARTIST_POP);
-    pm.rosterSpot.findFirst.mockResolvedValue(null); // not rostered
-    pm.rosterSpot.findUnique.mockResolvedValue({ id: 'spot-1', artistId: 'old-artist', artist: { name: 'Old Timer' } });
-    pm.rosterSpot.update.mockResolvedValue({});
-
-    const result = await claimFreeAgent('league-1', 'user-1', 'artist-pop', 'Pop');
-
-    expect(result).toEqual({ success: true, slot: 'Pop', droppedArtistId: 'old-artist', addedArtistId: 'artist-pop' });
-    expect(pm.rosterSpot.update).toHaveBeenCalledWith({
-      where: { id: 'spot-1' },
-      data: { artistId: 'artist-pop' },
-    });
-    expect(pm.leagueEvent.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        leagueId: 'league-1',
-        type: 'claim',
-        message: 'Chart Chasers added Pop Star, dropped Old Timer',
-      }),
-    });
-  });
-
-  it('returns 404 when league not found', async () => {
-    pm.league.findUnique.mockResolvedValue(null);
-    const result = await claimFreeAgent('bad-league', 'user-1', 'artist-pop', 'Pop');
-    expect(result).toMatchObject({ error: 'League not found', status: 404 });
-  });
-
-  it('returns 403 when user is not in the league', async () => {
-    pm.league.findUnique.mockResolvedValue({ ...LEAGUE, teams: [] });
-    const result = await claimFreeAgent('league-1', 'user-9', 'artist-pop', 'Pop');
-    expect(result).toMatchObject({ error: 'You are not in this league', status: 403 });
-  });
-
-  it('returns 400 when league is not active', async () => {
-    pm.league.findUnique.mockResolvedValue({ ...LEAGUE, status: 'pending' });
-    const result = await claimFreeAgent('league-1', 'user-1', 'artist-pop', 'Pop');
-    expect(result).toMatchObject({ status: 400 });
-  });
-
-  it('returns 404 when artist not found', async () => {
-    pm.league.findUnique.mockResolvedValue(LEAGUE);
-    pm.artist.findUnique.mockResolvedValue(null);
-    const result = await claimFreeAgent('league-1', 'user-1', 'artist-pop', 'Pop');
-    expect(result).toMatchObject({ error: 'Artist not found', status: 404 });
-  });
-
-  it('returns 400 when artist is already rostered', async () => {
-    pm.league.findUnique.mockResolvedValue(LEAGUE);
-    pm.artist.findUnique.mockResolvedValue(ARTIST_POP);
-    pm.rosterSpot.findFirst.mockResolvedValue({ id: 'spot-x' }); // already rostered
-    const result = await claimFreeAgent('league-1', 'user-1', 'artist-pop', 'Pop');
-    expect(result).toMatchObject({ error: 'Pop Star is already on a roster', status: 400 });
-  });
-
-  it('returns 400 when drop slot does not exist', async () => {
-    pm.league.findUnique.mockResolvedValue(LEAGUE);
-    pm.artist.findUnique.mockResolvedValue(ARTIST_POP);
-    pm.rosterSpot.findFirst.mockResolvedValue(null);
-    pm.rosterSpot.findUnique.mockResolvedValue(null);
-    const result = await claimFreeAgent('league-1', 'user-1', 'artist-pop', 'Pop');
-    expect(result).toMatchObject({ error: 'Invalid slot', status: 400 });
-  });
-
-  it('returns 400 when drop slot is already empty', async () => {
-    pm.league.findUnique.mockResolvedValue(LEAGUE);
-    pm.artist.findUnique.mockResolvedValue(ARTIST_POP);
-    pm.rosterSpot.findFirst.mockResolvedValue(null);
-    pm.rosterSpot.findUnique.mockResolvedValue({ id: 'spot-1', artistId: null, artist: null });
-    const result = await claimFreeAgent('league-1', 'user-1', 'artist-pop', 'Pop');
-    expect(result).toMatchObject({ error: 'That slot is already empty', status: 400 });
-  });
-
-  it('returns 400 when artist genre does not match slot', async () => {
-    pm.league.findUnique.mockResolvedValue(LEAGUE);
-    pm.artist.findUnique.mockResolvedValue(ARTIST_COUNTRY);
-    pm.rosterSpot.findFirst.mockResolvedValue(null);
-    pm.rosterSpot.findUnique.mockResolvedValue({ id: 'spot-1', artistId: 'old-artist', artist: null });
-    const result = await claimFreeAgent('league-1', 'user-1', 'artist-country', 'Pop');
-    expect(result).toMatchObject({ error: 'Country Star is not eligible for the Pop slot', status: 400 });
   });
 });

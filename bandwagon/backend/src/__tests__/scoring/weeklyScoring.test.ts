@@ -25,6 +25,7 @@ vi.mock('../../db/prisma', () => ({
     leagueEvent:  { create: vi.fn() },
     rosterSpot:  { findMany: vi.fn().mockResolvedValue([]) },
     trade:       { findMany: vi.fn().mockResolvedValue([]), updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
+    waiverClaim: { findMany: vi.fn().mockResolvedValue([]) },
     tradeItem:   { findMany: vi.fn().mockResolvedValue([]) },
     $disconnect: vi.fn().mockResolvedValue(undefined),
   },

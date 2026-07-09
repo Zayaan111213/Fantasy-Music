@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { injectAuth } from '../helpers/auth';
-import { setupActiveLeague, teardownLeague, type ActiveLeagueFixture } from '../helpers/api';
+import { apiGet, apiPost, setupActiveLeague, teardownLeague, type ActiveLeagueFixture } from '../helpers/api';
 
-test.describe('Free agent claim', () => {
+test.describe('Waiver claims', () => {
   let fixture: ActiveLeagueFixture;
 
   test.beforeAll(async () => {
@@ -15,7 +15,7 @@ test.describe('Free agent claim', () => {
     ]);
   });
 
-  test('claims a free agent from the Players tab', async ({ browser: b }) => {
+  test('waiver claim from the Players tab: queued, then resolved at finalize', async ({ browser: b }) => {
     const ctx = await b.newContext();
     await injectAuth(ctx, fixture.user1.token);
     const page = await ctx.newPage();
@@ -31,33 +31,29 @@ test.describe('Free agent claim', () => {
     await freeAgentToggle.click();
 
     // Wait for the list to refresh and a Claim button to appear
-    const firstClaimButton = page.getByRole('button', { name: 'Claim' }).first();
+    const firstClaimButton = page.getByRole('button', { name: 'Claim', exact: true }).first();
     await expect(firstClaimButton).toBeVisible({ timeout: 10_000 });
 
     // Capture the artist name shown in the same row as the Claim button.
-    // The name is rendered as a <Link> (anchor), and the button's grandparent
-    // is the row's 12-column grid container.
     const artistRow = firstClaimButton.locator('../..').first();
     const artistNameBefore = await artistRow.locator('a').first().textContent();
+    const claimedName = artistNameBefore?.trim() ?? '';
+    expect(claimedName).not.toBe('');
 
-    // Click Claim — modal opens
+    // Click Claim — modal opens; waiver copy is shown
     await firstClaimButton.click();
-
-    // Modal header: "Claim {artistName}" and subtitle asking to pick a drop
-    await expect(page.getByText('Select a player to drop')).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('Select a player to drop · claims process Sunday night')).toBeVisible({ timeout: 5_000 });
 
     // Click the first eligible drop slot in the modal's scrollable section
-    // (scoped to the modal overlay so page-level scroll containers can't match)
     const dropScrollArea = page.locator('.fixed .overflow-y-auto').first();
     const firstDropOption = dropScrollArea.locator('button').first();
     await expect(firstDropOption).toBeVisible({ timeout: 5_000 });
     await firstDropOption.click();
 
-    // "Confirm Claim" button becomes enabled after selecting a drop slot
-    const confirmButton = page.getByRole('button', { name: 'Confirm Claim' });
+    // Submit becomes enabled after selecting a drop slot
+    const confirmButton = page.getByRole('button', { name: 'Submit Waiver Claim' });
     await expect(confirmButton).toBeEnabled({ timeout: 3_000 });
 
-    // Submit the claim and wait for both the POST and the following players re-fetch
     const [claimResponse] = await Promise.all([
       page.waitForResponse(
         (res) => res.url().includes('/roster/claim') && res.request().method() === 'POST',
@@ -65,19 +61,72 @@ test.describe('Free agent claim', () => {
       ),
       confirmButton.click(),
     ]);
-
     expect(claimResponse.status()).toBe(200);
 
-    // Modal should close after a successful claim
-    await expect(page.getByText('Select a player to drop')).not.toBeVisible({ timeout: 5_000 });
+    // Modal closes; NOTHING moves yet — the claim is queued:
+    await expect(page.getByText('Select a player to drop · claims process Sunday night')).not.toBeVisible({ timeout: 5_000 });
+    // Pending-claims card lists the artist with the user's waiver position
+    await expect(page.getByText('Pending waiver claims')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/Waiver position #1/)).toBeVisible();
+    // The artist row now shows the amber pending pill instead of a Claim button
+    await expect(page.getByText('Claimed', { exact: true }).first()).toBeVisible();
+    // And the artist is still in the free-agent list (roster unchanged until Sunday)
+    await expect(page.getByText(claimedName).first()).toBeVisible();
 
-    // The claimed artist should no longer show a "Claim" button in the free-agent list
-    // (it's now on a roster, so toggling free-agent filter back would hide it)
-    // Re-enable free-agent filter and confirm the artist is gone from the list
-    const claimedName = artistNameBefore?.trim();
-    if (claimedName) {
-      await expect(page.getByText(claimedName)).not.toBeVisible({ timeout: 10_000 });
-    }
+    // --- Sunday night: finalize the week; the claim resolves ---
+    await apiPost('', '/api/test/finalize-week', { leagueId: fixture.leagueId });
+
+    await page.reload();
+    await page.getByRole('button', { name: 'Players' }).click();
+    await expect(page.getByText('Free Agents Only')).toBeVisible({ timeout: 10_000 });
+    await page.getByText('Free Agents Only').click();
+
+    // Claim resolved: no pending card, artist no longer a free agent
+    await expect(page.getByText('Pending waiver claims')).not.toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('button', { name: 'Claim', exact: true }).first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(claimedName)).not.toBeVisible();
+
+    await ctx.close();
+  });
+
+  test('conflicting claims: higher waiver priority wins, loser is notified', async ({ browser: b }) => {
+    // Find a free agent both teams can legally claim into Bench-2.
+    const players = await apiGet<{ id: string; name: string; rosteredBy: unknown }[]>(
+      fixture.user1.token, `/api/leagues/${fixture.leagueId}/players`,
+    );
+    const target = players.find((p) => !p.rosteredBy)!;
+
+    // Team D (waiver priority 4) claims first; Team C (priority 3) claims later —
+    // priority beats submission order.
+    await apiPost(fixture.user4.token, `/api/leagues/${fixture.leagueId}/roster/claim`, {
+      artistId: target.id, dropSlot: 'Bench-2',
+    });
+    await apiPost(fixture.user3.token, `/api/leagues/${fixture.leagueId}/roster/claim`, {
+      artistId: target.id, dropSlot: 'Bench-2',
+    });
+
+    await apiPost('', '/api/test/finalize-week', { leagueId: fixture.leagueId });
+
+    // Team C won the artist
+    const teams = await apiGet<{ id: string; rosterSpots: { artist: { id: string } | null }[] }[]>(
+      fixture.user3.token, `/api/leagues/${fixture.leagueId}/teams-with-rosters`,
+    );
+    const teamC = teams.find((t) => t.id === fixture.team3Id)!;
+    expect(teamC.rosterSpots.some((s) => s.artist?.id === target.id)).toBe(true);
+
+    // Team D lost — sees the losing notification in the feed
+    const ctx = await b.newContext();
+    await injectAuth(ctx, fixture.user4.token);
+    const page = await ctx.newPage();
+    await page.goto(`/leagues/${fixture.leagueId}`);
+    await page.getByRole('button', { name: /Notifications/ }).click();
+    await expect(page.getByText(`waiver claim for ${target.name} was lost`, { exact: false })).toBeVisible({ timeout: 10_000 });
+
+    // Team C dropped to the bottom of the waiver order in the standings
+    await page.getByRole('button', { name: 'Standings' }).click();
+    await expect(page.getByText('Waiver', { exact: true })).toBeVisible({ timeout: 10_000 });
+    const cRow = page.locator('div.grid.grid-cols-12', { hasText: 'E2E Team C' }).last();
+    await expect(cRow.locator('> div').last()).toHaveText('4'); // waiver column is the last cell
 
     await ctx.close();
   });

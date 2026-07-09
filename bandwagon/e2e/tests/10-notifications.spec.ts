@@ -26,27 +26,6 @@ test.describe('League notifications tab', () => {
     await teardownLeague(fx.leagueId, [fx.user1.id, fx.user2.id, fx.user3.id, fx.user4.id]);
   });
 
-  test('free-agent claim shows up in the feed', async ({ browser }) => {
-    // Claim via the real API: any free agent fits a bench slot.
-    const players = await apiGet<{ id: string; name: string; rosteredBy: unknown }[]>(
-      fx.user1.token, `/api/leagues/${fx.leagueId}/players`,
-    );
-    const freeAgent = players.find((p) => !p.rosteredBy)!;
-    await apiPost(fx.user1.token, `/api/leagues/${fx.leagueId}/roster/claim`, {
-      artistId: freeAgent.id,
-      dropSlot: 'Bench-1',
-    });
-
-    const ctx = await browser.newContext();
-    await injectAuth(ctx, fx.user1.token);
-    const page = await ctx.newPage();
-    await page.goto(`/leagues/${fx.leagueId}`);
-    await page.getByRole('button', { name: /Notifications/ }).click();
-
-    await expect(page.getByText(`added ${freeAgent.name}`)).toBeVisible({ timeout: 10_000 });
-    await ctx.close();
-  });
-
   test('trade offer shows a badge, a "For you" item, and clears on open', async ({ browser }) => {
     // user1 proposes a 1-for-1 same-genre trade to user2.
     const mine = await rosterArtists(fx.user1.token, fx.leagueId, fx.team1Id);
@@ -76,17 +55,38 @@ test.describe('League notifications tab', () => {
     await ctx.close();
   });
 
-  test('week finalize produces recap events and a lineup reminder', async ({ browser }) => {
-    await apiPost('', '/api/test/finalize-week', { leagueId: fx.leagueId });
+  test('waiver claim resolves through the finalize into feed events and reminders', async ({ browser }) => {
+    // Queue a waiver claim via the real API: any free agent fits a bench slot.
+    const players = await apiGet<{ id: string; name: string; rosteredBy: unknown }[]>(
+      fx.user1.token, `/api/leagues/${fx.leagueId}/players`,
+    );
+    const freeAgent = players.find((p) => !p.rosteredBy)!;
+    await apiPost(fx.user1.token, `/api/leagues/${fx.leagueId}/roster/claim`, {
+      artistId: freeAgent.id,
+      dropSlot: 'Bench-1',
+    });
 
     const ctx = await browser.newContext();
     await injectAuth(ctx, fx.user1.token);
     const page = await ctx.newPage();
+
+    // Before the finalize, the claim produces no feed event — it's only queued.
     await page.goto(`/leagues/${fx.leagueId}`);
     await page.getByRole('button', { name: /Notifications/ }).click();
+    await expect(page.getByText('Nothing yet — league activity will show up here.')).toBeVisible({ timeout: 10_000 });
 
+    // Sunday night: the week finalizes, resolving the claim.
+    await apiPost('', '/api/test/finalize-week', { leagueId: fx.leagueId });
+
+    await page.reload();
+    await page.getByRole('button', { name: /Notifications/ }).click();
+
+    // Week recap + lineup reminder + waiver resolution, all in the feed
     await expect(page.getByText(/Week 1 final:/).first()).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText(/set your lineup/).first()).toBeVisible();
+    await expect(page.getByText(`E2E Team A claimed ${freeAgent.name} off waivers`, { exact: false })).toBeVisible();
+    await expect(page.getByText('Your waiver claim went through', { exact: false })).toBeVisible();
+    await expect(page.getByText('For you').first()).toBeVisible();
     await ctx.close();
   });
 });

@@ -9,10 +9,11 @@ import { uploadTeamLogo } from '../middleware/upload';
 import { ScoringConfigSchema } from '../../scoring/tiers';
 import { applyCustomScoringToWeeklyScore } from '../../scoring/engine';
 import { buildWeek11Matchups } from '../../playoffs/bracket';
-// Circular with trades/engine (which imports artistEligibleForSlot from here);
-// safe because both sides only reference the other's exports at call time.
-import { lockedArtistIds } from '../../trades/engine';
 import { logLeagueEvent } from '../../events/leagueEvents';
+// Circular with waivers/engine (which imports artistEligibleForSlot from here,
+// as does trades/engine); safe because both sides only reference the other's
+// exports at call time.
+import { submitWaiverClaim, cancelWaiverClaim } from '../../waivers/engine';
 
 const router = Router();
 
@@ -397,6 +398,7 @@ router.get('/:id/standings', requireAuth, async (req: AuthRequest, res, next) =>
       wins: t.wins,
       losses: t.losses,
       pointsFor: t.pointsFor,
+      waiverPriority: t.waiverPriority,
     })));
   } catch (err) {
     next(err);
@@ -968,12 +970,14 @@ router.put('/:id/roster/lineup', requireAuth, async (req: AuthRequest, res, next
   }
 });
 
-// POST /api/leagues/:id/roster/claim — pick up a free agent, dropping one of your own artists
+// POST /api/leagues/:id/roster/claim — submit a waiver claim for a free agent.
+// Nothing changes immediately: claims resolve at the weekly finalize (Sunday
+// night), highest waiver priority winning any conflicts.
 router.post('/:id/roster/claim', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const schema = z.object({ artistId: z.string(), dropSlot: z.string() });
     const { artistId, dropSlot } = schema.parse(req.body);
-    const result = await claimFreeAgent(req.params.id, req.userId!, artistId, dropSlot);
+    const result = await submitWaiverClaim(req.params.id, req.userId!, artistId, dropSlot);
     if ('error' in result) {
       res.status(result.status).json({ error: result.error });
       return;
@@ -984,66 +988,60 @@ router.post('/:id/roster/claim', requireAuth, async (req: AuthRequest, res, next
   }
 });
 
-export async function claimFreeAgent(
-  leagueId: string,
-  userId: string,
-  artistId: string,
-  dropSlot: string,
-): Promise<
-  | { success: true; slot: string; droppedArtistId: string; addedArtistId: string }
-  | { error: string; status: number }
-> {
-  const league = await prisma.league.findUnique({
-    where: { id: leagueId },
-    include: { teams: true },
-  });
-  if (!league) return { error: 'League not found', status: 404 };
+// GET /api/leagues/:id/waivers — the requesting user's pending claims + waiver position
+router.get('/:id/waivers', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const leagueId = req.params.id;
+    const myTeam = await prisma.team.findFirst({ where: { leagueId, userId: req.userId! } });
+    if (!myTeam) { res.status(403).json({ error: 'You are not a member of this league' }); return; }
 
-  const myTeam = league.teams.find((t) => t.userId === userId);
-  if (!myTeam) return { error: 'You are not in this league', status: 403 };
+    const [teams, claims] = await Promise.all([
+      prisma.team.findMany({
+        where: { leagueId },
+        select: { id: true },
+        orderBy: [{ waiverPriority: 'asc' }, { createdAt: 'asc' }],
+      }),
+      prisma.waiverClaim.findMany({
+        where: { teamId: myTeam.id, status: 'pending' },
+        include: { artist: { select: { id: true, name: true, imageUrl: true, primaryGenre: true } } },
+        orderBy: { createdAt: 'asc' },
+      }),
+    ]);
 
-  if (league.status !== 'active') {
-    return { error: 'Free agent claims are only available during the active season', status: 400 };
+    const dropArtists = await prisma.artist.findMany({
+      where: { id: { in: [...new Set(claims.map((c) => c.dropArtistId))] } },
+      select: { id: true, name: true },
+    });
+    const dropName = new Map(dropArtists.map((a) => [a.id, a.name]));
+
+    res.json({
+      myTeamId: myTeam.id,
+      waiverPosition: teams.findIndex((t) => t.id === myTeam.id) + 1,
+      claims: claims.map((c) => ({
+        id: c.id,
+        dropSlot: c.dropSlot,
+        createdAt: c.createdAt,
+        artist: c.artist,
+        dropArtist: { id: c.dropArtistId, name: dropName.get(c.dropArtistId) ?? 'Unknown' },
+      })),
+    });
+  } catch (err) {
+    next(err);
   }
+});
 
-  const artist = await prisma.artist.findUnique({ where: { id: artistId } });
-  if (!artist) return { error: 'Artist not found', status: 404 };
-
-  const rostered = await prisma.rosterSpot.findFirst({
-    where: { artistId, team: { leagueId } },
-  });
-  if (rostered) return { error: `${artist.name} is already on a roster`, status: 400 };
-
-  const dropSpot = await prisma.rosterSpot.findUnique({
-    where: { teamId_slot: { teamId: myTeam.id, slot: dropSlot } },
-    include: { artist: true },
-  });
-  if (!dropSpot) return { error: 'Invalid slot', status: 400 };
-  if (!dropSpot.artistId) return { error: 'That slot is already empty', status: 400 };
-  const locked = await lockedArtistIds(leagueId);
-  if (locked.has(dropSpot.artistId)) {
-    return { error: `${dropSpot.artist?.name ?? 'That player'} is locked in an accepted trade`, status: 400 };
+// POST /api/leagues/:id/waivers/:claimId/cancel — withdraw a pending claim
+router.post('/:id/waivers/:claimId/cancel', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const result = await cancelWaiverClaim(req.params.id, req.userId!, req.params.claimId);
+    if ('error' in result) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    res.json(result);
+  } catch (err) {
+    next(err);
   }
-
-  if (!artistEligibleForSlot(artist.primaryGenre, dropSlot)) {
-    return { error: `${artist.name} is not eligible for the ${dropSlot} slot`, status: 400 };
-  }
-
-  const droppedArtistId = dropSpot.artistId;
-
-  await prisma.rosterSpot.update({
-    where: { id: dropSpot.id },
-    data: { artistId },
-  });
-
-  await logLeagueEvent(
-    prisma,
-    leagueId,
-    'claim',
-    `${myTeam.name} added ${artist.name}, dropped ${dropSpot.artist?.name ?? 'an artist'}`,
-  );
-
-  return { success: true, slot: dropSlot, droppedArtistId, addedArtistId: artistId };
-}
+});
 
 export default router;
