@@ -89,6 +89,53 @@ test.describe('Waiver claims', () => {
     await ctx.close();
   });
 
+  test('claims appear in My Team and can be reprioritized', async ({ browser: b }) => {
+    // user2 queues two claims via the API (bench slots take any genre).
+    const players = await apiGet<{ id: string; name: string; rosteredBy: unknown }[]>(
+      fixture.user2.token, `/api/leagues/${fixture.leagueId}/players`,
+    );
+    const freeAgents = players.filter((p) => !p.rosteredBy).slice(0, 2);
+    const [first, second] = freeAgents;
+    await apiPost(fixture.user2.token, `/api/leagues/${fixture.leagueId}/roster/claim`, {
+      artistId: first.id, dropSlot: 'Bench-1',
+    });
+    await apiPost(fixture.user2.token, `/api/leagues/${fixture.leagueId}/roster/claim`, {
+      artistId: second.id, dropSlot: 'Bench-2',
+    });
+
+    const ctx = await b.newContext();
+    await injectAuth(ctx, fixture.user2.token);
+    const page = await ctx.newPage();
+    await page.goto(`/leagues/${fixture.leagueId}`);
+
+    // The pending-claims card is on the My Team tab (the default tab)
+    await expect(page.getByText('Pending waiver claims')).toBeVisible({ timeout: 10_000 });
+    const rowFor = (name: string) =>
+      page.locator('div.flex.items-center.gap-3.p-3', { hasText: name });
+    const priorityOf = (name: string) => rowFor(name).locator('span').first();
+    await expect(priorityOf(first.name)).toHaveText('1');
+    await expect(priorityOf(second.name)).toHaveText('2');
+
+    // Move the second claim up — order swaps
+    await page.getByRole('button', { name: `Move ${second.name} up` }).click();
+    await expect(priorityOf(second.name)).toHaveText('1', { timeout: 10_000 });
+    await expect(priorityOf(first.name)).toHaveText('2');
+
+    // The API reflects the new order
+    const waivers = await apiGet<{ claims: { artist: { id: string } }[] }>(
+      fixture.user2.token, `/api/leagues/${fixture.leagueId}/waivers`,
+    );
+    expect(waivers.claims.map((c) => c.artist.id)).toEqual([second.id, first.id]);
+
+    // Clean up so later tests aren't affected by user2's pending claims
+    for (const claim of (await apiGet<{ claims: { id: string }[] }>(
+      fixture.user2.token, `/api/leagues/${fixture.leagueId}/waivers`,
+    )).claims) {
+      await apiPost(fixture.user2.token, `/api/leagues/${fixture.leagueId}/waivers/${claim.id}/cancel`, {});
+    }
+    await ctx.close();
+  });
+
   test('conflicting claims: higher waiver priority wins, loser is notified', async ({ browser: b }) => {
     // Find a free agent both teams can legally claim into Bench-2.
     const players = await apiGet<{ id: string; name: string; rosteredBy: unknown }[]>(

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Music2, ChevronLeft, Trophy, Users, Settings, Swords, Search, ArrowUpDown, User, Pencil, X, Check, Lock, ChevronRight, ChevronDown, ArrowLeftRight, Bell, UserPlus, AlarmClock, Mail, Sparkles } from 'lucide-react';
+import { Music2, ChevronLeft, Trophy, Users, Settings, Swords, Search, ArrowUpDown, User, Pencil, X, Check, Lock, ChevronRight, ChevronDown, ChevronUp, ArrowLeftRight, Bell, UserPlus, AlarmClock, Mail, Sparkles } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/ui/Card';
@@ -680,6 +680,8 @@ function MyTeamTab({ leagueId, league, phase }: { leagueId: string; league: Leag
         </div>
       </Card>
 
+      {league.status === 'active' && <WaiverClaimsCard leagueId={leagueId} />}
+
       <TradesSection leagueId={leagueId} league={league} />
     </div>
   );
@@ -1190,6 +1192,88 @@ function canFillSlot(genre: string, slot: string): boolean {
   return genre === slot;
 }
 
+// Pending waiver claims with per-claim priority reordering. Shared by the
+// My Team and Players tabs (same react-query key, so one fetch serves both).
+function WaiverClaimsCard({ leagueId }: { leagueId: string }) {
+  const queryClient = useQueryClient();
+  const { data: waivers } = useQuery({
+    queryKey: ['waivers', leagueId],
+    queryFn: () => api.get<WaiversResponse>(`/leagues/${leagueId}/waivers`),
+  });
+
+  const cancelClaim = useMutation({
+    mutationFn: (claimId: string) => api.post(`/leagues/${leagueId}/waivers/${claimId}/cancel`, {}),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['waivers', leagueId] }),
+  });
+
+  const reorder = useMutation({
+    mutationFn: (claimIds: string[]) => api.put(`/leagues/${leagueId}/waivers/order`, { claimIds }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['waivers', leagueId] }),
+  });
+
+  const claims = waivers?.claims ?? [];
+  if (claims.length === 0) return null;
+
+  const busy = cancelClaim.isPending || reorder.isPending;
+
+  function move(index: number, delta: number) {
+    const ids = claims.map((c) => c.id);
+    const [id] = ids.splice(index, 1);
+    ids.splice(index + delta, 0, id);
+    reorder.mutate(ids);
+  }
+
+  return (
+    <Card>
+      <div className="p-3 border-b border-white/10 flex items-center justify-between">
+        <span className="text-sm font-semibold text-white">Pending waiver claims</span>
+        <span className="text-xs text-gray-500">
+          Waiver position #{waivers!.waiverPosition} · processes Sunday night
+        </span>
+      </div>
+      <div className="divide-y divide-white/5">
+        {claims.map((claim, i) => (
+          <div key={claim.id} className="flex items-center gap-3 p-3">
+            <span className="w-5 text-center text-xs text-gray-500 font-mono shrink-0">{i + 1}</span>
+            <div className="flex flex-col shrink-0">
+              <button
+                onClick={() => move(i, -1)}
+                disabled={i === 0 || busy}
+                aria-label={`Move ${claim.artist.name} up`}
+                className="p-0.5 rounded text-gray-500 hover:text-white disabled:opacity-20 transition-colors"
+              >
+                <ChevronUp className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => move(i, 1)}
+                disabled={i === claims.length - 1 || busy}
+                aria-label={`Move ${claim.artist.name} down`}
+                className="p-0.5 rounded text-gray-500 hover:text-white disabled:opacity-20 transition-colors"
+              >
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <Avatar src={claim.artist.imageUrl} name={claim.artist.name} size="sm" />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-white truncate">{claim.artist.name}</div>
+              <div className="text-xs text-gray-500 truncate">
+                Drop: {claim.dropArtist.name} ({claim.dropSlot})
+              </div>
+            </div>
+            <button
+              onClick={() => cancelClaim.mutate(claim.id)}
+              disabled={busy}
+              className="shrink-0 px-2 py-1 rounded-md bg-white/10 hover:bg-white/20 disabled:opacity-40 text-gray-300 text-xs font-medium transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 function PlayersTab({ leagueId, league, onProposeTrade }: {
   leagueId: string;
   league: League;
@@ -1233,11 +1317,6 @@ function PlayersTab({ leagueId, league, onProposeTrade }: {
       setClaimError('');
     },
     onError: (err: Error) => setClaimError(err.message),
-  });
-
-  const cancelClaimMutation = useMutation({
-    mutationFn: (claimId: string) => api.post(`/leagues/${leagueId}/waivers/${claimId}/cancel`, {}),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['waivers', leagueId] }),
   });
 
   const pendingArtistIds = new Set((waivers?.claims ?? []).map((c) => c.artist.id));
@@ -1330,37 +1409,8 @@ function PlayersTab({ leagueId, league, onProposeTrade }: {
         </div>
       )}
 
-      {/* Pending waiver claims */}
-      {(waivers?.claims.length ?? 0) > 0 && (
-        <Card>
-          <div className="p-3 border-b border-white/10 flex items-center justify-between">
-            <span className="text-sm font-semibold text-white">Pending waiver claims</span>
-            <span className="text-xs text-gray-500">
-              Waiver position #{waivers!.waiverPosition} · processes Sunday night
-            </span>
-          </div>
-          <div className="divide-y divide-white/5">
-            {waivers!.claims.map((claim) => (
-              <div key={claim.id} className="flex items-center gap-3 p-3">
-                <Avatar src={claim.artist.imageUrl} name={claim.artist.name} size="sm" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-white truncate">{claim.artist.name}</div>
-                  <div className="text-xs text-gray-500 truncate">
-                    Drop: {claim.dropArtist.name} ({claim.dropSlot})
-                  </div>
-                </div>
-                <button
-                  onClick={() => cancelClaimMutation.mutate(claim.id)}
-                  disabled={cancelClaimMutation.isPending}
-                  className="shrink-0 px-2 py-1 rounded-md bg-white/10 hover:bg-white/20 disabled:opacity-40 text-gray-300 text-xs font-medium transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
+      {/* Pending waiver claims (shared card with reordering) */}
+      {league.status === 'active' && <WaiverClaimsCard leagueId={leagueId} />}
 
       <div className="flex gap-2">
         <div className="relative flex-1">

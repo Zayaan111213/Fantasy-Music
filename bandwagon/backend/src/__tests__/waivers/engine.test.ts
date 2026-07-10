@@ -6,7 +6,7 @@ vi.mock('../../db/prisma', () => ({
     artist: { findUnique: vi.fn(), findMany: vi.fn() },
     team: { findMany: vi.fn(), update: vi.fn(), findFirst: vi.fn() },
     rosterSpot: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
-    waiverClaim: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), updateMany: vi.fn() },
+    waiverClaim: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     tradeItem: { findMany: vi.fn() }, // lockedArtistIds
     notification: { createMany: vi.fn() },
     leagueEvent: { create: vi.fn() },
@@ -15,7 +15,7 @@ vi.mock('../../db/prisma', () => ({
 }));
 
 import { prisma } from '../../db/prisma';
-import { submitWaiverClaim, cancelWaiverClaim, resolveWaivers } from '../../waivers/engine';
+import { submitWaiverClaim, cancelWaiverClaim, reorderWaiverClaims, resolveWaivers } from '../../waivers/engine';
 
 const pm = prisma as unknown as Record<string, Record<string, ReturnType<typeof vi.fn>>> & {
   $transaction: ReturnType<typeof vi.fn>;
@@ -24,7 +24,9 @@ const pm = prisma as unknown as Record<string, Record<string, ReturnType<typeof 
 beforeEach(() => {
   vi.resetAllMocks();
   // Defaults every test starts from; individual tests override as needed.
-  pm.$transaction.mockImplementation((fn: (tx: unknown) => unknown) => fn(prisma));
+  // Handles both $transaction forms: interactive (callback) and batch (array).
+  pm.$transaction.mockImplementation((arg: unknown) =>
+    Array.isArray(arg) ? Promise.all(arg) : (arg as (tx: unknown) => unknown)(prisma));
   pm.artist.findMany.mockResolvedValue([]);
   pm.team.findMany.mockResolvedValue([]);
   pm.rosterSpot.findFirst.mockResolvedValue(null);
@@ -62,10 +64,27 @@ describe('submitWaiverClaim', () => {
         artistId: 'artist-pop',
         dropSlot: 'Pop',
         dropArtistId: 'old-artist',
+        priority: 1, // first pending claim
       },
     });
     expect(pm.rosterSpot.update).not.toHaveBeenCalled();
     expect(pm.leagueEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('appends new claims to the back of the team queue (priority = lowest + 1)', async () => {
+    pm.league.findUnique.mockResolvedValue(LEAGUE);
+    pm.artist.findUnique.mockResolvedValue(ARTIST_POP);
+    pm.rosterSpot.findUnique.mockResolvedValue({ id: 'spot-1', artistId: 'old-artist', artist: { name: 'Old Timer' } });
+    pm.waiverClaim.findFirst
+      .mockResolvedValueOnce(null) // duplicate check
+      .mockResolvedValueOnce({ priority: 2 }); // lowest existing priority
+    pm.waiverClaim.create.mockResolvedValue({ id: 'claim-3', artistId: 'artist-pop', dropSlot: 'Pop', status: 'pending' });
+
+    await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop');
+
+    expect(pm.waiverClaim.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ priority: 3 }),
+    });
   });
 
   it('404 when league not found', async () => {
@@ -152,6 +171,38 @@ describe('cancelWaiverClaim', () => {
     pm.team.findFirst.mockResolvedValue({ id: 'team-1' });
     pm.waiverClaim.updateMany.mockResolvedValue({ count: 0 });
     expect(await cancelWaiverClaim('league-1', 'user-1', 'claim-9')).toMatchObject({ status: 404 });
+  });
+});
+
+describe('reorderWaiverClaims', () => {
+  it('rewrites priorities 1..N in the given order', async () => {
+    pm.team.findFirst.mockResolvedValue({ id: 'team-1' });
+    pm.waiverClaim.findMany.mockResolvedValue([{ id: 'c1' }, { id: 'c2' }, { id: 'c3' }]);
+
+    const result = await reorderWaiverClaims('league-1', 'user-1', ['c3', 'c1', 'c2']);
+
+    expect(result).toEqual({ ok: true });
+    expect(pm.waiverClaim.update).toHaveBeenCalledWith({ where: { id: 'c3' }, data: { priority: 1 } });
+    expect(pm.waiverClaim.update).toHaveBeenCalledWith({ where: { id: 'c1' }, data: { priority: 2 } });
+    expect(pm.waiverClaim.update).toHaveBeenCalledWith({ where: { id: 'c2' }, data: { priority: 3 } });
+  });
+
+  it('rejects a list that does not exactly match the pending set', async () => {
+    pm.team.findFirst.mockResolvedValue({ id: 'team-1' });
+    pm.waiverClaim.findMany.mockResolvedValue([{ id: 'c1' }, { id: 'c2' }]);
+
+    // missing one
+    expect(await reorderWaiverClaims('league-1', 'user-1', ['c1'])).toMatchObject({ status: 400 });
+    // unknown id
+    expect(await reorderWaiverClaims('league-1', 'user-1', ['c1', 'c9'])).toMatchObject({ status: 400 });
+    // duplicate id
+    expect(await reorderWaiverClaims('league-1', 'user-1', ['c1', 'c1'])).toMatchObject({ status: 400 });
+    expect(pm.waiverClaim.update).not.toHaveBeenCalled();
+  });
+
+  it('403 for a non-member', async () => {
+    pm.team.findFirst.mockResolvedValue(null);
+    expect(await reorderWaiverClaims('league-1', 'user-9', ['c1'])).toMatchObject({ status: 403 });
   });
 });
 
@@ -359,6 +410,44 @@ describe('resolveWaivers', () => {
     expect(pm.notification.createMany).toHaveBeenCalledWith({
       data: [expect.objectContaining({ userId: 'u1', message: expect.stringContaining('could not be processed') })],
     });
+  });
+
+  it("respects each team's own claim priority over submission time", async () => {
+    // A's user-set #1 is Y (submitted later); A's #2 is X (submitted first).
+    // B (waiver order 2) also claims X. A wins Y first (their #1), drops to
+    // the bottom, and B takes X — which A would have won under createdAt order.
+    // findMany returns claims in DB order: [priority asc, createdAt asc].
+    pm.waiverClaim.findMany.mockResolvedValue([
+      makeClaim({ id: 'a-y', teamId: 't1', teamName: 'Alpha', userId: 'u1', priority: 1,
+                  artistId: 'y', artistName: 'Y', dropSlot: 'Flex', dropArtistId: 'a2',
+                  createdAt: new Date('2026-07-08T10:00:00Z') }), // A's claim priority 1
+      makeClaim({ id: 'b-x', teamId: 't2', teamName: 'Beta', userId: 'u2', priority: 1,
+                  artistId: 'x', artistName: 'X', dropSlot: 'Pop', dropArtistId: 'b1',
+                  createdAt: new Date('2026-07-08T11:00:00Z') }), // B's claim priority 1
+      makeClaim({ id: 'a-x', teamId: 't1', teamName: 'Alpha', userId: 'u1', priority: 2,
+                  artistId: 'x', artistName: 'X', dropSlot: 'Pop', dropArtistId: 'a1',
+                  createdAt: new Date('2026-07-08T09:00:00Z') }), // A's claim priority 2, oldest
+    ]);
+    pm.team.findMany.mockResolvedValue([{ id: 't1' }, { id: 't2' }]);
+    pm.artist.findMany.mockResolvedValue([
+      { id: 'a1', name: 'A1' }, { id: 'a2', name: 'A2' }, { id: 'b1', name: 'B1' },
+    ]);
+    fakeRoster({ t1: { Pop: 'a1', Flex: 'a2' }, t2: { Pop: 'b1' } });
+
+    await resolveWaivers('league-1');
+
+    expect(pm.waiverClaim.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'a-y', status: 'pending' },
+      data: expect.objectContaining({ status: 'won' }),
+    }));
+    expect(pm.waiverClaim.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'b-x', status: 'pending' },
+      data: expect.objectContaining({ status: 'won' }),
+    }));
+    expect(pm.waiverClaim.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: { in: ['a-x'] }, status: 'pending' },
+      data: expect.objectContaining({ status: 'lost' }),
+    }));
   });
 
   it('gate count=0 (concurrent/repeated run) → no side effects at all', async () => {
