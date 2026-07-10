@@ -13,7 +13,7 @@ import { logLeagueEvent } from '../../events/leagueEvents';
 // Circular with waivers/engine (which imports artistEligibleForSlot from here,
 // as does trades/engine); safe because both sides only reference the other's
 // exports at call time.
-import { submitWaiverClaim, cancelWaiverClaim } from '../../waivers/engine';
+import { submitWaiverClaim, cancelWaiverClaim, reorderWaiverClaims } from '../../waivers/engine';
 
 const router = Router();
 
@@ -1004,7 +1004,7 @@ router.get('/:id/waivers', requireAuth, async (req: AuthRequest, res, next) => {
       prisma.waiverClaim.findMany({
         where: { teamId: myTeam.id, status: 'pending' },
         include: { artist: { select: { id: true, name: true, imageUrl: true, primaryGenre: true } } },
-        orderBy: { createdAt: 'asc' },
+        orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
       }),
     ]);
 
@@ -1025,6 +1025,22 @@ router.get('/:id/waivers', requireAuth, async (req: AuthRequest, res, next) => {
         dropArtist: { id: c.dropArtistId, name: dropName.get(c.dropArtistId) ?? 'Unknown' },
       })),
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/leagues/:id/waivers/order — reorder the user's pending claims
+// (full list of claim ids in desired order; index 0 resolves first)
+router.put('/:id/waivers/order', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const { claimIds } = z.object({ claimIds: z.array(z.string()) }).parse(req.body);
+    const result = await reorderWaiverClaims(req.params.id, req.userId!, claimIds);
+    if ('error' in result) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    res.json(result);
   } catch (err) {
     next(err);
   }

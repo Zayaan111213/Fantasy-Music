@@ -67,6 +67,7 @@ model WaiverClaim {
   artistId     String
   dropSlot     String
   dropArtistId String // snapshot of the slot occupant at submit time; mismatch at resolution invalidates
+  priority     Int       @default(0) // per-team ordering: 1 = attempted first at resolution
   status       String    @default("pending") // pending | won | lost | invalid | cancelled
   resolution   String?
   createdAt    DateTime  @default(now())

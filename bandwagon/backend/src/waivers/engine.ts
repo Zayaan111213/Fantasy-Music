@@ -63,6 +63,13 @@ export async function submitWaiverClaim(
     return { error: `You already have a pending claim for ${artist.name}`, status: 400 };
   }
 
+  // New claims go to the back of the team's own queue.
+  const lowest = await prisma.waiverClaim.findFirst({
+    where: { teamId: myTeam.id, status: 'pending' },
+    orderBy: { priority: 'desc' },
+    select: { priority: true },
+  });
+
   const claim = await prisma.waiverClaim.create({
     data: {
       leagueId,
@@ -70,10 +77,42 @@ export async function submitWaiverClaim(
       artistId,
       dropSlot,
       dropArtistId: dropSpot.artistId,
+      priority: (lowest?.priority ?? 0) + 1,
     },
   });
 
   return { claim: { id: claim.id, artistId: claim.artistId, dropSlot: claim.dropSlot, status: claim.status } };
+}
+
+// Reorder the team's own pending claims: claimIds is the full pending set in
+// the desired order (index 0 = attempted first at resolution).
+export async function reorderWaiverClaims(
+  leagueId: string,
+  userId: string,
+  claimIds: string[],
+): Promise<{ ok: true } | { error: string; status: number }> {
+  const myTeam = await prisma.team.findFirst({ where: { leagueId, userId } });
+  if (!myTeam) return { error: 'You are not in this league', status: 403 };
+
+  const pending = await prisma.waiverClaim.findMany({
+    where: { teamId: myTeam.id, status: 'pending' },
+    select: { id: true },
+  });
+  const pendingIds = new Set(pending.map((c) => c.id));
+  if (
+    claimIds.length !== pendingIds.size ||
+    new Set(claimIds).size !== claimIds.length ||
+    !claimIds.every((id) => pendingIds.has(id))
+  ) {
+    return { error: 'Claim list must match your pending claims exactly', status: 400 };
+  }
+
+  await prisma.$transaction(
+    claimIds.map((id, i) =>
+      prisma.waiverClaim.update({ where: { id }, data: { priority: i + 1 } }),
+    ),
+  );
+  return { ok: true };
 }
 
 export async function cancelWaiverClaim(
@@ -103,7 +142,9 @@ export async function resolveWaivers(leagueId: string): Promise<void> {
       team: { select: { id: true, name: true, userId: true, waiverPriority: true, createdAt: true } },
       artist: { select: { id: true, name: true, primaryGenre: true } },
     },
-    orderBy: { createdAt: 'asc' },
+    // Per-team user-set priority first; createdAt breaks ties (legacy rows
+    // predating the priority column all default to 0).
+    orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
   });
   if (claims.length === 0) return;
 
