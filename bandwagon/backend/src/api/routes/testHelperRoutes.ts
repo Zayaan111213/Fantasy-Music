@@ -17,6 +17,10 @@ router.post('/active-league', async (req, res, next) => {
   try {
     const ts = Date.now();
     const hash = await bcrypt.hash('testpass123', 10);
+    // draftDaysAgo: 0 puts the league in the week-1 pre-game window (lineup
+    // adjustable ⇒ instant free agency) on any real day; default 14 is a
+    // normal locked scoring week.
+    const draftDaysAgo = typeof req.body?.draftDaysAgo === 'number' ? req.body.draftDaysAgo : 14;
 
     const [user1, user2, user3, user4] = await Promise.all([
       prisma.user.create({ data: { email: `e2e-u1-${ts}@test.internal`, passwordHash: hash, username: `e2eu1${ts}` } }),
@@ -40,7 +44,7 @@ router.post('/active-league', async (req, res, next) => {
         inviteCode,
         currentWeek: 1,
         seasonYear: 2026,
-        draftTime: new Date(Date.now() - 14 * 24 * 60 * 60_000),
+        draftTime: new Date(Date.now() - draftDaysAgo * 24 * 60 * 60_000),
       },
     });
 

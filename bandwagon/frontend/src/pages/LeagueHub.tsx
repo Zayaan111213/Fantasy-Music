@@ -1305,13 +1305,18 @@ function PlayersTab({ leagueId, league, onProposeTrade }: {
     enabled: league.status === 'active',
   });
 
-  // Submitting queues a waiver claim — the roster doesn't change until the
-  // claims resolve Sunday night, so only the waivers query needs refreshing.
+  // While the lineup is adjustable (Monday / week-1 window) pickups are
+  // instant free agency; otherwise they queue as waiver claims for Sunday
+  // night. Invalidate all affected queries — the cheap ones no-op.
+  const freeAgency = getWeekPhase(league) === 'adjustment';
   const claimMutation = useMutation({
     mutationFn: ({ artistId, dropSlot }: { artistId: string; dropSlot: string }) =>
       api.post(`/leagues/${leagueId}/roster/claim`, { artistId, dropSlot }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['waivers', leagueId] });
+      queryClient.invalidateQueries({ queryKey: ['players', leagueId] });
+      queryClient.invalidateQueries({ queryKey: ['myTeam', leagueId] });
+      queryClient.invalidateQueries({ queryKey: ['activity', leagueId] });
       setClaimArtist(null);
       setDropSlot(null);
       setClaimError('');
@@ -1356,7 +1361,11 @@ function PlayersTab({ leagueId, league, onProposeTrade }: {
             <div className="flex items-center justify-between p-4 border-b border-white/10">
               <div>
                 <h2 className="font-semibold text-white">Claim {claimArtist.name}</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Select a player to drop · claims process Sunday night</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {freeAgency
+                    ? 'Select a player to drop · free agency is open, adds are instant'
+                    : 'Select a player to drop · claims process Sunday night'}
+                </p>
               </div>
               <button onClick={() => { setClaimArtist(null); setDropSlot(null); setClaimError(''); }} className="text-gray-500 hover:text-white transition-colors">
                 <X className="w-5 h-5" />
@@ -1402,7 +1411,7 @@ function PlayersTab({ leagueId, league, onProposeTrade }: {
                 onClick={() => dropSlot && claimMutation.mutate({ artistId: claimArtist.id, dropSlot })}
                 className="flex-1 px-3 py-2 rounded-lg bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white text-sm font-medium transition-colors"
               >
-                {claimMutation.isPending ? 'Submitting…' : 'Submit Waiver Claim'}
+                {claimMutation.isPending ? (freeAgency ? 'Adding…' : 'Submitting…') : (freeAgency ? 'Add Free Agent' : 'Submit Waiver Claim')}
               </button>
             </div>
           </div>

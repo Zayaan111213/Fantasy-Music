@@ -28,13 +28,17 @@ test.describe('Lineup management', () => {
   });
 
   test('swap works via UI on Monday', async ({ browser: b }) => {
+    // The backend day is pinned to Tuesday (.env.test), which locks the shared
+    // fixture. Use a league in the week-1 pre-game window (draft just now) so
+    // the backend allows the swap; the browser clock provides the Monday UI.
+    const fresh = await setupActiveLeague({ draftDaysAgo: 0 });
     const ctx = await b.newContext();
-    await injectAuth(ctx, fixture.user1.token);
+    await injectAuth(ctx, fresh.user1.token);
     const page = await ctx.newPage();
 
     // Override browser Date to Monday so getWeekPhase() returns 'adjustment' (unlocked)
     await page.clock.setFixedTime(new Date('2026-06-22T10:00:00'));
-    await page.goto(`/leagues/${fixture.leagueId}`);
+    await page.goto(`/leagues/${fresh.leagueId}`);
 
     // Confirm unlocked state: swap hint is visible
     await expect(page.getByText('Tap two slots to swap')).toBeVisible({ timeout: 10_000 });
@@ -69,6 +73,7 @@ test.describe('Lineup management', () => {
     expect(flexTextAfter).not.toBe(flexTextBefore);
 
     await ctx.close();
+    await teardownLeague(fresh.leagueId, [fresh.user1.id, fresh.user2.id, fresh.user3.id, fresh.user4.id]);
   });
 
   test('locked UI shown on Tuesday', async ({ browser: b }) => {
