@@ -1971,6 +1971,7 @@ const ACTIVITY_ICONS: Record<string, ReactNode> = {
   week_result: <Trophy className="w-4 h-4 text-amber-400" />,
   playoffs_set: <Trophy className="w-4 h-4 text-indigo-400" />,
   season_complete: <Trophy className="w-4 h-4 text-amber-400" />,
+  league_renewed: <Sparkles className="w-4 h-4 text-indigo-400" />,
   lineup_reminder: <AlarmClock className="w-4 h-4 text-indigo-400" />,
   draft_complete: <Sparkles className="w-4 h-4 text-indigo-400" />,
 };
@@ -2043,6 +2044,92 @@ function NotificationsTab({ leagueId }: { leagueId: string }) {
           </div>
         </div>
       ))}
+    </Card>
+  );
+}
+
+// Shown when the season is complete: crowns the champion and lets the
+// commissioner renew the league for another year (new draft time; the league
+// returns to `pending` and the normal draft flow takes over).
+function SeasonCompleteBanner({ leagueId, league, isCommissioner }: {
+  leagueId: string;
+  league: League;
+  isCommissioner: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const [renewOpen, setRenewOpen] = useState(false);
+  const [draftTime, setDraftTime] = useState('');
+  const [renewError, setRenewError] = useState('');
+
+  const { data: bracket } = useQuery({
+    queryKey: ['bracket', leagueId],
+    queryFn: () => api.get<Bracket | null>(`/leagues/${leagueId}/bracket`),
+  });
+  const final = bracket?.matchups.find((m) => m.matchupType === 'championship' && m.winnerId);
+  const championName = final
+    ? (final.winnerId === final.homeTeamId ? final.homeTeam.name : final.awayTeam.name)
+    : null;
+
+  const renewMutation = useMutation({
+    mutationFn: () =>
+      api.post(`/leagues/${leagueId}/renew`, { draftTime: new Date(draftTime).toISOString() }),
+    onSuccess: () => {
+      setRenewOpen(false);
+      setRenewError('');
+      queryClient.invalidateQueries();
+    },
+    onError: (err: Error) => setRenewError(err.message),
+  });
+
+  return (
+    <Card className="p-4 mb-6 border-amber-500/30 bg-amber-500/5">
+      <div className="flex items-center gap-3">
+        <Trophy className="w-8 h-8 text-amber-400 shrink-0" />
+        <div className="flex-1">
+          <div className="text-white font-semibold">
+            {championName ? `${championName} are the ${league.seasonYear} champions!` : `The ${league.seasonYear} season is complete!`}
+          </div>
+          <div className="text-xs text-gray-400 mt-0.5">
+            {isCommissioner
+              ? 'Renew the league to run it back — everyone keeps their team, and the worst team drafts first.'
+              : 'Ask your commissioner to renew the league for another season.'}
+          </div>
+        </div>
+        {isCommissioner && !renewOpen && (
+          <Button size="sm" onClick={() => setRenewOpen(true)}>
+            Renew League
+          </Button>
+        )}
+      </div>
+      {isCommissioner && renewOpen && (
+        <div className="mt-4 pt-4 border-t border-white/10">
+          <label className="block text-xs text-gray-400 mb-1.5">
+            Draft time for the {league.seasonYear + 1} season (at least 1 hour from now)
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="datetime-local"
+              value={draftTime}
+              onChange={(e) => setDraftTime(e.target.value)}
+              className="flex-1 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <Button
+              size="sm"
+              disabled={!draftTime || renewMutation.isPending}
+              onClick={() => renewMutation.mutate()}
+            >
+              {renewMutation.isPending ? 'Renewing…' : 'Start New Season'}
+            </Button>
+            <button
+              onClick={() => { setRenewOpen(false); setRenewError(''); }}
+              className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-gray-300 text-sm font-medium transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+          {renewError && <p className="text-xs text-red-400 mt-2">{renewError}</p>}
+        </div>
+      )}
     </Card>
   );
 }
@@ -2137,6 +2224,9 @@ export function LeagueHub() {
       </header>
 
       <main className="relative max-w-3xl mx-auto px-4 py-6">
+        {league.status === 'complete' && (
+          <SeasonCompleteBanner leagueId={id!} league={league} isCommissioner={isCommissioner} />
+        )}
         {tab === 'myteam' && <MyTeamTab leagueId={id!} league={league} phase={phase} />}
         {tab === 'matchup' && <MatchupTab leagueId={id!} league={league} phase={phase} />}
         {tab === 'standings' && <StandingsTab leagueId={id!} league={league} />}

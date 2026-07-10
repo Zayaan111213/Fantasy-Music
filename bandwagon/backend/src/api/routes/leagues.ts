@@ -14,6 +14,7 @@ import { logLeagueEvent } from '../../events/leagueEvents';
 // as does trades/engine); safe because both sides only reference the other's
 // exports at call time.
 import { submitWaiverClaim, cancelWaiverClaim, reorderWaiverClaims } from '../../waivers/engine';
+import { renewLeague } from '../../season/rollover';
 
 const router = Router();
 
@@ -285,6 +286,21 @@ router.delete('/:id', requireAuth, async (req: AuthRequest, res, next) => {
 
     await prisma.league.delete({ where: { id: req.params.id } });
     res.json({ message: 'League deleted' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Renew a completed league for a new season (commissioner only).
+router.post('/:id/renew', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const { draftTime } = z.object({ draftTime: z.string().datetime() }).parse(req.body);
+    const result = await renewLeague(req.params.id, req.userId!, draftTime);
+    if ('error' in result) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    res.json(result);
   } catch (err) {
     next(err);
   }
