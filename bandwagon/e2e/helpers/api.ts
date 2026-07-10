@@ -47,9 +47,9 @@ export interface ActiveLeagueFixture {
   team4Id: string;
 }
 
-export async function setupActiveLeague(): Promise<ActiveLeagueFixture> {
+export async function setupActiveLeague(opts?: { draftDaysAgo?: number }): Promise<ActiveLeagueFixture> {
   const c = await ctx();
-  const res = await c.post('/api/test/active-league');
+  const res = await c.post('/api/test/active-league', { data: opts ?? {} });
   const body = await res.json();
   await c.dispose();
   if (!res.ok()) throw new Error(`Test setup failed: ${res.status()} ${JSON.stringify(body)}`);

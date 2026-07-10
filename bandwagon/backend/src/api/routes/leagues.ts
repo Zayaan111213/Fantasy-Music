@@ -970,14 +970,19 @@ router.put('/:id/roster/lineup', requireAuth, async (req: AuthRequest, res, next
   }
 });
 
-// POST /api/leagues/:id/roster/claim — submit a waiver claim for a free agent.
-// Nothing changes immediately: claims resolve at the weekly finalize (Sunday
-// night), highest waiver priority winning any conflicts.
+// POST /api/leagues/:id/roster/claim — pick up a free agent. While the lineup
+// is adjustable (Monday / week-1 pre-game window) the add is instant and free;
+// otherwise it queues as a waiver claim resolved at the weekly finalize
+// (Sunday night), highest waiver priority winning any conflicts.
 router.post('/:id/roster/claim', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const schema = z.object({ artistId: z.string(), dropSlot: z.string() });
     const { artistId, dropSlot } = schema.parse(req.body);
-    const result = await submitWaiverClaim(req.params.id, req.userId!, artistId, dropSlot);
+    const dayPT = process.env.NODE_ENV === 'test' && process.env.TEST_OVERRIDE_DAY
+      ? process.env.TEST_OVERRIDE_DAY
+      : new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/Los_Angeles' });
+    const todayPT = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+    const result = await submitWaiverClaim(req.params.id, req.userId!, artistId, dropSlot, dayPT, todayPT);
     if ('error' in result) {
       res.status(result.status).json({ error: result.error });
       return;

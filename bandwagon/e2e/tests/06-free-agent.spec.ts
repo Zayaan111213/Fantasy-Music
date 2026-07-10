@@ -20,6 +20,15 @@ test.describe('Waiver claims', () => {
     await injectAuth(ctx, fixture.user1.token);
     const page = await ctx.newPage();
 
+    // Pin the browser to a Tuesday past the fixture's first scoring week so
+    // the UI shows waiver copy (a real Monday would show free-agency copy).
+    const nextTuesday = new Date();
+    nextTuesday.setUTCHours(19, 0, 0, 0);
+    while (nextTuesday.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/Los_Angeles' }) !== 'Tuesday') {
+      nextTuesday.setTime(nextTuesday.getTime() + 86_400_000);
+    }
+    await page.clock.setFixedTime(nextTuesday);
+
     await page.goto(`/leagues/${fixture.leagueId}`);
 
     // Navigate to the Players tab

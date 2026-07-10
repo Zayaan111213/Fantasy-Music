@@ -54,7 +54,7 @@ describe('submitWaiverClaim', () => {
     pm.rosterSpot.findUnique.mockResolvedValue({ id: 'spot-1', artistId: 'old-artist', artist: { name: 'Old Timer' } });
     pm.waiverClaim.create.mockResolvedValue({ id: 'claim-1', artistId: 'artist-pop', dropSlot: 'Pop', status: 'pending' });
 
-    const result = await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop');
+    const result = await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop', 'Tuesday', '2026-07-08');
 
     expect(result).toEqual({ claim: { id: 'claim-1', artistId: 'artist-pop', dropSlot: 'Pop', status: 'pending' } });
     expect(pm.waiverClaim.create).toHaveBeenCalledWith({
@@ -80,7 +80,7 @@ describe('submitWaiverClaim', () => {
       .mockResolvedValueOnce({ priority: 2 }); // lowest existing priority
     pm.waiverClaim.create.mockResolvedValue({ id: 'claim-3', artistId: 'artist-pop', dropSlot: 'Pop', status: 'pending' });
 
-    await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop');
+    await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop', 'Tuesday', '2026-07-08');
 
     expect(pm.waiverClaim.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ priority: 3 }),
@@ -89,30 +89,30 @@ describe('submitWaiverClaim', () => {
 
   it('404 when league not found', async () => {
     pm.league.findUnique.mockResolvedValue(null);
-    expect(await submitWaiverClaim('bad', 'user-1', 'artist-pop', 'Pop')).toMatchObject({ status: 404 });
+    expect(await submitWaiverClaim('bad', 'user-1', 'artist-pop', 'Pop', 'Tuesday', '2026-07-08')).toMatchObject({ status: 404 });
   });
 
   it('403 when user has no team in the league', async () => {
     pm.league.findUnique.mockResolvedValue({ ...LEAGUE, teams: [] });
-    expect(await submitWaiverClaim('league-1', 'user-9', 'artist-pop', 'Pop')).toMatchObject({ status: 403 });
+    expect(await submitWaiverClaim('league-1', 'user-9', 'artist-pop', 'Pop', 'Tuesday', '2026-07-08')).toMatchObject({ status: 403 });
   });
 
   it('400 when league is not active', async () => {
     pm.league.findUnique.mockResolvedValue({ ...LEAGUE, status: 'pending' });
-    expect(await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop')).toMatchObject({ status: 400 });
+    expect(await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop', 'Tuesday', '2026-07-08')).toMatchObject({ status: 400 });
   });
 
   it('404 when artist not found', async () => {
     pm.league.findUnique.mockResolvedValue(LEAGUE);
     pm.artist.findUnique.mockResolvedValue(null);
-    expect(await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop')).toMatchObject({ status: 404 });
+    expect(await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop', 'Tuesday', '2026-07-08')).toMatchObject({ status: 404 });
   });
 
   it('400 when the artist is already rostered in the league', async () => {
     pm.league.findUnique.mockResolvedValue(LEAGUE);
     pm.artist.findUnique.mockResolvedValue(ARTIST_POP);
     pm.rosterSpot.findFirst.mockResolvedValue({ id: 'someone-elses-spot' });
-    expect(await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop')).toMatchObject({
+    expect(await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop', 'Tuesday', '2026-07-08')).toMatchObject({
       error: 'Pop Star is already on a roster', status: 400,
     });
   });
@@ -121,10 +121,10 @@ describe('submitWaiverClaim', () => {
     pm.league.findUnique.mockResolvedValue(LEAGUE);
     pm.artist.findUnique.mockResolvedValue(ARTIST_POP);
     pm.rosterSpot.findUnique.mockResolvedValue(null);
-    expect(await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop')).toMatchObject({ status: 400 });
+    expect(await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop', 'Tuesday', '2026-07-08')).toMatchObject({ status: 400 });
 
     pm.rosterSpot.findUnique.mockResolvedValue({ id: 'spot-1', artistId: null, artist: null });
-    expect(await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop')).toMatchObject({ status: 400 });
+    expect(await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop', 'Tuesday', '2026-07-08')).toMatchObject({ status: 400 });
   });
 
   it('400 with the trade-lock message when the drop artist is in an accepted trade', async () => {
@@ -132,7 +132,7 @@ describe('submitWaiverClaim', () => {
     pm.artist.findUnique.mockResolvedValue(ARTIST_POP);
     pm.rosterSpot.findUnique.mockResolvedValue({ id: 'spot-1', artistId: 'old-artist', artist: { name: 'Old Timer' } });
     pm.tradeItem.findMany.mockResolvedValue([{ artistId: 'old-artist' }]);
-    expect(await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop')).toMatchObject({
+    expect(await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop', 'Tuesday', '2026-07-08')).toMatchObject({
       error: 'Old Timer is locked in an accepted trade', status: 400,
     });
   });
@@ -141,7 +141,56 @@ describe('submitWaiverClaim', () => {
     pm.league.findUnique.mockResolvedValue(LEAGUE);
     pm.artist.findUnique.mockResolvedValue({ ...ARTIST_POP, primaryGenre: 'Country' });
     pm.rosterSpot.findUnique.mockResolvedValue({ id: 'spot-1', artistId: 'old-artist', artist: { name: 'Old Timer' } });
-    expect(await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop')).toMatchObject({ status: 400 });
+    expect(await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop', 'Tuesday', '2026-07-08')).toMatchObject({ status: 400 });
+  });
+
+  it('Monday free agency: pickup executes instantly, no claim, no demotion', async () => {
+    pm.league.findUnique.mockResolvedValue(LEAGUE);
+    pm.artist.findUnique.mockResolvedValue(ARTIST_POP);
+    pm.rosterSpot.findUnique.mockResolvedValue({ id: 'spot-1', artistId: 'old-artist', artist: { name: 'Old Timer' } });
+
+    const result = await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop', 'Monday', '2026-07-06');
+
+    expect(result).toEqual({
+      success: true, instant: true, slot: 'Pop', droppedArtistId: 'old-artist', addedArtistId: 'artist-pop',
+    });
+    expect(pm.rosterSpot.update).toHaveBeenCalledWith({ where: { id: 'spot-1' }, data: { artistId: 'artist-pop' } });
+    expect(pm.leagueEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: 'claim',
+        message: 'Chart Chasers added Pop Star, dropped Old Timer (free agency)',
+      }),
+    });
+    expect(pm.waiverClaim.create).not.toHaveBeenCalled();
+    expect(pm.team.update).not.toHaveBeenCalled(); // free — waiver order untouched
+  });
+
+  it('week-1 pre-game window: pickups are instant on any day', async () => {
+    pm.league.findUnique.mockResolvedValue({
+      ...LEAGUE,
+      currentWeek: 1,
+      // Draft Wed 2026-07-08 → first scoring Tuesday 2026-07-14; today (Thu 07-09) is before it.
+      draftTime: new Date('2026-07-08T19:00:00Z'),
+    });
+    pm.artist.findUnique.mockResolvedValue(ARTIST_POP);
+    pm.rosterSpot.findUnique.mockResolvedValue({ id: 'spot-1', artistId: 'old-artist', artist: { name: 'Old Timer' } });
+
+    const result = await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop', 'Thursday', '2026-07-09');
+
+    expect(result).toMatchObject({ success: true, instant: true });
+    expect(pm.waiverClaim.create).not.toHaveBeenCalled();
+  });
+
+  it('Tuesday–Sunday during a scoring week: pickups queue as waiver claims', async () => {
+    pm.league.findUnique.mockResolvedValue({ ...LEAGUE, currentWeek: 3, draftTime: new Date('2026-06-17T19:00:00Z') });
+    pm.artist.findUnique.mockResolvedValue(ARTIST_POP);
+    pm.rosterSpot.findUnique.mockResolvedValue({ id: 'spot-1', artistId: 'old-artist', artist: { name: 'Old Timer' } });
+    pm.waiverClaim.create.mockResolvedValue({ id: 'claim-1', artistId: 'artist-pop', dropSlot: 'Pop', status: 'pending' });
+
+    const result = await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop', 'Saturday', '2026-07-11');
+
+    expect(result).toMatchObject({ claim: expect.objectContaining({ status: 'pending' }) });
+    expect(pm.rosterSpot.update).not.toHaveBeenCalled();
   });
 
   it('400 when the team already has a pending claim for the same artist', async () => {
@@ -149,7 +198,7 @@ describe('submitWaiverClaim', () => {
     pm.artist.findUnique.mockResolvedValue(ARTIST_POP);
     pm.rosterSpot.findUnique.mockResolvedValue({ id: 'spot-1', artistId: 'old-artist', artist: { name: 'Old Timer' } });
     pm.waiverClaim.findFirst.mockResolvedValue({ id: 'existing-claim' });
-    expect(await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop')).toMatchObject({
+    expect(await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop', 'Tuesday', '2026-07-08')).toMatchObject({
       error: 'You already have a pending claim for Pop Star', status: 400,
     });
     expect(pm.waiverClaim.create).not.toHaveBeenCalled();
@@ -410,6 +459,32 @@ describe('resolveWaivers', () => {
     expect(pm.notification.createMany).toHaveBeenCalledWith({
       data: [expect.objectContaining({ userId: 'u1', message: expect.stringContaining('could not be processed') })],
     });
+  });
+
+  it('every pickup demotes the winner: the order is rewritten after EACH win', async () => {
+    // A (order 1) and B (order 2) each win an uncontested claim. After A's
+    // win the persisted order must already read [B, A] — before B's claim is
+    // even processed — and after B's win it flips back to [A, B].
+    pm.waiverClaim.findMany.mockResolvedValue([
+      makeClaim({ id: 'a-x', teamId: 't1', teamName: 'Alpha', userId: 'u1', priority: 1,
+                  artistId: 'x', artistName: 'X', dropSlot: 'Pop', dropArtistId: 'a1',
+                  createdAt: new Date('2026-07-08T09:00:00Z') }),
+      makeClaim({ id: 'b-y', teamId: 't2', teamName: 'Beta', userId: 'u2', priority: 1,
+                  artistId: 'y', artistName: 'Y', dropSlot: 'Pop', dropArtistId: 'b1',
+                  createdAt: new Date('2026-07-08T10:00:00Z') }),
+    ]);
+    pm.team.findMany.mockResolvedValue([{ id: 't1' }, { id: 't2' }]);
+    pm.artist.findMany.mockResolvedValue([{ id: 'a1', name: 'A1' }, { id: 'b1', name: 'B1' }]);
+    fakeRoster({ t1: { Pop: 'a1' }, t2: { Pop: 'b1' } });
+
+    await resolveWaivers('league-1');
+
+    // team.update is called once per team per win (2 wins × 2 teams = 4 calls),
+    // in demotion order each time.
+    expect(pm.team.update.mock.calls.map((c: any[]) => [c[0].where.id, c[0].data.waiverPriority])).toEqual([
+      ['t2', 1], ['t1', 2], // after A's win: A dropped to the bottom
+      ['t1', 1], ['t2', 2], // after B's win: B dropped to the bottom
+    ]);
   });
 
   it("respects each team's own claim priority over submission time", async () => {

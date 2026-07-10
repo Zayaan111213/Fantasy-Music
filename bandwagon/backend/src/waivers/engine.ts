@@ -1,6 +1,6 @@
 import { prisma } from '../db/prisma';
 // Call-time imports only (same circularity-safe pattern as trades/engine.ts).
-import { artistEligibleForSlot } from '../api/routes/leagues';
+import { artistEligibleForSlot, isLineupLocked } from '../api/routes/leagues';
 import { lockedArtistIds } from '../trades/engine';
 import { logLeagueEvent } from '../events/leagueEvents';
 
@@ -9,9 +9,15 @@ import { logLeagueEvent } from '../events/leagueEvents';
 // execute. Conflicts on the same artist go to the team with the better
 // (lower) waiverPriority; each winner drops to the bottom of the order
 // before the next conflict is decided.
+//
+// Exception — free agency: while the lineup is adjustable (Monday, or the
+// week-1 pre-game window — the same isLineupLocked rule the lineup uses),
+// pickups execute instantly and cost nothing: no queue, no waiver-order
+// demotion.
 
 export type WaiverClaimResult =
   | { claim: { id: string; artistId: string; dropSlot: string; status: string } }
+  | { success: true; instant: true; slot: string; droppedArtistId: string; addedArtistId: string }
   | { error: string; status: number };
 
 export async function submitWaiverClaim(
@@ -19,6 +25,8 @@ export async function submitWaiverClaim(
   userId: string,
   artistId: string,
   dropSlot: string,
+  dayPT: string,
+  todayPT: string,
 ): Promise<WaiverClaimResult> {
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
@@ -54,6 +62,20 @@ export async function submitWaiverClaim(
 
   if (!artistEligibleForSlot(artist.primaryGenre, dropSlot)) {
     return { error: `${artist.name} is not eligible for the ${dropSlot} slot`, status: 400 };
+  }
+
+  // Free agency: lineup-adjustable days execute the pickup immediately, with
+  // no waiver-order demotion.
+  if (!isLineupLocked(dayPT, league.currentWeek, league.draftTime, todayPT)) {
+    const droppedArtistId = dropSpot.artistId;
+    await prisma.rosterSpot.update({ where: { id: dropSpot.id }, data: { artistId } });
+    await logLeagueEvent(
+      prisma,
+      leagueId,
+      'claim',
+      `${myTeam.name} added ${artist.name}, dropped ${dropSpot.artist?.name ?? 'an artist'} (free agency)`,
+    );
+    return { success: true, instant: true, slot: dropSlot, droppedArtistId, addedArtistId: artistId };
   }
 
   const duplicate = await prisma.waiverClaim.findFirst({
