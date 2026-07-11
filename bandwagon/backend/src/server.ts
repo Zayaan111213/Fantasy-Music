@@ -22,6 +22,7 @@ import notificationRoutes from './api/routes/notifications';
 import { errorHandler, notFound } from './api/middleware/errorHandler';
 import { registerDraftSocket, startDraftScheduler } from './sockets/draft';
 import { startPipelineScheduler } from './jobs/scheduler';
+import { startEmailDispatcher } from './email/dispatcher';
 
 const app = express();
 const httpServer = createServer(app);
@@ -68,6 +69,7 @@ app.use(errorHandler);
 registerDraftSocket(io);
 startDraftScheduler(io);
 startPipelineScheduler(); // no-op under NODE_ENV=test / PIPELINE_SCHEDULER_DISABLED
+startEmailDispatcher(); // no-op under NODE_ENV=test / EMAIL_DISPATCH_DISABLED / missing RESEND_API_KEY
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 httpServer.listen(PORT, () => {
