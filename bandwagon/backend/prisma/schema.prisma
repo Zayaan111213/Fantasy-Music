@@ -28,6 +28,7 @@ model Notification {
   type      String
   message   String
   seenAt    DateTime?
+  emailedAt DateTime? // set once the email dispatcher has sent (or retired) this row
   createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
