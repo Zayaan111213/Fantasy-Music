@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '../../db/prisma';
 import { signToken } from '../middleware/auth';
 import { generateInviteCode } from './leagues';
+import { createPasswordResetToken } from './auth';
 import { buildRoundRobin } from '../../utils/schedule';
 import { finalizeLeagueWeek } from '../../jobs/finalizePipeline';
 
@@ -276,6 +277,21 @@ router.post('/finalize-week', async (req, res, next) => {
     const league = await prisma.league.findUniqueOrThrow({ where: { id: leagueId } });
     await finalizeLeagueWeek(leagueId, week ?? league.currentWeek, league.seasonYear);
     res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Mints a fresh raw password-reset token for a user. E2e needs this because
+// only the sha256 hash is stored; reuses the production minting helper so the
+// code path under test is identical.
+router.post('/reset-token', async (req, res, next) => {
+  try {
+    const email = String(req.body?.email ?? '');
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) { res.status(404).json({ error: 'No such user' }); return; }
+    const token = await createPasswordResetToken(user.id);
+    res.json({ token });
   } catch (err) {
     next(err);
   }

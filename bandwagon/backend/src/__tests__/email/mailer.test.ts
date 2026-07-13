@@ -23,6 +23,9 @@ const input = {
 beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock);
   vi.stubEnv('RESEND_API_KEY', 'test-key');
+  // sendEmail hard-skips under NODE_ENV=test (so e2e never sends real mail);
+  // pretend we're in a real environment to exercise the send path.
+  vi.stubEnv('NODE_ENV', 'development');
   fetchMock.mockReset();
 });
 
@@ -89,6 +92,13 @@ describe('sendEmail', () => {
 
   it('skips without calling fetch when RESEND_API_KEY is unset', async () => {
     vi.stubEnv('RESEND_API_KEY', '');
+    const result = await sendEmail(input);
+    expect(result).toEqual({ status: 'skipped' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('skips under NODE_ENV=test even with a key configured', async () => {
+    vi.stubEnv('NODE_ENV', 'test');
     const result = await sendEmail(input);
     expect(result).toEqual({ status: 'skipped' });
     expect(fetchMock).not.toHaveBeenCalled();

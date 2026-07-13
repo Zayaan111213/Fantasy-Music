@@ -34,10 +34,14 @@ export function escapeHtml(raw: string): string {
 export interface RenderInput {
   username: string | null;
   message: string;
+  cta?: { url: string; label: string }; // defaults to the app-root "Open Bandwagon" button
+  footer?: string;
 }
 
-export function renderEmail({ username, message }: RenderInput): { html: string; text: string } {
+export function renderEmail({ username, message, cta, footer }: RenderInput): { html: string; text: string } {
   const appUrl = process.env.FRONTEND_URL || 'https://bandwagon.up.railway.app';
+  const button = cta ?? { url: appUrl, label: 'Open Bandwagon' };
+  const footerText = footer ?? "You're receiving this because of activity in your Bandwagon league.";
   const greeting = `Hi ${username ?? 'there'},`;
   // message/username include user-controlled team and league names — escape them.
   const html = `
@@ -52,14 +56,14 @@ export function renderEmail({ username, message }: RenderInput): { html: string;
         <p style="margin:0;">${escapeHtml(message)}</p>
       </td></tr>
       <tr><td style="padding:20px 32px 28px;">
-        <a href="${appUrl}" style="display:inline-block;background:#18181b;color:#fafafa;text-decoration:none;font-size:14px;font-weight:600;padding:10px 20px;border-radius:8px;">Open Bandwagon</a>
+        <a href="${button.url}" style="display:inline-block;background:#18181b;color:#fafafa;text-decoration:none;font-size:14px;font-weight:600;padding:10px 20px;border-radius:8px;">${escapeHtml(button.label)}</a>
       </td></tr>
       <tr><td style="padding:16px 32px;background:#f4f4f7;color:#71717a;font-size:12px;line-height:1.5;">
-        You're receiving this because of activity in your Bandwagon league.
+        ${escapeHtml(footerText)}
       </td></tr>
     </table>
   </td></tr>
 </table>`.trim();
-  const text = `${greeting}\n\n${message}\n\n${appUrl}`;
+  const text = `${greeting}\n\n${message}\n\n${button.url}`;
   return { html, text };
 }
