@@ -40,6 +40,32 @@ test.describe('Matchup and standings views', () => {
     await ctx.close();
   });
 
+  test('around-the-league matchup expands on click to show both rosters', async ({ browser: b }) => {
+    const ctx = await b.newContext();
+    await injectAuth(ctx, fixture.user1.token);
+    const page = await ctx.newPage();
+
+    await page.goto(`/leagues/${fixture.leagueId}`);
+    await page.getByRole('button', { name: 'Matchup' }).click();
+    await expect(page.getByText('Around the League')).toBeVisible({ timeout: 10_000 });
+
+    // B vs C is the week-1 game user1 is not in — collapsed, each name renders once.
+    await expect(page.getByText('E2E Team B')).toHaveCount(1);
+
+    // Expand: the row is a button whose accessible name contains both teams.
+    await page.getByRole('button', { name: /E2E Team B/ }).click();
+
+    // The detail panel adds a roster card titled with each team name.
+    await expect(page.getByText('E2E Team B')).toHaveCount(2, { timeout: 10_000 });
+    await expect(page.getByText('E2E Team C')).toHaveCount(2);
+
+    // Collapse again.
+    await page.getByRole('button', { name: /E2E Team B/ }).click();
+    await expect(page.getByText('E2E Team B')).toHaveCount(1);
+
+    await ctx.close();
+  });
+
   test('standings tab shows all four teams ranked 1–4', async ({ browser: b }) => {
     const ctx = await b.newContext();
     await injectAuth(ctx, fixture.user1.token);

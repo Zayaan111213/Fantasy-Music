@@ -8,7 +8,7 @@ vi.mock('../../../db/prisma', () => ({
   prisma: {
     league: { findUnique: vi.fn() },
     team: { findMany: vi.fn(), findFirst: vi.fn() },
-    matchup: { findFirst: vi.fn() },
+    matchup: { findFirst: vi.fn(), findUnique: vi.fn() },
     artist: { findUnique: vi.fn(), findMany: vi.fn() },
     genreStreamingTier: { findMany: vi.fn() },
     rosterSpot: { findUnique: vi.fn(), update: vi.fn() },
@@ -34,7 +34,7 @@ import leagueRouter from '../../../api/routes/leagues';
 const pm = prisma as unknown as {
   league: { findUnique: ReturnType<typeof vi.fn> };
   team: { findMany: ReturnType<typeof vi.fn>; findFirst: ReturnType<typeof vi.fn> };
-  matchup: { findFirst: ReturnType<typeof vi.fn> };
+  matchup: { findFirst: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn> };
   artist: { findUnique: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> };
   genreStreamingTier: { findMany: ReturnType<typeof vi.fn> };
   rosterSpot: { findUnique: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
@@ -188,6 +188,77 @@ describe('GET /leagues/:id/matchups/previous', () => {
 
     const query = pm.matchup.findFirst.mock.calls[0][0];
     expect(query.where.week).toBe(3); // currentWeek - 1
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /leagues/:id/matchups/:matchupId — around-the-league detail
+// ---------------------------------------------------------------------------
+
+describe('GET /leagues/:id/matchups/:matchupId', () => {
+  it('returns 404 when league not found', async () => {
+    pm.league.findUnique.mockResolvedValue(null);
+
+    const res = await request(app).get('/leagues/bad/matchups/m9');
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('League not found');
+  });
+
+  it('returns 403 when user is not a member', async () => {
+    pm.league.findUnique.mockResolvedValue({ id: 'l1', seasonYear: 2026 });
+    pm.team.findFirst.mockResolvedValue(null);
+
+    const res = await request(app).get('/leagues/l1/matchups/m9');
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 404 when the matchup is not in this league', async () => {
+    pm.league.findUnique.mockResolvedValue({ id: 'l1', seasonYear: 2026 });
+    pm.team.findFirst.mockResolvedValue({ id: 'my-team' });
+    pm.matchup.findFirst.mockResolvedValue(null);
+
+    const res = await request(app).get('/leagues/l1/matchups/other-league-matchup');
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('Matchup not found');
+    // Scoped lookup: id AND leagueId
+    expect(pm.matchup.findFirst.mock.calls[0][0].where).toEqual({
+      id: 'other-league-matchup',
+      leagueId: 'l1',
+    });
+  });
+
+  it('returns both rosters with scores filtered to the matchup week', async () => {
+    pm.league.findUnique.mockResolvedValue({ id: 'l1', seasonYear: 2026 });
+    pm.team.findFirst.mockResolvedValue({ id: 'my-team' });
+    pm.matchup.findFirst.mockResolvedValue({ id: 'm9', week: 4, leagueId: 'l1' });
+    pm.matchup.findUnique.mockResolvedValue({
+      id: 'm9', week: 4, homeScore: 91.5, awayScore: 84,
+      homeTeam: { id: 'tA', name: 'Alpha', user: { username: 'alice', avatarUrl: null }, rosterSpots: [] },
+      awayTeam: { id: 'tB', name: 'Beta', user: { username: 'bob', avatarUrl: null }, rosterSpots: [] },
+    });
+
+    const res = await request(app).get('/leagues/l1/matchups/m9');
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe('m9');
+    expect(res.body.homeTeam.name).toBe('Alpha');
+    expect(res.body.awayTeam.name).toBe('Beta');
+
+    // weeklyScores must be filtered to the matchup's own week, not currentWeek
+    const include = pm.matchup.findUnique.mock.calls[0][0].include;
+    const wsWhere = include.homeTeam.include.rosterSpots.include.artist.include.weeklyScores.where;
+    expect(wsWhere).toEqual({ week: 4, seasonYear: 2026 });
+  });
+
+  it('does not swallow the literal /matchups/current route (registration order)', async () => {
+    pm.league.findUnique.mockResolvedValue({ id: 'l1', currentWeek: 3, seasonYear: 2026 });
+    pm.team.findFirst.mockResolvedValue({ id: 'my-team' });
+    pm.matchup.findFirst.mockResolvedValue(null);
+
+    const res = await request(app).get('/leagues/l1/matchups/current');
+    // The current-matchup handler returns 200 null when nothing exists; the
+    // detail handler would return 404 'Matchup not found' instead.
+    expect(res.status).toBe(200);
+    expect(res.body).toBeNull();
   });
 });
 
