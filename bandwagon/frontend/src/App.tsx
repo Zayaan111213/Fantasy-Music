@@ -2,6 +2,8 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { FullPageSpinner } from './components/ui/Spinner';
 import { Auth } from './pages/Auth';
+import { ForgotPassword } from './pages/ForgotPassword';
+import { ResetPassword } from './pages/ResetPassword';
 import { Onboarding } from './pages/Onboarding';
 import { AccountSettings } from './pages/AccountSettings';
 import { Home } from './pages/Home';
@@ -40,6 +42,8 @@ export function App() {
   return (
     <Routes>
       <Route path="/auth" element={<Auth />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/onboarding" element={<RequireAuth><Onboarding /></RequireAuth>} />
       <Route path="/" element={<Navigate to="/home" replace />} />
       <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />

@@ -19,10 +19,11 @@ export interface EmailInput {
 
 export async function sendEmail(input: EmailInput): Promise<SendResult> {
   // Read env at call time (not module load) so tests and late-configured
-  // environments behave predictably.
+  // environments behave predictably. Under NODE_ENV=test never send real
+  // mail, even if a key leaked in via .env (e2e boots the real server).
   const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    console.log(`[email] RESEND_API_KEY not set — skipping send to ${input.to}`);
+  if (!apiKey || process.env.NODE_ENV === 'test') {
+    console.log(`[email] ${apiKey ? 'NODE_ENV=test' : 'RESEND_API_KEY not set'} — skipping send to ${input.to}`);
     return { status: 'skipped' };
   }
   const from = process.env.EMAIL_FROM || DEFAULT_FROM;

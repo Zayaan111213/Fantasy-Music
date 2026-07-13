@@ -1,11 +1,14 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import { prisma } from '../../db/prisma';
 import { signToken, requireAuth, type AuthRequest } from '../middleware/auth';
 import { uploadAvatar } from '../middleware/upload';
+import { sendEmail } from '../../email/mailer';
+import { renderEmail } from '../../email/templates';
 
 const router = Router();
 
@@ -164,6 +167,102 @@ router.put('/me', requireAuth, uploadAvatar, async (req: AuthRequest, res, next)
     }
 
     res.json({ user: userResponse(user) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // reset links expire after 1 hour
+
+function hashResetToken(raw: string): string {
+  return crypto.createHash('sha256').update(raw).digest('hex');
+}
+
+// Exported for testHelperRoutes: e2e needs a raw token, and only the hash is stored.
+export async function createPasswordResetToken(userId: string): Promise<string> {
+  // Invalidate outstanding tokens so only the newest link works.
+  await prisma.passwordResetToken.updateMany({
+    where: { userId, usedAt: null },
+    data: { usedAt: new Date() },
+  });
+  const raw = crypto.randomBytes(32).toString('hex');
+  await prisma.passwordResetToken.create({
+    data: { userId, tokenHash: hashResetToken(raw), expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS) },
+  });
+  return raw;
+}
+
+const ForgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+
+router.post('/forgot-password', async (req, res, next) => {
+  try {
+    const { email } = ForgotPasswordSchema.parse(req.body);
+
+    // Deliberately reveals whether an account exists (explicit product decision).
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      res.status(404).json({ error: 'No account found with that email' });
+      return;
+    }
+
+    const raw = await createPasswordResetToken(user.id);
+    const appUrl = process.env.FRONTEND_URL || 'https://bandwagon.up.railway.app';
+    const resetUrl = `${appUrl}/reset-password?token=${raw}`;
+
+    const { html, text } = renderEmail({
+      username: user.username,
+      message:
+        'We received a request to reset your Bandwagon password. Click the button below to choose a new one. This link expires in 1 hour and can be used once.',
+      cta: { url: resetUrl, label: 'Reset Password' },
+      footer:
+        "You're receiving this because a password reset was requested for your Bandwagon account. If this wasn't you, you can safely ignore this email — your password won't change.",
+    });
+    const result = await sendEmail({ to: user.email, subject: 'Reset your Bandwagon password', html, text });
+
+    if (result.status === 'failed') {
+      console.error(`[auth] password reset email to ${user.email} failed: ${result.detail}`);
+      res.status(502).json({ error: 'Could not send the reset email — try again later' });
+      return;
+    }
+    if (result.status === 'skipped') {
+      // No RESEND_API_KEY (dev/e2e) — surface the link in the server log instead.
+      console.log(`[auth] password reset link for ${user.email}: ${resetUrl}`);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const ResetPasswordSchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(6),
+});
+
+router.post('/reset-password', async (req, res, next) => {
+  try {
+    const { token, password } = ResetPasswordSchema.parse(req.body);
+
+    const row = await prisma.passwordResetToken.findFirst({
+      where: { tokenHash: hashResetToken(token), usedAt: null, expiresAt: { gt: new Date() } },
+      include: { user: true },
+    });
+    if (!row) {
+      // One message for garbage/expired/already-used — don't leak which.
+      res.status(400).json({ error: 'Invalid or expired reset link' });
+      return;
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    await prisma.$transaction([
+      prisma.user.update({ where: { id: row.userId }, data: { passwordHash } }),
+      prisma.passwordResetToken.update({ where: { id: row.id }, data: { usedAt: new Date() } }),
+    ]);
+
+    // Same response shape as /login so the client can log the user straight in.
+    res.json({ token: signToken(row.userId), user: userResponse(row.user) });
   } catch (err) {
     next(err);
   }

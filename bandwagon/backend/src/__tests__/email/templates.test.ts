@@ -43,6 +43,40 @@ describe('renderEmail', () => {
     expect(html).toContain('Hi there,');
   });
 
+  it('uses the default CTA and footer when no overrides are given', () => {
+    const { html, text } = renderEmail({ username: null, message: 'msg' });
+    expect(html).toContain('>Open Bandwagon</a>');
+    expect(html).toContain('href="https://bandwagon.up.railway.app"');
+    expect(html).toContain('activity in your Bandwagon league');
+    expect(text.trim().endsWith('https://bandwagon.up.railway.app')).toBe(true);
+  });
+
+  it('honors cta and footer overrides in html and text', () => {
+    const { html, text } = renderEmail({
+      username: 'MusicMaven',
+      message: 'Reset requested.',
+      cta: { url: 'https://bandwagon.up.railway.app/reset-password?token=abc123', label: 'Reset Password' },
+      footer: 'If this was not you, ignore this email.',
+    });
+    expect(html).toContain('href="https://bandwagon.up.railway.app/reset-password?token=abc123"');
+    expect(html).toContain('>Reset Password</a>');
+    expect(html).toContain('If this was not you, ignore this email.');
+    expect(html).not.toContain('activity in your Bandwagon league');
+    expect(text).toContain('https://bandwagon.up.railway.app/reset-password?token=abc123');
+  });
+
+  it('escapes html in cta label and footer', () => {
+    const { html } = renderEmail({
+      username: null,
+      message: 'msg',
+      cta: { url: 'https://example.com', label: '<b>Click</b>' },
+      footer: '<script>x</script>',
+    });
+    expect(html).toContain('&lt;b&gt;Click&lt;/b&gt;');
+    expect(html).not.toContain('<script>');
+    expect(html).toContain('&lt;script&gt;x&lt;/script&gt;');
+  });
+
   it('escapes html in user-controlled content', () => {
     const { html } = renderEmail({
       username: '<b>bold</b>',
