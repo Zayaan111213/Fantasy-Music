@@ -726,6 +726,50 @@ router.get('/:id/matchups/previous', requireAuth, async (req: AuthRequest, res, 
   }
 });
 
+// Full detail (both rosters + that week's per-artist scores) for any one
+// matchup in the league, so members can inspect games they're not in.
+// Must be registered after /matchups/current and /matchups/previous —
+// Express matches in registration order and :matchupId would swallow them.
+router.get('/:id/matchups/:matchupId', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const league = await prisma.league.findUnique({ where: { id: req.params.id } });
+    if (!league) { res.status(404).json({ error: 'League not found' }); return; }
+
+    const myTeam = await prisma.team.findFirst({
+      where: { leagueId: req.params.id, userId: req.userId! },
+    });
+    if (!myTeam) { res.status(403).json({ error: 'Not a member' }); return; }
+
+    // Two-step: the weeklyScores filter needs the matchup's week.
+    const base = await prisma.matchup.findFirst({
+      where: { id: req.params.matchupId, leagueId: req.params.id },
+    });
+    if (!base) { res.status(404).json({ error: 'Matchup not found' }); return; }
+
+    const rosterInclude = {
+      user: { select: { username: true, avatarUrl: true } },
+      rosterSpots: {
+        include: {
+          artist: {
+            include: {
+              weeklyScores: {
+                where: { week: base.week, seasonYear: league.seasonYear },
+              },
+            },
+          },
+        },
+      },
+    };
+    const matchup = await prisma.matchup.findUnique({
+      where: { id: base.id },
+      include: { homeTeam: { include: rosterInclude }, awayTeam: { include: rosterInclude } },
+    });
+    res.json(matchup);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // All matchups for the league; ?week=N narrows to a single week
 router.get('/:id/matchups', requireAuth, async (req: AuthRequest, res, next) => {
   try {

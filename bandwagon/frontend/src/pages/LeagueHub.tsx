@@ -687,14 +687,35 @@ function MyTeamTab({ leagueId, league, phase }: { leagueId: string; league: Leag
   );
 }
 
+// Expanded body of an around-the-league row: both full rosters with that
+// week's per-artist scores, fetched on demand when the row is opened.
+function MatchupDetailPanel({ leagueId, matchupId }: { leagueId: string; matchupId: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['matchupDetail', leagueId, matchupId],
+    queryFn: () => api.get<Matchup>(`/leagues/${leagueId}/matchups/${matchupId}`),
+  });
+
+  if (isLoading) return <div className="flex justify-center py-4"><Spinner className="w-5 h-5" /></div>;
+  if (!data) return null;
+
+  return (
+    <div className="grid grid-cols-2 gap-2 pt-2 pb-1">
+      <TeamRosterCard title={data.homeTeam?.name ?? 'Home'} roster={data.homeTeam?.rosterSpots ?? []} leagueId={leagueId} />
+      <TeamRosterCard title={data.awayTeam?.name ?? 'Away'} roster={data.awayTeam?.rosterSpots ?? []} reverse leagueId={leagueId} />
+    </div>
+  );
+}
+
 // Every matchup in the league for one week — shown under the user's own
 // matchup so any week's full slate (including games you're not in) is visible.
+// Rows expand on click to show both rosters and their artist scores.
 function LeagueMatchupsCard({ leagueId, week, myTeamId, upcoming = false }: {
   leagueId: string;
   week: number;
   myTeamId?: string;
   upcoming?: boolean;
 }) {
+  const [openId, setOpenId] = useState<string | null>(null);
   const { data } = useQuery({
     queryKey: ['leagueMatchups', leagueId, week],
     queryFn: () => api.get<LeagueMatchup[]>(`/leagues/${leagueId}/matchups?week=${week}`),
@@ -712,32 +733,52 @@ function LeagueMatchupsCard({ leagueId, week, myTeamId, upcoming = false }: {
           const homeWon = m.isFinalized && m.winnerId === m.homeTeamId;
           const awayWon = m.isFinalized && m.winnerId === m.awayTeamId;
           const mine = myTeamId != null && (m.homeTeamId === myTeamId || m.awayTeamId === myTeamId);
+          const open = openId === m.id;
+          const row = (
+            <div className="grid grid-cols-12 items-center gap-2">
+              <div className="col-span-4 flex items-center gap-2 min-w-0">
+                <Avatar src={m.homeTeam.logoUrl} name={m.homeTeam.name} size="sm" />
+                <span className={`truncate text-sm ${homeWon ? 'text-green-400 font-semibold' : 'text-white'}`}>{m.homeTeam.name}</span>
+              </div>
+              <div className="col-span-4 flex flex-col items-center gap-0.5">
+                <div className="font-mono text-sm whitespace-nowrap">
+                  {upcoming ? (
+                    <span className="text-gray-600">— vs —</span>
+                  ) : (
+                    <>
+                      <span className={homeWon ? 'text-green-400 font-semibold' : 'text-gray-300'}>{m.homeScore.toFixed(1)}</span>
+                      <span className="text-gray-600 mx-1.5">–</span>
+                      <span className={awayWon ? 'text-green-400 font-semibold' : 'text-gray-300'}>{m.awayScore.toFixed(1)}</span>
+                    </>
+                  )}
+                </div>
+                <PlayoffTag matchupType={m.matchupType} />
+              </div>
+              <div className="col-span-4 flex items-center gap-2 justify-end min-w-0">
+                <span className={`truncate text-sm text-right ${awayWon ? 'text-green-400 font-semibold' : 'text-white'}`}>{m.awayTeam.name}</span>
+                <Avatar src={m.awayTeam.logoUrl} name={m.awayTeam.name} size="sm" />
+                {!upcoming && (
+                  <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+                )}
+              </div>
+            </div>
+          );
           return (
             <div key={m.id} className={`py-2.5 ${mine ? 'bg-indigo-500/5 -mx-2 px-2 rounded' : ''}`}>
-              <div className="grid grid-cols-12 items-center gap-2">
-                <div className="col-span-4 flex items-center gap-2 min-w-0">
-                  <Avatar src={m.homeTeam.logoUrl} name={m.homeTeam.name} size="sm" />
-                  <span className={`truncate text-sm ${homeWon ? 'text-green-400 font-semibold' : 'text-white'}`}>{m.homeTeam.name}</span>
-                </div>
-                <div className="col-span-4 flex flex-col items-center gap-0.5">
-                  <div className="font-mono text-sm whitespace-nowrap">
-                    {upcoming ? (
-                      <span className="text-gray-600">— vs —</span>
-                    ) : (
-                      <>
-                        <span className={homeWon ? 'text-green-400 font-semibold' : 'text-gray-300'}>{m.homeScore.toFixed(1)}</span>
-                        <span className="text-gray-600 mx-1.5">–</span>
-                        <span className={awayWon ? 'text-green-400 font-semibold' : 'text-gray-300'}>{m.awayScore.toFixed(1)}</span>
-                      </>
-                    )}
-                  </div>
-                  <PlayoffTag matchupType={m.matchupType} />
-                </div>
-                <div className="col-span-4 flex items-center gap-2 justify-end min-w-0">
-                  <span className={`truncate text-sm text-right ${awayWon ? 'text-green-400 font-semibold' : 'text-white'}`}>{m.awayTeam.name}</span>
-                  <Avatar src={m.awayTeam.logoUrl} name={m.awayTeam.name} size="sm" />
-                </div>
-              </div>
+              {upcoming ? (
+                // No scores exist yet for future weeks — nothing to expand.
+                row
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setOpenId(open ? null : m.id)}
+                  className="w-full text-left cursor-pointer"
+                  aria-expanded={open}
+                >
+                  {row}
+                </button>
+              )}
+              {open && !upcoming && <MatchupDetailPanel leagueId={leagueId} matchupId={m.id} />}
             </div>
           );
         })}
