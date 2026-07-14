@@ -120,7 +120,7 @@ async function main(): Promise<void> {
         console.error('  Could not fetch sample:', err);
       }
     }
-    console.log(`\nRe-run safe: @@unique([weekDate, chart, rank]) upserts in place.`);
+    console.log(`\nRe-run safe: @@unique([weekDate, chart, rank, artistId]) upserts in place.`);
     console.log(`Run without --preview to load all ${sortedWeeks.length} weeks.`);
     return;
   }

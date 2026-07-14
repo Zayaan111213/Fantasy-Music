@@ -1,5 +1,6 @@
 import { prisma } from '../db/prisma';
 import type { Artist } from '@prisma/client';
+import { splitArtistCredit } from '../data/artistCredits';
 
 const SONGS_URL = 'https://rss.marketingtools.apple.com/api/v2/us/music/most-played/100/songs.json';
 const ALBUMS_URL = 'https://rss.marketingtools.apple.com/api/v2/us/music/most-played/100/albums.json';
@@ -77,23 +78,60 @@ export async function upsertArtist(entry: AppleFeedEntry): Promise<Artist | null
       return prisma.artist.create({
         data: { name: entry.artistName, primaryGenre: genre, appleArtistId, imageUrl },
       });
-    } else {
-      const byName = await prisma.artist.findFirst({ where: { name: entry.artistName } });
-      if (byName) {
-        if (byName.imageUrl === null && imageUrl) {
-          return prisma.artist.update({ where: { id: byName.id }, data: { imageUrl } });
-        }
-        return byName;
-      }
-
-      return prisma.artist.create({
-        data: { name: entry.artistName, primaryGenre: genre, imageUrl },
-      });
     }
+    return upsertArtistByName(entry.artistName, genre, imageUrl);
   } catch (err) {
     console.error(`  ✗ artist upsert failed for "${entry.artistName}":`, err);
     return null;
   }
+}
+
+// Find-or-create by exact name only. Used for components of a split joint
+// credit: the feed's artistId belongs to the combined credit, so it must
+// never be attached to an individual. genreEnrichedAt stays null so
+// backfillGenres re-resolves the genre via iTunes name search.
+export async function upsertArtistByName(
+  name: string,
+  genre: string,
+  imageUrl?: string,
+): Promise<Artist | null> {
+  try {
+    const byName = await prisma.artist.findFirst({ where: { name } });
+    if (byName) {
+      if (byName.imageUrl === null && imageUrl) {
+        return prisma.artist.update({ where: { id: byName.id }, data: { imageUrl } });
+      }
+      return byName;
+    }
+    return await prisma.artist.create({ data: { name, primaryGenre: genre, imageUrl } });
+  } catch (err) {
+    console.error(`  ✗ artist upsert failed for "${name}":`, err);
+    return null;
+  }
+}
+
+// Resolves a feed entry to every credited artist. Single credits keep the
+// appleArtistId-first path; joint credits ("A, B & C") upsert each component
+// by name and never create a combined Artist row.
+export async function resolveCreditedArtists(entry: AppleFeedEntry): Promise<Artist[]> {
+  const names = splitArtistCredit(entry.artistName);
+  const genre = entry.genres[0]?.name ?? 'Other';
+  const imageUrl = entry.artworkUrl100
+    ? entry.artworkUrl100.replace('100x100bb', '300x300bb')
+    : undefined;
+
+  if (names.length <= 1) {
+    const artist = await upsertArtist(entry);
+    return artist ? [artist] : [];
+  }
+
+  console.log(`  [split] "${entry.artistName}" → ${names.join(' | ')}`);
+  const artists: Artist[] = [];
+  for (const name of names) {
+    const artist = await upsertArtistByName(name, genre, imageUrl);
+    if (artist) artists.push(artist);
+  }
+  return artists;
 }
 
 export async function ingestSongsFromFeed(data: AppleFeedResponse, weekDate: Date): Promise<void> {
@@ -104,21 +142,41 @@ export async function ingestSongsFromFeed(data: AppleFeedResponse, weekDate: Dat
     const rank = i + 1;
 
     try {
-      const artist = await upsertArtist(entry);
+      const artists = await resolveCreditedArtists(entry);
+      if (artists.length === 0) {
+        console.error(`[songs] ✗ rank ${rank} (${entry.name}): no artist resolved, skipping`);
+        continue;
+      }
       const appleSongId = parseId(entry.id);
+      const ids = artists.map((a) => a.id);
 
-      await prisma.chartEntry.upsert({
-        where: { weekDate_chart_rank: { weekDate, chart: 'most-played-songs', rank } },
-        update: { songTitle: entry.name, appleSongId, artistId: artist?.id ?? null },
-        create: {
+      // Drop rows for artists no longer credited at this rank (mid-week rank
+      // turnover, and retired combined-credit rows after a split).
+      await prisma.chartEntry.deleteMany({
+        where: {
           weekDate,
           chart: 'most-played-songs',
           rank,
-          songTitle: entry.name,
-          appleSongId,
-          artistId: artist?.id ?? null,
+          OR: [{ artistId: null }, { artistId: { notIn: ids } }],
         },
       });
+
+      for (const artist of artists) {
+        await prisma.chartEntry.upsert({
+          where: {
+            weekDate_chart_rank_artistId: { weekDate, chart: 'most-played-songs', rank, artistId: artist.id },
+          },
+          update: { songTitle: entry.name, appleSongId },
+          create: {
+            weekDate,
+            chart: 'most-played-songs',
+            rank,
+            songTitle: entry.name,
+            appleSongId,
+            artistId: artist.id,
+          },
+        });
+      }
     } catch (err) {
       console.error(`[songs] ✗ rank ${rank} (${entry.name}) failed:`, err);
     }
@@ -133,21 +191,39 @@ export async function ingestAlbumsFromFeed(data: AppleFeedResponse, weekDate: Da
     const rank = i + 1;
 
     try {
-      const artist = await upsertArtist(entry);
+      const artists = await resolveCreditedArtists(entry);
+      if (artists.length === 0) {
+        console.error(`[albums] ✗ rank ${rank} (${entry.name}): no artist resolved, skipping`);
+        continue;
+      }
       const appleAlbumId = parseId(entry.id);
+      const ids = artists.map((a) => a.id);
 
-      await prisma.albumChartEntry.upsert({
-        where: { weekDate_chart_rank: { weekDate, chart: 'most-played-albums', rank } },
-        update: { albumTitle: entry.name, appleAlbumId, artistId: artist?.id ?? null },
-        create: {
+      await prisma.albumChartEntry.deleteMany({
+        where: {
           weekDate,
           chart: 'most-played-albums',
           rank,
-          albumTitle: entry.name,
-          appleAlbumId,
-          artistId: artist?.id ?? null,
+          OR: [{ artistId: null }, { artistId: { notIn: ids } }],
         },
       });
+
+      for (const artist of artists) {
+        await prisma.albumChartEntry.upsert({
+          where: {
+            weekDate_chart_rank_artistId: { weekDate, chart: 'most-played-albums', rank, artistId: artist.id },
+          },
+          update: { albumTitle: entry.name, appleAlbumId },
+          create: {
+            weekDate,
+            chart: 'most-played-albums',
+            rank,
+            albumTitle: entry.name,
+            appleAlbumId,
+            artistId: artist.id,
+          },
+        });
+      }
     } catch (err) {
       console.error(`[albums] ✗ rank ${rank} (${entry.name}) failed:`, err);
     }

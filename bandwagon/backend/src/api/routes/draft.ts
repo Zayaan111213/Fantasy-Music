@@ -159,7 +159,7 @@ export async function makePick(
   if (alreadyPicked) return { error: 'Artist already drafted' };
 
   const artist = await prisma.artist.findUnique({ where: { id: artistId } });
-  if (!artist) return { error: 'Artist not found' };
+  if (!artist || artist.hiddenAt) return { error: 'Artist not found' };
   if (!isEligible(artist.primaryGenre, slot)) {
     return { error: `${artist.name} is not eligible for the ${slot} slot` };
   }

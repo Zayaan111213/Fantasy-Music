@@ -63,7 +63,7 @@ async function main() {
   ])];
 
   const artists = await prisma.artist.findMany({
-    where: { id: { in: realIds } },
+    where: { id: { in: realIds }, hiddenAt: null },
     include: { weeklyScores: { where: { week: WEEK, seasonYear: YEAR } } },
     orderBy: { name: 'asc' },
   });

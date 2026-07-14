@@ -129,12 +129,14 @@ export async function computeChartScoreForWeek(
   let songMovement: number | null = null;
   let songIsDebut = false;
   if (bestSong) {
+    // artistId scope matters: joint credits create one row per credited artist,
+    // so the same appleSongId exists for multiple artists in a week.
     const priorSong = bestSong.appleSongId
       ? await prisma.chartEntry.findFirst({
-          where: { weekDate: prior, chart: bestSong.chart, appleSongId: bestSong.appleSongId },
+          where: { weekDate: prior, chart: bestSong.chart, artistId, appleSongId: bestSong.appleSongId },
         })
       : await prisma.chartEntry.findFirst({
-          where: { weekDate: prior, chart: bestSong.chart, songTitle: bestSong.songTitle },
+          where: { weekDate: prior, chart: bestSong.chart, artistId, songTitle: bestSong.songTitle },
         });
     songIsDebut = priorSong === null;
     songMovement = priorSong !== null ? priorSong.rank - bestSong.rank : null;
@@ -155,10 +157,10 @@ export async function computeChartScoreForWeek(
   if (bestAlbum) {
     const priorAlbum = bestAlbum.appleAlbumId
       ? await prisma.albumChartEntry.findFirst({
-          where: { weekDate: prior, chart: bestAlbum.chart, appleAlbumId: bestAlbum.appleAlbumId },
+          where: { weekDate: prior, chart: bestAlbum.chart, artistId, appleAlbumId: bestAlbum.appleAlbumId },
         })
       : await prisma.albumChartEntry.findFirst({
-          where: { weekDate: prior, chart: bestAlbum.chart, albumTitle: bestAlbum.albumTitle },
+          where: { weekDate: prior, chart: bestAlbum.chart, artistId, albumTitle: bestAlbum.albumTitle },
         });
     albumIsDebut = priorAlbum === null;
     albumMovement = priorAlbum !== null ? priorAlbum.rank - bestAlbum.rank : null;
@@ -232,7 +234,8 @@ export async function scoreAllArtistsForWeek(
   // off both charts still needs a fresh WeeklyScore row (with zeroed position/
   // movement/longevity) so every page reading WeeklyScore directly (Players tab,
   // My Team, standings/matchups) reflects that, not a stale prior-week total.
-  const allArtists = await prisma.artist.findMany({ select: { id: true } });
+  // Hidden artists (retired combined credits) are skipped — they're history-only.
+  const allArtists = await prisma.artist.findMany({ where: { hiddenAt: null }, select: { id: true } });
 
   console.log(`Scoring ${allArtists.length} artists for week ${week}/${year} (${weekDate.toISOString().slice(0, 10)})...`);
   for (const { id: artistId } of allArtists) {
