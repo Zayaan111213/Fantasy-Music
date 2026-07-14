@@ -268,16 +268,16 @@ describe('GET /artists/:id', () => {
     expect(res.body.weeklyScores[0].totalPoints).toBe(27);
   });
 
-  it('zeroes out totalPoints and longevityPoints when artist has fallen off both charts', async () => {
-    // Artist has no song/album entry this week → chartBreakdown is null, and the
-    // recomputed weeklyScores[0] must read 0, not carry over some stale figure.
+  it('applies the fell-off-chart penalty when the artist charted last week but not this week', async () => {
+    // No song/album entry this week → chartBreakdown is null, longevity resets,
+    // and the fell-off penalty (-10 per chart charted last week) applies.
     setupArtist({ longevityPoints: 2, songRank: null, albumRank: null });
 
     const res = await request(app).get('/artists/drake');
     expect(res.status).toBe(200);
     expect(res.body.chartBreakdown).toBeNull();
     expect(res.body.weeklyScores[0].longevityPoints).toBe(0);
-    expect(res.body.weeklyScores[0].totalPoints).toBe(0);
+    expect(res.body.weeklyScores[0].totalPoints).toBe(-10);
   });
 
   it('totalPoints includes debut movement bonus when artist has no prior chart entry', async () => {

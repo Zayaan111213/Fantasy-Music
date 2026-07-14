@@ -35,8 +35,10 @@ function breakdownFromScore(ws: WeeklyScore): ChartBreakdown {
 }
 
 function isLegacyRow(ws: WeeklyScore): boolean {
+  // Negative movement with no ranks is a fell-off-chart penalty week (a real,
+  // fully-tracked score), not a legacy pre-per-signal row.
   return ws.songRank === null && ws.albumRank === null
-    && (ws.chartPositionPoints > 0 || ws.chartMovementPoints !== 0);
+    && (ws.chartPositionPoints > 0 || ws.chartMovementPoints > 0);
 }
 
 // weekDate is a plain "YYYY-MM-DD" calendar date (Tuesday, the start of the
@@ -168,7 +170,15 @@ export function ArtistDetail() {
             ) : (
             <div className="space-y-4">
               {activeIsOffChart ? (
-                <p className="text-xs text-gray-500 italic">Not on the Most Played songs or albums charts this week</p>
+                <div className="space-y-4">
+                  <p className="text-xs text-gray-500 italic">Not on the Most Played songs or albums charts this week</p>
+                  {(activeScore.songMovementPoints ?? 0) < 0 && (
+                    <ScoreBar label="Song Movement · Fell Off Chart" value={activeScore.songMovementPoints} max={15} color="bg-pink-500" />
+                  )}
+                  {(activeScore.albumMovementPoints ?? 0) < 0 && (
+                    <ScoreBar label="Album Movement · Fell Off Chart" value={activeScore.albumMovementPoints} max={15} color="bg-fuchsia-500" />
+                  )}
+                </div>
               ) : (
               <>
               {activeBreakdown?.song ? (
@@ -186,6 +196,8 @@ export function ArtistDetail() {
                     color="bg-pink-500"
                   />
                 </>
+              ) : (activeScore.songMovementPoints ?? 0) < 0 ? (
+                <ScoreBar label="Song Movement · Fell Off Chart" value={activeScore.songMovementPoints} max={15} color="bg-pink-500" />
               ) : (
                 <p className="text-xs text-gray-500 italic">No song chart entry this week</p>
               )}
@@ -204,6 +216,8 @@ export function ArtistDetail() {
                     color="bg-fuchsia-500"
                   />
                 </>
+              ) : (activeScore.albumMovementPoints ?? 0) < 0 ? (
+                <ScoreBar label="Album Movement · Fell Off Chart" value={activeScore.albumMovementPoints} max={15} color="bg-fuchsia-500" />
               ) : (
                 <p className="text-xs text-gray-500 italic">No album chart entry this week</p>
               )}

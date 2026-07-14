@@ -33,7 +33,7 @@ An artist's weekly score = **song chart position points + song movement points +
 | 51–100 | 4 |
 | Not on chart | 0 |
 
-**Chart movement:** new entry/debut = +10; +1 per position gained (cap +15); −1 per position lost (cap −10).
+**Chart movement:** new entry/debut = +10; +1 per position gained (cap +15); −1 per position lost (cap −10); **fell off a chart** (on it last week, gone this week) = −10 for that chart's movement signal (song and album penalized independently — off both after being on both = −20). Weekly totals can be negative.
 
 **Longevity:** 0 pts for week 1 on chart; +2 pts per consecutive week starting week 2; capped at +10 (6+ consecutive weeks).
 

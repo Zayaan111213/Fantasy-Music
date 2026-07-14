@@ -232,6 +232,50 @@ describe('scoreArtistWeekFromCharts', () => {
   });
 });
 
+describe('fell-off-chart penalty', () => {
+  it('charts last week, gone this week: -10 per fallen chart', async () => {
+    // No entries this week; prior week had song + album entries
+    pm.chartEntry.findMany.mockResolvedValue([]);
+    pm.albumChartEntry.findMany.mockResolvedValue([]);
+    pm.chartEntry.count.mockResolvedValue(1);
+    pm.albumChartEntry.count.mockResolvedValue(1);
+
+    await scoreArtistWeekFromCharts(ARTIST, WEEK_DATE);
+    const c = capturedCreate();
+    expect(c.songMovementPoints).toBe(-10);
+    expect(c.albumMovementPoints).toBe(-10);
+    expect(c.longevityPoints).toBe(0); // longevity resets when off the charts
+    expect(c.totalPoints).toBe(-20);
+  });
+
+  it('never charted: no penalty, plain 0', async () => {
+    pm.chartEntry.count.mockResolvedValue(0);
+    pm.albumChartEntry.count.mockResolvedValue(0);
+    await scoreArtistWeekFromCharts(ARTIST, WEEK_DATE);
+    expect(capturedCreate().totalPoints).toBe(0);
+  });
+
+  it('fell off songs but debuts on albums: penalty and bonus both apply', async () => {
+    const prior = new Date(WEEK_DATE.getTime() - 7 * 24 * 60 * 60 * 1000).getTime();
+    pm.chartEntry.findMany.mockResolvedValue([]);
+    pm.albumChartEntry.findMany.mockResolvedValue([album(8)]);
+    pm.albumChartEntry.findFirst.mockResolvedValue(null); // album debut
+    // Song chart: on it last week only (for the penalty); nothing older.
+    pm.chartEntry.count.mockImplementation(async ({ where }: any) =>
+      where.weekDate.getTime() === prior ? 1 : 0,
+    );
+    pm.albumChartEntry.count.mockResolvedValue(0);
+
+    await scoreArtistWeekFromCharts(ARTIST, WEEK_DATE);
+    const c = capturedCreate();
+    expect(c.songMovementPoints).toBe(-10); // fell off songs
+    expect(c.albumPositionPoints).toBe(18); // rank 8
+    expect(c.albumMovementPoints).toBe(10); // debut
+    expect(c.longevityPoints).toBe(2); // on a chart this week + last week
+    expect(c.totalPoints).toBe(20);
+  });
+});
+
 describe('split credits: shared songs score each artist independently', () => {
   it('scopes the prior-week movement lookup to the artist', async () => {
     pm.chartEntry.findMany.mockResolvedValue([song(5)]);
