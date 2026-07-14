@@ -32,7 +32,7 @@ vi.mock('../../../api/middleware/upload', () => ({
 }));
 
 import { prisma } from '../../../db/prisma';
-import tradeRouter from '../../../api/routes/trades';
+import tradeRouter, { tradeVisibleToday } from '../../../api/routes/trades';
 
 const pm = prisma as unknown as Record<string, Record<string, ReturnType<typeof vi.fn>>> & {
   $transaction: ReturnType<typeof vi.fn>;
@@ -88,6 +88,50 @@ describe('GET /leagues/:id/trades', () => {
     expect(res.body.vetoesNeeded).toBe(2);
     expect(res.body.trades[0].vetoCount).toBe(1);
     expect(res.body.trades[0].myVetoed).toBe(true);
+  });
+
+  it('hides resolved trades from earlier days but keeps same-day ones and live ones', async () => {
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    const base = {
+      createdAt: new Date(), acceptedAt: null,
+      proposerTeam: { id: 'B', name: 'Beta' }, receiverTeam: { id: 'C', name: 'Gamma' },
+      items: [], vetoes: [],
+    };
+    pm.trade.findMany.mockResolvedValue([
+      { ...base, id: 't-pending', status: 'pending', resolvedAt: null },
+      { ...base, id: 't-old-pending', status: 'pending', resolvedAt: null, createdAt: twoDaysAgo },
+      { ...base, id: 't-rejected-today', status: 'rejected', resolvedAt: new Date() },
+      { ...base, id: 't-rejected-old', status: 'rejected', resolvedAt: twoDaysAgo },
+      { ...base, id: 't-vetoed-old', status: 'vetoed', resolvedAt: twoDaysAgo },
+      { ...base, id: 't-executed-old', status: 'executed', resolvedAt: twoDaysAgo },
+      { ...base, id: 't-cancelled-stale', status: 'cancelled', resolvedAt: null },
+    ]);
+
+    const res = await request(app).get('/leagues/l1/trades');
+    expect(res.status).toBe(200);
+    expect(res.body.trades.map((t: { id: string }) => t.id)).toEqual([
+      't-pending',
+      't-old-pending', // live trades never expire, whatever their age
+      't-rejected-today',
+    ]);
+  });
+});
+
+describe('tradeVisibleToday', () => {
+  it('uses Pacific calendar days, not 24h windows', () => {
+    // Resolved Monday 23:00 PDT; viewed Tuesday 01:01 PDT — hidden after
+    // barely two hours, because the PT day rolled over.
+    const resolvedAt = new Date('2026-07-14T06:00:00Z');
+    const now = new Date('2026-07-14T08:01:00Z');
+    expect(tradeVisibleToday({ status: 'rejected', resolvedAt }, now)).toBe(false);
+    // Same instant viewed later that Monday PT — still visible.
+    expect(tradeVisibleToday({ status: 'rejected', resolvedAt }, new Date('2026-07-14T06:30:00Z'))).toBe(true);
+  });
+
+  it('never hides live trades', () => {
+    const old = new Date('2020-01-01T00:00:00Z');
+    expect(tradeVisibleToday({ status: 'pending', resolvedAt: old })).toBe(true);
+    expect(tradeVisibleToday({ status: 'accepted', resolvedAt: old })).toBe(true);
   });
 });
 
