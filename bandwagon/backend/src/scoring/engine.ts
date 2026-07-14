@@ -1,5 +1,5 @@
 import { prisma } from '../db/prisma';
-import type { DataProvider } from '../data/provider';
+import { getCurrentWeekDate } from '../jobs/ingestCharts';
 import {
   scoreChartPosition,
   scoreChartMovement,
@@ -14,73 +14,25 @@ import {
 } from './tiers';
 
 // ---------------------------------------------------------------------------
-// Mock-provider-based scoring (kept for seed / testing)
-// ---------------------------------------------------------------------------
-
-export async function scoreArtistWeek(
-  artistId: string,
-  week: number,
-  year: number,
-  genre: string,
-  provider: DataProvider
-): Promise<void> {
-  const genreTiers = await prisma.genreStreamingTier.findMany({
-    where: { genre },
-    orderBy: { sortOrder: 'asc' },
-  });
-  const fallbackTiers = genreTiers.length ? genreTiers : await prisma.genreStreamingTier.findMany({
-    where: { genre: 'Pop' },
-    orderBy: { sortOrder: 'asc' },
-  });
-
-  const tiersForScoring = fallbackTiers.map((t) => ({
-    minStreams: t.minStreams,
-    maxStreams: t.maxStreams,
-    points: t.points,
-  }));
-
-  const missing: string[] = [];
-
-  const streams = await provider.getWeeklyStreams(artistId, week, year);
-  if (streams === null) missing.push('streams');
-  const streamingPoints = streams !== null ? scoreStreaming(streams, tiersForScoring) : 0;
-
-  const position = await provider.getBestChartPosition(artistId, week, year);
-  if (position === null && streams !== null) missing.push('chartPosition');
-  const chartPositionPoints = scoreChartPosition(position);
-
-  const movement = await provider.getChartMovement(artistId, week, year);
-  const isNewEntry = position !== null && week === 1;
-  const chartMovementPoints = scoreChartMovement(movement, isNewEntry);
-
-  const totalPoints = streamingPoints + chartPositionPoints + chartMovementPoints;
-
-  await prisma.weeklyScore.upsert({
-    where: { artistId_week_seasonYear: { artistId, week, seasonYear: year } },
-    create: {
-      artistId, week, seasonYear: year,
-      streamingPoints, chartPositionPoints, chartMovementPoints, totalPoints,
-      weeklyStreams: streams !== null ? BigInt(streams) : null,
-      bestChartPosition: position,
-      chartMovement: movement,
-      dataMissing: missing.length ? missing.join(',') : null,
-    },
-    update: {
-      streamingPoints, chartPositionPoints, chartMovementPoints, totalPoints,
-      weeklyStreams: streams !== null ? BigInt(streams) : null,
-      bestChartPosition: position,
-      chartMovement: movement,
-      dataMissing: missing.length ? missing.join(',') : null,
-    },
-  });
-}
-
-// ---------------------------------------------------------------------------
 // Chart-data-based scoring (reads ChartEntry / AlbumChartEntry)
 // ---------------------------------------------------------------------------
 
 function priorWeek(weekDate: Date): Date {
   return new Date(weekDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+}
+
+// Translates a league's week number to the real chart week (the Tuesday it
+// started). WeeklyScore rows are keyed by calendar weekDate — league week
+// numbers are per-league counters, and two leagues that started on different
+// dates give the same number to different calendar weeks. Anchored on the
+// current chart week (exactly how the daily pipeline writes: currentWeek is
+// always scored against getCurrentWeekDate()), counting back 7 days per week.
+export function weekDateForLeagueWeek(
+  currentWeek: number,
+  week: number,
+  currentWeekDate: Date = getCurrentWeekDate(),
+): Date {
+  return new Date(currentWeekDate.getTime() - (currentWeek - week) * 7 * 24 * 60 * 60 * 1000);
 }
 
 export interface ChartScoreBreakdown {
@@ -212,24 +164,18 @@ export async function computeChartScoreForWeek(
 
 export async function scoreArtistWeekFromCharts(
   artistId: string,
-  week: number,
-  year: number,
   weekDate: Date,
 ): Promise<void> {
   const breakdown = await computeChartScoreForWeek(artistId, weekDate);
 
   await prisma.weeklyScore.upsert({
-    where: { artistId_week_seasonYear: { artistId, week, seasonYear: year } },
-    create: { artistId, week, seasonYear: year, streamingPoints: 0, ...breakdown },
+    where: { artistId_weekDate: { artistId, weekDate } },
+    create: { artistId, weekDate, streamingPoints: 0, ...breakdown },
     update: { streamingPoints: 0, ...breakdown },
   });
 }
 
-export async function scoreAllArtistsForWeek(
-  week: number,
-  year: number,
-  weekDate: Date,
-): Promise<void> {
+export async function scoreAllArtistsForWeek(weekDate: Date): Promise<void> {
   // Score every artist, not just ones on this week's chart — an artist that fell
   // off both charts still needs a fresh WeeklyScore row (with zeroed position/
   // movement/longevity) so every page reading WeeklyScore directly (Players tab,
@@ -237,9 +183,9 @@ export async function scoreAllArtistsForWeek(
   // Hidden artists (retired combined credits) are skipped — they're history-only.
   const allArtists = await prisma.artist.findMany({ where: { hiddenAt: null }, select: { id: true } });
 
-  console.log(`Scoring ${allArtists.length} artists for week ${week}/${year} (${weekDate.toISOString().slice(0, 10)})...`);
+  console.log(`Scoring ${allArtists.length} artists for chart week ${weekDate.toISOString().slice(0, 10)}...`);
   for (const { id: artistId } of allArtists) {
-    await scoreArtistWeekFromCharts(artistId, week, year, weekDate);
+    await scoreArtistWeekFromCharts(artistId, weekDate);
   }
   console.log('Artist scoring complete.');
 }
@@ -281,7 +227,9 @@ const rosterInclude = {
   },
 } as const;
 
-export async function updateMatchupScores(leagueId: string, week: number, year: number): Promise<void> {
+// week identifies the league's matchups; weekDate identifies the calendar
+// chart week whose WeeklyScore rows feed the totals.
+export async function updateMatchupScores(leagueId: string, week: number, weekDate: Date): Promise<void> {
   const [matchups, leagueRow] = await Promise.all([
     prisma.matchup.findMany({
       where: { leagueId, week },
@@ -300,7 +248,7 @@ export async function updateMatchupScores(leagueId: string, week: number, year: 
   async function spotScore(artistId: string | null, genre: string | null): Promise<number> {
     if (!artistId) return 0;
     const ws = await prisma.weeklyScore.findUnique({
-      where: { artistId_week_seasonYear: { artistId, week, seasonYear: year } },
+      where: { artistId_weekDate: { artistId, weekDate } },
     });
     if (!ws) return 0;
     if (!cfg) return ws.totalPoints;

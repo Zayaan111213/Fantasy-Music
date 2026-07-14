@@ -261,9 +261,9 @@ export async function triggerInitialScoring(leagueId: string): Promise<void> {
 
   const weekDate = getCurrentWeekDate();
   await Promise.all(
-    picks.map(({ artistId }) => scoreArtistWeekFromCharts(artistId, 1, league.seasonYear, weekDate)),
+    picks.map(({ artistId }) => scoreArtistWeekFromCharts(artistId, weekDate)),
   );
-  await updateMatchupScores(leagueId, 1, league.seasonYear);
+  await updateMatchupScores(leagueId, 1, weekDate);
   console.log(`[draft] initial scoring complete for league ${leagueId}`);
 }
 

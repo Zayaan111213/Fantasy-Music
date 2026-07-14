@@ -10,6 +10,8 @@ import { ScoringConfigSchema } from '../../scoring/tiers';
 import { applyCustomScoringToWeeklyScore } from '../../scoring/engine';
 import { buildWeek11Matchups } from '../../playoffs/bracket';
 import { logLeagueEvent } from '../../events/leagueEvents';
+import { weekDateForLeagueWeek } from '../../scoring/engine';
+import { getCurrentWeekDate } from '../../jobs/ingestCharts';
 // Circular with waivers/engine (which imports artistEligibleForSlot from here,
 // as does trades/engine); safe because both sides only reference the other's
 // exports at call time.
@@ -571,7 +573,7 @@ router.get('/:id/matchups/week/:week', requireAuth, async (req: AuthRequest, res
                 artist: {
                   include: {
                     weeklyScores: {
-                      where: { week, seasonYear: league.seasonYear },
+                      where: { weekDate: weekDateForLeagueWeek(league.currentWeek, week) },
                     },
                   },
                 },
@@ -587,7 +589,7 @@ router.get('/:id/matchups/week/:week', requireAuth, async (req: AuthRequest, res
                 artist: {
                   include: {
                     weeklyScores: {
-                      where: { week, seasonYear: league.seasonYear },
+                      where: { weekDate: weekDateForLeagueWeek(league.currentWeek, week) },
                     },
                   },
                 },
@@ -631,7 +633,7 @@ router.get('/:id/matchups/current', requireAuth, async (req: AuthRequest, res, n
                 artist: {
                   include: {
                     weeklyScores: {
-                      where: { week: league.currentWeek, seasonYear: league.seasonYear },
+                      where: { weekDate: getCurrentWeekDate() },
                     },
                   },
                 },
@@ -647,7 +649,7 @@ router.get('/:id/matchups/current', requireAuth, async (req: AuthRequest, res, n
                 artist: {
                   include: {
                     weeklyScores: {
-                      where: { week: league.currentWeek, seasonYear: league.seasonYear },
+                      where: { weekDate: getCurrentWeekDate() },
                     },
                   },
                 },
@@ -693,7 +695,7 @@ router.get('/:id/matchups/previous', requireAuth, async (req: AuthRequest, res, 
                 artist: {
                   include: {
                     weeklyScores: {
-                      where: { week: prevWeek, seasonYear: league.seasonYear },
+                      where: { weekDate: weekDateForLeagueWeek(league.currentWeek, prevWeek) },
                     },
                   },
                 },
@@ -709,7 +711,7 @@ router.get('/:id/matchups/previous', requireAuth, async (req: AuthRequest, res, 
                 artist: {
                   include: {
                     weeklyScores: {
-                      where: { week: prevWeek, seasonYear: league.seasonYear },
+                      where: { weekDate: weekDateForLeagueWeek(league.currentWeek, prevWeek) },
                     },
                   },
                 },
@@ -753,7 +755,7 @@ router.get('/:id/matchups/:matchupId', requireAuth, async (req: AuthRequest, res
           artist: {
             include: {
               weeklyScores: {
-                where: { week: base.week, seasonYear: league.seasonYear },
+                where: { weekDate: weekDateForLeagueWeek(league.currentWeek, base.week) },
               },
             },
           },
@@ -814,11 +816,8 @@ router.get('/:id/players', requireAuth, async (req: AuthRequest, res, next) => {
           include: { team: { select: { id: true, name: true } } },
         },
         weeklyScores: {
-          where: {
-            seasonYear: leagueRow?.seasonYear,
-            week: { lte: leagueRow?.currentWeek ?? 10 },
-          },
-          orderBy: { week: 'desc' },
+          where: { weekDate: { lte: getCurrentWeekDate() } },
+          orderBy: { weekDate: 'desc' },
           take: 5,
         },
       },
@@ -891,7 +890,7 @@ router.get('/:id/roster', requireAuth, async (req: AuthRequest, res, next) => {
           include: {
             artist: {
               include: {
-                weeklyScores: { where: { week: league.currentWeek, seasonYear: league.seasonYear } },
+                weeklyScores: { where: { weekDate: getCurrentWeekDate() } },
               },
             },
           },

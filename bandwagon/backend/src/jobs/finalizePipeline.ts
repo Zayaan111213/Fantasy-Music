@@ -10,7 +10,7 @@ import { runTradeFinalizeSteps } from '../trades/engine';
 import { resolveWaivers } from '../waivers/engine';
 import { logLeagueEvent } from '../events/leagueEvents';
 
-export async function bestArtistScore(teamId: string, week: number, year: number): Promise<number> {
+export async function bestArtistScore(teamId: string, weekDate: Date): Promise<number> {
   const spots = await prisma.rosterSpot.findMany({
     where: { teamId, slot: { not: { startsWith: 'Bench' } }, artistId: { not: null } },
     select: { artistId: true },
@@ -18,7 +18,7 @@ export async function bestArtistScore(teamId: string, week: number, year: number
   const scores = await Promise.all(
     spots.map(({ artistId }) =>
       prisma.weeklyScore.findUnique({
-        where: { artistId_week_seasonYear: { artistId: artistId!, week, seasonYear: year } },
+        where: { artistId_weekDate: { artistId: artistId!, weekDate } },
         select: { totalPoints: true },
       }),
     ),
@@ -31,22 +31,28 @@ export async function resolveWinner(
   awayTeamId: string,
   homeScore: number,
   awayScore: number,
-  week: number,
-  year: number,
+  weekDate: Date,
 ): Promise<string | null> {
   if (homeScore !== awayScore) {
     return homeScore > awayScore ? homeTeamId : awayTeamId;
   }
   // Tiebreaker: highest single artist score among starters
   const [homeBest, awayBest] = await Promise.all([
-    bestArtistScore(homeTeamId, week, year),
-    bestArtistScore(awayTeamId, week, year),
+    bestArtistScore(homeTeamId, weekDate),
+    bestArtistScore(awayTeamId, weekDate),
   ]);
   if (homeBest !== awayBest) return homeBest > awayBest ? homeTeamId : awayTeamId;
   return null; // true tie
 }
 
-export async function finalizeLeagueWeek(leagueId: string, week: number, year: number): Promise<void> {
+// weekDate = the calendar chart week whose scores settle this league week.
+// Defaults to the week that just ended (finalize runs Monday); test helpers
+// simulating multi-week seasons rely on the default too.
+export async function finalizeLeagueWeek(
+  leagueId: string,
+  week: number,
+  weekDate: Date = getCurrentWeekDate(),
+): Promise<void> {
   // Atomic gate: Postgres serializes concurrent UPDATEs, so a second concurrent run
   // gets count=0 here and skips everything below entirely.
   const { count } = await prisma.matchup.updateMany({
@@ -75,7 +81,7 @@ export async function finalizeLeagueWeek(leagueId: string, week: number, year: n
   const matchups = await prisma.matchup.findMany({ where: { leagueId, week } });
   for (const m of matchups) {
     let winnerId = await resolveWinner(
-      m.homeTeamId, m.awayTeamId, m.homeScore, m.awayScore, week, year,
+      m.homeTeamId, m.awayTeamId, m.homeScore, m.awayScore, weekDate,
     );
     // Playoff games can't end in a tie: the better (lower-number) seed advances.
     if (winnerId === null && m.matchupType !== 'regular' && m.homeSeed != null && m.awaySeed != null) {
@@ -210,10 +216,10 @@ export async function runFinalizePipeline(options: { force?: boolean } = {}): Pr
 
   const leagues = await prisma.league.findMany({
     where: { status: 'active' },
-    select: { id: true, currentWeek: true, seasonYear: true, draftTime: true, lastFinalizedDatePT: true },
+    select: { id: true, currentWeek: true, draftTime: true, lastFinalizedDatePT: true },
   });
 
-  for (const { id: leagueId, currentWeek: week, seasonYear: year, draftTime, lastFinalizedDatePT } of leagues) {
+  for (const { id: leagueId, currentWeek: week, draftTime, lastFinalizedDatePT } of leagues) {
     // DB-persisted once-per-PT-date guard. The scheduler's in-memory dedupe
     // resets on every restart, so each deploy on a Monday used to re-run
     // finalize against the freshly advanced currentWeek and skip whole weeks.
@@ -240,7 +246,7 @@ export async function runFinalizePipeline(options: { force?: boolean } = {}): Pr
       }
     }
 
-    await finalizeLeagueWeek(leagueId, week, year);
+    await finalizeLeagueWeek(leagueId, week, weekDate);
     await prisma.league.update({ where: { id: leagueId }, data: { lastFinalizedDatePT: todayPT } });
   }
 

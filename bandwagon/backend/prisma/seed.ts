@@ -7,6 +7,22 @@ const prisma = new PrismaClient();
 const SEASON_YEAR = 2026;
 const TOTAL_WEEKS = 10;
 
+// Mock "week N" maps to a real calendar chart week: week TOTAL_WEEKS is the
+// current chart week (Tuesday PT), counting back 7 days per week.
+function mockWeekDate(week: number): Date {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Los_Angeles', year: 'numeric', month: 'numeric', day: 'numeric',
+  }).formatToParts(now);
+  const y = parseInt(parts.find((p) => p.type === 'year')!.value);
+  const m = parseInt(parts.find((p) => p.type === 'month')!.value) - 1;
+  const d = parseInt(parts.find((p) => p.type === 'day')!.value);
+  const dow = new Date(Date.UTC(y, m, d)).getUTCDay();
+  const daysBack = (dow + 5) % 7;
+  const current = new Date(Date.UTC(y, m, d - daysBack));
+  return new Date(current.getTime() - (TOTAL_WEEKS - week) * 7 * 24 * 60 * 60 * 1000);
+}
+
 // Deterministic pseudo-random from a string seed
 function seededRandom(seed: string, index: number = 0): number {
   let h = 0;
@@ -204,7 +220,7 @@ async function createWeeklyScores(
   tierMap: Map<string, { minStreams: bigint; maxStreams: bigint | null; points: number }[]>
 ) {
   const rows: {
-    artistId: string; week: number; seasonYear: number;
+    artistId: string; weekDate: Date;
     streamingPoints: number; chartPositionPoints: number; chartMovementPoints: number; totalPoints: number;
     weeklyStreams: bigint; bestChartPosition: number | null; chartMovement: number | null; isFinalized: boolean;
   }[] = [];
@@ -216,8 +232,7 @@ async function createWeeklyScores(
       const cm = scoreChartMovement(chartMovement, isNewEntry);
       rows.push({
         artistId: artist.id,
-        week,
-        seasonYear: SEASON_YEAR,
+        weekDate: mockWeekDate(week),
         streamingPoints: sp,
         chartPositionPoints: cp,
         chartMovementPoints: cm,
@@ -411,13 +426,13 @@ async function main() {
     let awayScore = 0;
     for (const id of team1StarterIds) {
       const ws = await prisma.weeklyScore.findUnique({
-        where: { artistId_week_seasonYear: { artistId: id, week, seasonYear: SEASON_YEAR } },
+        where: { artistId_weekDate: { artistId: id, weekDate: mockWeekDate(week) } },
       });
       homeScore += ws?.totalPoints ?? 0;
     }
     for (const id of team2StarterIds) {
       const ws = await prisma.weeklyScore.findUnique({
-        where: { artistId_week_seasonYear: { artistId: id, week, seasonYear: SEASON_YEAR } },
+        where: { artistId_weekDate: { artistId: id, weekDate: mockWeekDate(week) } },
       });
       awayScore += ws?.totalPoints ?? 0;
     }

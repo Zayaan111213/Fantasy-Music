@@ -53,13 +53,13 @@ beforeEach(() => {
 
 describe('resolveWinner', () => {
   it('returns homeTeamId when home score is higher', async () => {
-    expect(await resolveWinner('home', 'away', 100, 80, 1, 2026)).toBe('home');
+    expect(await resolveWinner('home', 'away', 100, 80, new Date('2026-06-17T00:00:00Z'))).toBe('home');
     // No Prisma calls needed when scores differ
     expect(rosterFindMany).not.toHaveBeenCalled();
   });
 
   it('returns awayTeamId when away score is higher', async () => {
-    expect(await resolveWinner('home', 'away', 70, 90, 1, 2026)).toBe('away');
+    expect(await resolveWinner('home', 'away', 70, 90, new Date('2026-06-17T00:00:00Z'))).toBe('away');
     expect(rosterFindMany).not.toHaveBeenCalled();
   });
 
@@ -71,7 +71,7 @@ describe('resolveWinner', () => {
       .mockResolvedValueOnce({ totalPoints: 50 } as never) // a1
       .mockResolvedValueOnce({ totalPoints: 30 } as never); // a2
 
-    expect(await resolveWinner('home', 'away', 100, 100, 1, 2026)).toBe('home');
+    expect(await resolveWinner('home', 'away', 100, 100, new Date('2026-06-17T00:00:00Z'))).toBe('home');
   });
 
   it('uses tiebreaker when scores are equal — away best artist wins', async () => {
@@ -82,7 +82,7 @@ describe('resolveWinner', () => {
       .mockResolvedValueOnce({ totalPoints: 20 } as never)
       .mockResolvedValueOnce({ totalPoints: 45 } as never);
 
-    expect(await resolveWinner('home', 'away', 100, 100, 1, 2026)).toBe('away');
+    expect(await resolveWinner('home', 'away', 100, 100, new Date('2026-06-17T00:00:00Z'))).toBe('away');
   });
 
   it('returns null on a true tie (equal scores and equal best artist)', async () => {
@@ -93,7 +93,7 @@ describe('resolveWinner', () => {
       .mockResolvedValueOnce({ totalPoints: 40 } as never)
       .mockResolvedValueOnce({ totalPoints: 40 } as never);
 
-    expect(await resolveWinner('home', 'away', 100, 100, 1, 2026)).toBeNull();
+    expect(await resolveWinner('home', 'away', 100, 100, new Date('2026-06-17T00:00:00Z'))).toBeNull();
   });
 
   it('counts missing weekly scores as 0 for tiebreaker', async () => {
@@ -104,7 +104,7 @@ describe('resolveWinner', () => {
       .mockResolvedValueOnce(null as never) // a1 has no score
       .mockResolvedValueOnce({ totalPoints: 10 } as never);
 
-    expect(await resolveWinner('home', 'away', 100, 100, 1, 2026)).toBe('away');
+    expect(await resolveWinner('home', 'away', 100, 100, new Date('2026-06-17T00:00:00Z'))).toBe('away');
   });
 
   it('counts empty starter roster as 0 for tiebreaker', async () => {
@@ -114,7 +114,7 @@ describe('resolveWinner', () => {
     scoreFindUnique
       .mockResolvedValueOnce({ totalPoints: 15 } as never);
 
-    expect(await resolveWinner('home', 'away', 100, 100, 1, 2026)).toBe('away');
+    expect(await resolveWinner('home', 'away', 100, 100, new Date('2026-06-17T00:00:00Z'))).toBe('away');
   });
 });
 

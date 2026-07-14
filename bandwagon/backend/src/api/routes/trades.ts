@@ -11,6 +11,7 @@ import {
 } from '../../trades/engine';
 import { logLeagueEvent } from '../../events/leagueEvents';
 import { getPTParts } from '../../jobs/scheduler';
+import { getCurrentWeekDate } from '../../jobs/ingestCharts';
 
 const router = Router();
 
@@ -81,7 +82,7 @@ router.get('/:id/teams-with-rosters', requireAuth, async (req: AuthRequest, res,
                 name: true,
                 primaryGenre: true,
                 imageUrl: true,
-                weeklyScores: { where: { week: league.currentWeek, seasonYear: league.seasonYear } },
+                weeklyScores: { where: { weekDate: getCurrentWeekDate() } },
               },
             },
           },

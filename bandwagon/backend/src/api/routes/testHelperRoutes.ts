@@ -188,7 +188,7 @@ router.post('/active-league', async (req, res, next) => {
 // Creates an active N-team league (default 8) at the end of the regular season:
 // weeks 1-9 finalized, week 10 scored but NOT finalized, currentWeek = 10, and
 // team records set so Team i finishes as seed i. Running
-// finalizeLeagueWeek(leagueId, 10, 2026) then exercises playoff bracket
+// finalizeLeagueWeek(leagueId, 10) then exercises playoff bracket
 // generation. Teams have empty rosters — playoff simulation sets matchup
 // scores directly.
 router.post('/advance-to-playoffs', async (req, res, next) => {
@@ -275,7 +275,7 @@ router.post('/finalize-week', async (req, res, next) => {
   try {
     const { leagueId, week } = req.body as { leagueId: string; week?: number };
     const league = await prisma.league.findUniqueOrThrow({ where: { id: leagueId } });
-    await finalizeLeagueWeek(leagueId, week ?? league.currentWeek, league.seasonYear);
+    await finalizeLeagueWeek(leagueId, week ?? league.currentWeek);
     res.json({ ok: true });
   } catch (err) {
     next(err);
