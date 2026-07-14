@@ -63,6 +63,10 @@ model League {
   currentWeek    Int       @default(1)
   seasonYear     Int       @default(2026)
   scoringConfig  Json?
+  // PT calendar date (YYYY-MM-DD) of this league's last finalize. DB-persisted
+  // guard so finalize runs at most once per PT date per league — process
+  // restarts (deploys) on a Monday used to re-trigger it and skip whole weeks.
+  lastFinalizedDatePT String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 

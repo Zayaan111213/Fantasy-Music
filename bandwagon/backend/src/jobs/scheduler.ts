@@ -3,9 +3,12 @@ import { runFinalizePipeline } from './finalizePipeline';
 
 // In-process scheduler for the two batch pipelines. The app runs as a single
 // always-on Railway service, so a 60s ticker (same pattern as
-// startDraftScheduler) replaces external cron. Date-based dedupe means a
-// restart mid-window still fires the job on the first tick after boot —
-// both pipelines are idempotent, so a redundant run is harmless.
+// startDraftScheduler) replaces external cron. Date-based dedupe here is
+// in-memory only and resets on every restart, so a restart mid-window fires
+// the job again on the first tick after boot. That's safe because the daily
+// pipeline is idempotent and finalize has its own DB-persisted guard
+// (League.lastFinalizedDatePT) — without that guard, Monday deploys used to
+// re-run finalize against the freshly advanced currentWeek and skip weeks.
 
 const PT_FORMAT = new Intl.DateTimeFormat('en-US', {
   timeZone: 'America/Los_Angeles',

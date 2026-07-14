@@ -39,7 +39,7 @@ vi.mock('../../waivers/engine', () => ({
 
 import { prisma } from '../../db/prisma';
 import { resolveWaivers } from '../../waivers/engine';
-import { resolveWinner, finalizeLeagueWeek, firstScoringTuesdayPT } from '../../jobs/finalizePipeline';
+import { resolveWinner, finalizeLeagueWeek, firstScoringTuesdayPT, runFinalizePipeline } from '../../jobs/finalizePipeline';
 
 const rosterFindMany = vi.mocked(prisma.rosterSpot.findMany);
 const scoreFindUnique = vi.mocked(prisma.weeklyScore.findUnique);
@@ -349,6 +349,51 @@ describe('firstScoringTuesdayPT', () => {
 // The finalize pipeline skips a Week-1 league until the Monday after the
 // first full scoring week (firstScoringTuesdayPT + 6 days).
 // ---------------------------------------------------------------------------
+describe('runFinalizePipeline once-per-PT-date guard', () => {
+  const todayPT = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+  const league = (id: string, lastFinalizedDatePT: string | null) => ({
+    id, currentWeek: 3, seasonYear: 2026, draftTime: null, lastFinalizedDatePT,
+  });
+
+  beforeEach(() => {
+    // Clear call history (keeps the factory defaults) — earlier describes
+    // also exercise these mocks.
+    vi.mocked(prisma.matchup.updateMany).mockClear();
+    vi.mocked(prisma.league.update).mockClear();
+  });
+
+  it('skips leagues already finalized today (restart/deploy re-run)', async () => {
+    vi.mocked(prisma.league.findMany).mockResolvedValueOnce([league('l-done', todayPT)] as never);
+    await runFinalizePipeline();
+    expect(prisma.matchup.updateMany).not.toHaveBeenCalled();
+    expect(prisma.league.update).not.toHaveBeenCalled();
+  });
+
+  it('finalizes unguarded leagues and stamps today PT afterwards', async () => {
+    vi.mocked(prisma.league.findMany).mockResolvedValueOnce([
+      league('l-done', todayPT),
+      league('l-fresh', null),
+      league('l-old', '2026-07-06'),
+    ] as never);
+    await runFinalizePipeline();
+
+    // Only the two unguarded leagues finalize + get stamped
+    const finalized = vi.mocked(prisma.matchup.updateMany).mock.calls.map((c) => (c[0].where as { leagueId: string }).leagueId);
+    expect(finalized).toEqual(['l-fresh', 'l-old']);
+    const stamped = vi.mocked(prisma.league.update).mock.calls.map((c) => c[0]);
+    expect(stamped).toEqual([
+      { where: { id: 'l-fresh' }, data: { lastFinalizedDatePT: todayPT } },
+      { where: { id: 'l-old' }, data: { lastFinalizedDatePT: todayPT } },
+    ]);
+  });
+
+  it('force bypasses the guard for deliberate manual re-runs', async () => {
+    vi.mocked(prisma.league.findMany).mockResolvedValueOnce([league('l-done', todayPT)] as never);
+    await runFinalizePipeline({ force: true });
+    expect(vi.mocked(prisma.matchup.updateMany).mock.calls[0][0].where).toMatchObject({ leagueId: 'l-done' });
+  });
+});
+
 describe('Week 1 finalization gate', () => {
   // Helper mirrors the main() skip check so we can assert the exact cutoff date.
   function firstFinalizeMondayPT(draftTime: Date): string {
