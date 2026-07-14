@@ -10,10 +10,25 @@ import {
   TRADE_DEADLINE_WEEK,
 } from '../../trades/engine';
 import { logLeagueEvent } from '../../events/leagueEvents';
+import { getPTParts } from '../../jobs/scheduler';
 
 const router = Router();
 
 const artistSelect = { select: { id: true, name: true, primaryGenre: true, imageUrl: true } };
+
+// Resolved trades stay in the Trades section for the rest of the Pacific day
+// they resolved (so both sides see the outcome), then drop out. The activity
+// feed keeps the permanent record.
+const TERMINAL_TRADE_STATUSES = new Set(['rejected', 'cancelled', 'vetoed', 'executed', 'failed']);
+
+export function tradeVisibleToday(
+  trade: { status: string; resolvedAt: Date | null },
+  now: Date = new Date(),
+): boolean {
+  if (!TERMINAL_TRADE_STATUSES.has(trade.status)) return true;
+  if (!trade.resolvedAt) return false; // terminal without a timestamp = stale
+  return getPTParts(trade.resolvedAt).dateStr === getPTParts(now).dateStr;
+}
 
 type LeagueCtx = NonNullable<Awaited<ReturnType<typeof loadLeagueWithTeams>>>;
 type CtxResult =
@@ -102,7 +117,7 @@ router.get('/:id/trades', requireAuth, async (req: AuthRequest, res, next) => {
       myTeamId: myTeam.id,
       vetoesNeeded: Math.max(league.teams.length - 2, 0),
       tradingClosed: tradingClosed(league),
-      trades: trades.map((t) => ({
+      trades: trades.filter((t) => tradeVisibleToday(t)).map((t) => ({
         id: t.id,
         status: t.status,
         createdAt: t.createdAt,
