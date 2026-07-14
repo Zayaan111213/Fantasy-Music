@@ -201,7 +201,7 @@ export function firstScoringTuesdayPT(draftTime: Date): string {
   return firstTuesday.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
 }
 
-export async function runFinalizePipeline(): Promise<void> {
+export async function runFinalizePipeline(options: { force?: boolean } = {}): Promise<void> {
   // Single-source week boundary: same Pacific Tue function used by dailyPipeline.
   // At Mon 0:01 AM Pacific (finalize cron time), this returns last Tuesday = week just ended.
   const weekDate = getCurrentWeekDate();
@@ -210,10 +210,18 @@ export async function runFinalizePipeline(): Promise<void> {
 
   const leagues = await prisma.league.findMany({
     where: { status: 'active' },
-    select: { id: true, currentWeek: true, seasonYear: true, draftTime: true },
+    select: { id: true, currentWeek: true, seasonYear: true, draftTime: true, lastFinalizedDatePT: true },
   });
 
-  for (const { id: leagueId, currentWeek: week, seasonYear: year, draftTime } of leagues) {
+  for (const { id: leagueId, currentWeek: week, seasonYear: year, draftTime, lastFinalizedDatePT } of leagues) {
+    // DB-persisted once-per-PT-date guard. The scheduler's in-memory dedupe
+    // resets on every restart, so each deploy on a Monday used to re-run
+    // finalize against the freshly advanced currentWeek and skip whole weeks.
+    // Set only after a successful run so the 15-min failure retry still works.
+    if (!options.force && lastFinalizedDatePT === todayPT) {
+      console.log(`[finalize] league ${leagueId} — already finalized on ${todayPT}, skipping`);
+      continue;
+    }
     // Week 1 exception: there is no game in the gap between draft completion and the
     // first scoring Tuesday. Only finalize once the Monday AFTER the first full scoring
     // week (Tue–Sun) has been reached — i.e. firstScoringTuesday + 6 days.
@@ -233,13 +241,15 @@ export async function runFinalizePipeline(): Promise<void> {
     }
 
     await finalizeLeagueWeek(leagueId, week, year);
+    await prisma.league.update({ where: { id: leagueId }, data: { lastFinalizedDatePT: todayPT } });
   }
 
   console.log('[finalize] done');
 }
 
 if (require.main === module) {
-  runFinalizePipeline()
+  // --force bypasses the once-per-PT-date guard for deliberate manual re-runs.
+  runFinalizePipeline({ force: process.argv.includes('--force') })
     .catch((err) => { console.error('[finalize] fatal:', err); process.exit(1); })
     .finally(() => prisma.$disconnect());
 }
