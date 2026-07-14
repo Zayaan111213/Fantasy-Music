@@ -207,10 +207,14 @@ model RosterSpot {
 }
 
 model WeeklyScore {
-  id                  String  @id @default(cuid())
-  artistId            String
-  week                Int
-  seasonYear          Int
+  id       String   @id @default(cuid())
+  artistId String
+  // Real chart week (the Tuesday it started, PT — same value as
+  // ChartEntry.weekDate). Scores are keyed by CALENDAR week, never by a
+  // league's week number: league weeks are per-league counters translated to
+  // weekDate at read time (weekDateForLeagueWeek). Keying on week numbers let
+  // leagues with different start dates overwrite each other's history.
+  weekDate            DateTime @db.Date
   streamingPoints     Float   @default(0)
   chartPositionPoints Float   @default(0)
   chartMovementPoints Float   @default(0)
@@ -242,7 +246,8 @@ model WeeklyScore {
 
   artist Artist @relation(fields: [artistId], references: [id])
 
-  @@unique([artistId, week, seasonYear])
+  @@unique([artistId, weekDate])
+  @@index([weekDate])
 }
 
 model Matchup {

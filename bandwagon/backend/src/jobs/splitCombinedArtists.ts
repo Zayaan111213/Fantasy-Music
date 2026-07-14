@@ -236,32 +236,32 @@ export async function splitCombinedArtists(dryRun: boolean): Promise<void> {
     }
   }
 
-  // 7. Re-score the components for every league week, then refresh current matchups
+  // 7. Re-score the components for every real chart week, then refresh
+  // current matchups. Scores are keyed by calendar weekDate, so this is a
+  // straight sweep over the chart weeks that actually exist.
   if (dryRun) {
-    console.log(`\n${label} would re-score ${affectedComponentIds.size} component artist(s) across all league weeks`);
+    console.log(`\n${label} would re-score ${affectedComponentIds.size} component artist(s) across all chart weeks`);
     return;
+  }
+  const chartWeeks = await prisma.chartEntry.findMany({
+    select: { weekDate: true },
+    distinct: ['weekDate'],
+    orderBy: { weekDate: 'asc' },
+  });
+  for (const { weekDate } of chartWeeks) {
+    for (const artistId of affectedComponentIds) {
+      await scoreArtistWeekFromCharts(artistId, weekDate);
+    }
   }
   const leagues = await prisma.league.findMany({
     where: { status: 'active' },
-    select: { id: true, currentWeek: true, seasonYear: true },
+    select: { id: true, currentWeek: true },
   });
   const currentWeekDate = getCurrentWeekDate();
-  const scored = new Set<string>();
   for (const league of leagues) {
-    for (let w = 1; w <= league.currentWeek; w++) {
-      const key = `${w}/${league.seasonYear}`;
-      if (scored.has(key)) continue;
-      scored.add(key);
-      const weekDate = new Date(currentWeekDate.getTime() - (league.currentWeek - w) * 7 * 24 * 60 * 60 * 1000);
-      for (const artistId of affectedComponentIds) {
-        await scoreArtistWeekFromCharts(artistId, w, league.seasonYear, weekDate);
-      }
-    }
+    await updateMatchupScores(league.id, league.currentWeek, currentWeekDate);
   }
-  for (const league of leagues) {
-    await updateMatchupScores(league.id, league.currentWeek, league.seasonYear);
-  }
-  console.log(`\n${label} re-scored ${affectedComponentIds.size} artist(s) over ${scored.size} week(s); matchups refreshed for ${leagues.length} league(s)`);
+  console.log(`\n${label} re-scored ${affectedComponentIds.size} artist(s) over ${chartWeeks.length} chart week(s); matchups refreshed for ${leagues.length} league(s)`);
 }
 
 if (require.main === module) {

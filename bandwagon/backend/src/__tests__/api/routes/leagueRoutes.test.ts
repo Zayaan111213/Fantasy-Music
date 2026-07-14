@@ -30,6 +30,7 @@ vi.mock('../../../api/middleware/upload', () => ({
 
 import { prisma } from '../../../db/prisma';
 import leagueRouter from '../../../api/routes/leagues';
+import { weekDateForLeagueWeek } from '../../../scoring/engine';
 
 const pm = prisma as unknown as {
   league: { findUnique: ReturnType<typeof vi.fn> };
@@ -228,7 +229,7 @@ describe('GET /leagues/:id/matchups/:matchupId', () => {
   });
 
   it('returns both rosters with scores filtered to the matchup week', async () => {
-    pm.league.findUnique.mockResolvedValue({ id: 'l1', seasonYear: 2026 });
+    pm.league.findUnique.mockResolvedValue({ id: 'l1', seasonYear: 2026, currentWeek: 6 });
     pm.team.findFirst.mockResolvedValue({ id: 'my-team' });
     pm.matchup.findFirst.mockResolvedValue({ id: 'm9', week: 4, leagueId: 'l1' });
     pm.matchup.findUnique.mockResolvedValue({
@@ -243,10 +244,11 @@ describe('GET /leagues/:id/matchups/:matchupId', () => {
     expect(res.body.homeTeam.name).toBe('Alpha');
     expect(res.body.awayTeam.name).toBe('Beta');
 
-    // weeklyScores must be filtered to the matchup's own week, not currentWeek
+    // weeklyScores must resolve the matchup's own week to its calendar chart
+    // week (2 weeks before the league's current one here)
     const include = pm.matchup.findUnique.mock.calls[0][0].include;
     const wsWhere = include.homeTeam.include.rosterSpots.include.artist.include.weeklyScores.where;
-    expect(wsWhere).toEqual({ week: 4, seasonYear: 2026 });
+    expect(wsWhere).toEqual({ weekDate: weekDateForLeagueWeek(6, 4) });
   });
 
   it('does not swallow the literal /matchups/current route (registration order)', async () => {

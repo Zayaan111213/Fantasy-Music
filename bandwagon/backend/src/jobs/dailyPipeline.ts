@@ -25,22 +25,14 @@ export async function runDailyPipeline(): Promise<void> {
   console.log('[daily] 4/4 score');
   const leagues = await prisma.league.findMany({
     where: { status: 'active' },
-    select: { id: true, currentWeek: true, seasonYear: true },
+    select: { id: true, currentWeek: true },
   });
 
   if (leagues.length) {
-    const scored = new Set<string>();
-    for (const { currentWeek: week, seasonYear: year } of leagues) {
-      const key = `${week}/${year}`;
-      if (!scored.has(key)) {
-        await scoreAllArtistsForWeek(week, year, weekDate);
-        scored.add(key);
-      }
-    }
+    // Scores are keyed by calendar chart week, shared by every league.
+    await scoreAllArtistsForWeek(weekDate);
     await Promise.all(
-      leagues.map(({ id, currentWeek: week, seasonYear: year }) =>
-        updateMatchupScores(id, week, year),
-      ),
+      leagues.map(({ id, currentWeek: week }) => updateMatchupScores(id, week, weekDate)),
     );
     console.log(`[daily] scored ${leagues.length} league(s)`);
   } else {

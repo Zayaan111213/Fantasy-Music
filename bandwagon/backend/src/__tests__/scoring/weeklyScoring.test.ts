@@ -112,13 +112,13 @@ beforeAll(() => {
 
   // weeklyScore.upsert writes to store; findUnique reads it back
   vi.mocked(prisma.weeklyScore.upsert).mockImplementation(async (args: any) => {
-    const key = `${args.create.artistId}_${args.create.week}_${args.create.seasonYear}`;
+    const key = `${args.create.artistId}_${args.create.weekDate.toISOString()}`;
     weeklyScoreStore.set(key, { ...args.create });
     return args.create as never;
   });
   vi.mocked(prisma.weeklyScore.findUnique).mockImplementation(async (args: any) => {
-    const { artistId, week, seasonYear } = args.where.artistId_week_seasonYear;
-    return (weeklyScoreStore.get(`${artistId}_${week}_${seasonYear}`) ?? null) as never;
+    const { artistId, weekDate } = args.where.artistId_weekDate;
+    return (weeklyScoreStore.get(`${artistId}_${weekDate.toISOString()}`) ?? null) as never;
   });
 
   // matchup.findMany: with include = updateMatchupScores path; without = finalizeLeagueWeek path
@@ -149,13 +149,13 @@ describe('weekly scoring pipeline — mid-week chart update', () => {
   describe('Phase 1 — Day 1 (Alpha rank 5, Beta rank 20)', () => {
     beforeAll(async () => {
       phase = 'day1';
-      await scoreArtistWeekFromCharts('alpha', WEEK, YEAR, WEEK_DATE);
-      await scoreArtistWeekFromCharts('beta',  WEEK, YEAR, WEEK_DATE);
-      await updateMatchupScores(LEAGUE_ID, WEEK, YEAR);
+      await scoreArtistWeekFromCharts('alpha', WEEK_DATE);
+      await scoreArtistWeekFromCharts('beta',  WEEK_DATE);
+      await updateMatchupScores(LEAGUE_ID, WEEK, WEEK_DATE);
     });
 
     it('Alpha earns 25pts: rank-5 pos (18) + movement +5 + longevity 2wk (2)', () => {
-      const s = weeklyScoreStore.get('alpha_2_2026');
+      const s = weeklyScoreStore.get(`alpha_${WEEK_DATE.toISOString()}`);
       expect(s?.chartPositionPoints).toBe(18);
       expect(s?.chartMovementPoints).toBe(5);
       expect(s?.longevityPoints).toBe(2);
@@ -163,7 +163,7 @@ describe('weekly scoring pipeline — mid-week chart update', () => {
     });
 
     it('Beta earns 19pts: rank-20 pos (12) + movement +5 + longevity 2wk (2)', () => {
-      const s = weeklyScoreStore.get('beta_2_2026');
+      const s = weeklyScoreStore.get(`beta_${WEEK_DATE.toISOString()}`);
       expect(s?.chartPositionPoints).toBe(12);
       expect(s?.chartMovementPoints).toBe(5);
       expect(s?.longevityPoints).toBe(2);
@@ -179,13 +179,13 @@ describe('weekly scoring pipeline — mid-week chart update', () => {
   describe('Phase 2 — Day 4 (Alpha climbs to rank 1, Beta to rank 8)', () => {
     beforeAll(async () => {
       phase = 'day4';
-      await scoreArtistWeekFromCharts('alpha', WEEK, YEAR, WEEK_DATE);
-      await scoreArtistWeekFromCharts('beta',  WEEK, YEAR, WEEK_DATE);
-      await updateMatchupScores(LEAGUE_ID, WEEK, YEAR);
+      await scoreArtistWeekFromCharts('alpha', WEEK_DATE);
+      await scoreArtistWeekFromCharts('beta',  WEEK_DATE);
+      await updateMatchupScores(LEAGUE_ID, WEEK, WEEK_DATE);
     });
 
     it('Alpha improves to 36pts: rank-1 pos (25) + movement +9 + longevity 2wk (2)', () => {
-      const s = weeklyScoreStore.get('alpha_2_2026');
+      const s = weeklyScoreStore.get(`alpha_${WEEK_DATE.toISOString()}`);
       expect(s?.chartPositionPoints).toBe(25);
       expect(s?.chartMovementPoints).toBe(9);
       expect(s?.longevityPoints).toBe(2);
@@ -193,7 +193,7 @@ describe('weekly scoring pipeline — mid-week chart update', () => {
     });
 
     it('Beta improves to 35pts: rank-8 pos (18) + movement +17 capped to 15 + longevity 2wk (2)', () => {
-      const s = weeklyScoreStore.get('beta_2_2026');
+      const s = weeklyScoreStore.get(`beta_${WEEK_DATE.toISOString()}`);
       expect(s?.chartPositionPoints).toBe(18);
       expect(s?.chartMovementPoints).toBe(15);
       expect(s?.longevityPoints).toBe(2);
@@ -209,7 +209,7 @@ describe('weekly scoring pipeline — mid-week chart update', () => {
   describe('Phase 3 — finalization (Home wins 36–35)', () => {
     beforeAll(async () => {
       vi.mocked(prisma.matchup.updateMany).mockResolvedValueOnce({ count: 1 } as never);
-      await finalizeLeagueWeek(LEAGUE_ID, WEEK, YEAR);
+      await finalizeLeagueWeek(LEAGUE_ID, WEEK, WEEK_DATE);
     });
 
     it('home team is recorded as the winner', () => {

@@ -52,9 +52,11 @@ export interface Artist {
 export interface WeeklyScore {
   id: string;
   artistId: string;
-  week: number;
+  // Raw WeeklyScore rows carry only weekDate (real chart week); the artist
+  // detail route additionally synthesizes a relative `week` number for display.
+  week?: number;
   weekDate?: string;
-  seasonYear: number;
+  seasonYear?: number;
   streamingPoints: number;
   chartPositionPoints: number;
   chartMovementPoints: number;

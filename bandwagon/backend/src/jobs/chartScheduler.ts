@@ -17,29 +17,19 @@ async function run(): Promise<void> {
 
   const activeLeagues = await prisma.league.findMany({
     where: { status: 'active' },
-    select: { id: true, currentWeek: true, seasonYear: true },
+    select: { id: true, currentWeek: true },
   });
   if (!activeLeagues.length) {
     console.log('[charts] no active leagues, skipping scoring');
     return;
   }
 
-  // Score once per unique (week, year) — typically just one across all leagues
-  const scored = new Set<string>();
-  for (const { currentWeek: week, seasonYear: year } of activeLeagues) {
-    const key = `${week}/${year}`;
-    if (!scored.has(key)) {
-      await scoreAllArtistsForWeek(week, year, weekDate);
-      scored.add(key);
-    }
-  }
-
+  // Scores are keyed by calendar chart week, shared by every league.
+  await scoreAllArtistsForWeek(weekDate);
   await Promise.all(
-    activeLeagues.map(({ id, currentWeek: week, seasonYear: year }) =>
-      updateMatchupScores(id, week, year)
-    )
+    activeLeagues.map(({ id, currentWeek: week }) => updateMatchupScores(id, week, weekDate))
   );
-  console.log(`[charts] scored ${activeLeagues.length} active league(s) for week ${[...scored].join(', ')}`);
+  console.log(`[charts] scored ${activeLeagues.length} active league(s)`);
 }
 
 export function startChartIngestionScheduler(): void {

@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { prisma } from '../db/prisma';
 import { updateMatchupScores } from '../scoring/engine';
+import { getCurrentWeekDate } from './ingestCharts';
 import { buildRoundRobin } from '../utils/schedule';
 
 const WEEK = 3;
@@ -64,7 +65,7 @@ async function main() {
 
   const artists = await prisma.artist.findMany({
     where: { id: { in: realIds }, hiddenAt: null },
-    include: { weeklyScores: { where: { week: WEEK, seasonYear: YEAR } } },
+    include: { weeklyScores: { where: { weekDate: getCurrentWeekDate() } } },
     orderBy: { name: 'asc' },
   });
 
@@ -187,7 +188,7 @@ async function main() {
     await prisma.team.update({ where: { id: team.id }, data: stats.get(team.id)! });
   }
 
-  await updateMatchupScores(league.id, WEEK, YEAR);
+  await updateMatchupScores(league.id, WEEK, getCurrentWeekDate());
 
   // 6. Create pending public league for join testing
   const publicLeague = await prisma.league.create({

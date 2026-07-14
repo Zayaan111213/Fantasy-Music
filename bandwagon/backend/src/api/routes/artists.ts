@@ -35,7 +35,7 @@ router.get('/', requireAuth, async (req, res, next) => {
         ...(genre && genreFilterToWhere(genre)),
       },
       include: {
-        weeklyScores: { orderBy: { week: 'desc' }, take: 5 },
+        weeklyScores: { orderBy: { weekDate: 'desc' }, take: 5 },
       },
       orderBy: { name: 'asc' },
       skip: (page - 1) * limit,
