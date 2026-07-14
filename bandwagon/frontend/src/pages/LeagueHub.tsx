@@ -941,6 +941,20 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
   const prevMyScore = prevIsHome ? (prevMatchup?.homeScore ?? 0) : (prevMatchup?.awayScore ?? 0);
   const prevOppScore = prevIsHome ? (prevMatchup?.awayScore ?? 0) : (prevMatchup?.homeScore ?? 0);
   const prevMyTeamName = (prevIsHome ? prevMatchup?.homeTeam?.name : prevMatchup?.awayTeam?.name) ?? 'Your Team';
+  // Starters that took the fell-off-chart penalty last week (on a chart the
+  // week before, gone that week) — surfaced in the result popup so a sudden
+  // score dip is explained.
+  const prevMyTeamData = prevIsHome ? prevMatchup?.homeTeam : prevMatchup?.awayTeam;
+  const prevFellOff = (prevMyTeamData?.rosterSpots ?? [])
+    .filter((spot) => spot.artist && !spot.slot.startsWith('Bench'))
+    .flatMap((spot) => {
+      const ws = spot.artist!.weeklyScores?.[0];
+      if (!ws) return [];
+      let points = 0;
+      if (ws.songRank === null && ws.songMovementPoints < 0) points += ws.songMovementPoints;
+      if (ws.albumRank === null && ws.albumMovementPoints < 0) points += ws.albumMovementPoints;
+      return points < 0 ? [{ id: spot.artist!.id, name: spot.artist!.name, points }] : [];
+    });
   const prevOppTeamName = (prevIsHome ? prevMatchup?.awayTeam?.name : prevMatchup?.homeTeam?.name) ?? 'Opponent';
 
   function dismissPopup() {
@@ -1035,6 +1049,17 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
                   <div className={`text-2xl font-bold ${!wonPrev ? 'text-green-400' : 'text-white'}`}>{prevOppScore.toFixed(1)}</div>
                 </div>
               </div>
+              {prevFellOff.length > 0 && (
+                <div className="mb-5 text-left bg-red-500/10 border border-red-500/20 rounded-lg p-3 space-y-1.5">
+                  <div className="text-xs font-semibold text-red-400 uppercase tracking-wider">Fell off the charts</div>
+                  {prevFellOff.map((a) => (
+                    <div key={a.id} className="flex justify-between text-sm">
+                      <span className="text-gray-300">{a.name}</span>
+                      <span className="text-red-400 font-semibold">{a.points.toFixed(1)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               <button
                 onClick={dismissPopup}
                 className="w-full px-4 py-2.5 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-white font-medium transition-colors"
