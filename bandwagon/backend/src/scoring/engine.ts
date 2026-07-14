@@ -93,6 +93,11 @@ export async function computeChartScoreForWeek(
     songIsDebut = priorSong === null;
     songMovement = priorSong !== null ? priorSong.rank - bestSong.rank : null;
     songMovementPoints = scoreChartMovement(songMovement, songIsDebut, DEFAULT_SONG_MOVEMENT);
+  } else {
+    // Fell off the songs chart: was on it last week, gone this week — the
+    // maximum drop penalty, symmetric with the +10 debut bonus.
+    const priorCount = await prisma.chartEntry.count({ where: { artistId, weekDate: prior } });
+    if (priorCount > 0) songMovementPoints = -DEFAULT_SONG_MOVEMENT.maxDrop;
   }
 
   // --- Albums ---
@@ -117,6 +122,9 @@ export async function computeChartScoreForWeek(
     albumIsDebut = priorAlbum === null;
     albumMovement = priorAlbum !== null ? priorAlbum.rank - bestAlbum.rank : null;
     albumMovementPoints = scoreChartMovement(albumMovement, albumIsDebut, DEFAULT_ALBUM_MOVEMENT);
+  } else {
+    const priorCount = await prisma.albumChartEntry.count({ where: { artistId, weekDate: prior } });
+    if (priorCount > 0) albumMovementPoints = -DEFAULT_ALBUM_MOVEMENT.maxDrop;
   }
 
   const chartPositionPoints = songPositionPoints + albumPositionPoints;
@@ -195,7 +203,7 @@ export async function scoreAllArtistsForWeek(weekDate: Date): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export function applyCustomScoringToWeeklyScore(
-  ws: { weeklyStreams: bigint | null; bestChartPosition: number | null; chartMovement: number | null; longevityPoints?: number },
+  ws: { weeklyStreams: bigint | null; bestChartPosition: number | null; chartMovement: number | null; longevityPoints?: number; chartMovementPoints?: number },
   genre: string,
   genreTiers: { minStreams: bigint; maxStreams: bigint | null; points: number }[],
   cfg: ScoringConfig
@@ -211,7 +219,13 @@ export function applyCustomScoringToWeeklyScore(
   const streamingPoints = streams !== null ? scoreStreaming(streams, tiersWithCustomPts) : 0;
   const chartPositionPoints = scoreChartPosition(ws.bestChartPosition, customChartTiers);
   const isNewEntry = ws.chartMovement === null && ws.bestChartPosition !== null;
-  const chartMovementPoints = scoreChartMovement(ws.chartMovement, isNewEntry, cfg.chartMovement);
+  let chartMovementPoints = scoreChartMovement(ws.chartMovement, isNewEntry, cfg.chartMovement);
+  if (ws.bestChartPosition === null && (ws.chartMovementPoints ?? 0) < 0) {
+    // Fell-off-chart penalty week: re-express the default −maxDrop per fallen
+    // signal in the league's custom maxDrop.
+    const fallenSignals = Math.round(-(ws.chartMovementPoints ?? 0) / 10);
+    chartMovementPoints = -cfg.chartMovement.maxDrop * fallenSignals;
+  }
   const longevityPoints = ws.longevityPoints ?? 0;
   return { streamingPoints, chartPositionPoints, chartMovementPoints, longevityPoints, totalPoints: streamingPoints + chartPositionPoints + chartMovementPoints + longevityPoints };
 }
