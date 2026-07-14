@@ -151,32 +151,36 @@ export async function ingestSongsFromFeed(data: AppleFeedResponse, weekDate: Dat
       const ids = artists.map((a) => a.id);
 
       // Drop rows for artists no longer credited at this rank (mid-week rank
-      // turnover, and retired combined-credit rows after a split).
-      await prisma.chartEntry.deleteMany({
-        where: {
-          weekDate,
-          chart: 'most-played-songs',
-          rank,
-          OR: [{ artistId: null }, { artistId: { notIn: ids } }],
-        },
-      });
-
-      for (const artist of artists) {
-        await prisma.chartEntry.upsert({
+      // turnover, and retired combined-credit rows after a split). One
+      // transaction per rank: concurrent scoring reads (e.g. a catch-up daily
+      // in an overlapping container during a deploy) must never observe the
+      // deleted-but-not-yet-rewritten window.
+      await prisma.$transaction([
+        prisma.chartEntry.deleteMany({
           where: {
-            weekDate_chart_rank_artistId: { weekDate, chart: 'most-played-songs', rank, artistId: artist.id },
-          },
-          update: { songTitle: entry.name, appleSongId },
-          create: {
             weekDate,
             chart: 'most-played-songs',
             rank,
-            songTitle: entry.name,
-            appleSongId,
-            artistId: artist.id,
+            OR: [{ artistId: null }, { artistId: { notIn: ids } }],
           },
-        });
-      }
+        }),
+        ...artists.map((artist) =>
+          prisma.chartEntry.upsert({
+            where: {
+              weekDate_chart_rank_artistId: { weekDate, chart: 'most-played-songs', rank, artistId: artist.id },
+            },
+            update: { songTitle: entry.name, appleSongId },
+            create: {
+              weekDate,
+              chart: 'most-played-songs',
+              rank,
+              songTitle: entry.name,
+              appleSongId,
+              artistId: artist.id,
+            },
+          }),
+        ),
+      ]);
     } catch (err) {
       console.error(`[songs] ✗ rank ${rank} (${entry.name}) failed:`, err);
     }
@@ -199,31 +203,32 @@ export async function ingestAlbumsFromFeed(data: AppleFeedResponse, weekDate: Da
       const appleAlbumId = parseId(entry.id);
       const ids = artists.map((a) => a.id);
 
-      await prisma.albumChartEntry.deleteMany({
-        where: {
-          weekDate,
-          chart: 'most-played-albums',
-          rank,
-          OR: [{ artistId: null }, { artistId: { notIn: ids } }],
-        },
-      });
-
-      for (const artist of artists) {
-        await prisma.albumChartEntry.upsert({
+      await prisma.$transaction([
+        prisma.albumChartEntry.deleteMany({
           where: {
-            weekDate_chart_rank_artistId: { weekDate, chart: 'most-played-albums', rank, artistId: artist.id },
-          },
-          update: { albumTitle: entry.name, appleAlbumId },
-          create: {
             weekDate,
             chart: 'most-played-albums',
             rank,
-            albumTitle: entry.name,
-            appleAlbumId,
-            artistId: artist.id,
+            OR: [{ artistId: null }, { artistId: { notIn: ids } }],
           },
-        });
-      }
+        }),
+        ...artists.map((artist) =>
+          prisma.albumChartEntry.upsert({
+            where: {
+              weekDate_chart_rank_artistId: { weekDate, chart: 'most-played-albums', rank, artistId: artist.id },
+            },
+            update: { albumTitle: entry.name, appleAlbumId },
+            create: {
+              weekDate,
+              chart: 'most-played-albums',
+              rank,
+              albumTitle: entry.name,
+              appleAlbumId,
+              artistId: artist.id,
+            },
+          }),
+        ),
+      ]);
     } catch (err) {
       console.error(`[albums] ✗ rank ${rank} (${entry.name}) failed:`, err);
     }
