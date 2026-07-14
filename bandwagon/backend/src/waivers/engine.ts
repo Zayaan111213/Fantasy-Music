@@ -42,7 +42,7 @@ export async function submitWaiverClaim(
   }
 
   const artist = await prisma.artist.findUnique({ where: { id: artistId } });
-  if (!artist) return { error: 'Artist not found', status: 404 };
+  if (!artist || artist.hiddenAt) return { error: 'Artist not found', status: 404 };
 
   const rostered = await prisma.rosterSpot.findFirst({
     where: { artistId, team: { leagueId } },

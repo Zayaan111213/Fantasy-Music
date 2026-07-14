@@ -804,6 +804,7 @@ router.get('/:id/players', requireAuth, async (req: AuthRequest, res, next) => {
 
     const artists = await prisma.artist.findMany({
       where: {
+        hiddenAt: null, // retired combined credits stay out of the player pool
         ...(q && { name: { contains: q, mode: 'insensitive' } }),
         ...(genre && genreFilterToWhere(genre)),
       },

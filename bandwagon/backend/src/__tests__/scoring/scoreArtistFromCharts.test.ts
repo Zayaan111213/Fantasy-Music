@@ -214,7 +214,49 @@ describe('scoreArtistWeekFromCharts', () => {
   });
 });
 
+describe('split credits: shared songs score each artist independently', () => {
+  it('scopes the prior-week movement lookup to the artist', async () => {
+    pm.chartEntry.findMany.mockResolvedValue([song(5)]);
+    pm.chartEntry.findFirst.mockResolvedValue({ rank: 20 });
+    pm.chartEntry.count.mockResolvedValue(0);
+
+    await scoreArtistWeekFromCharts(ARTIST, WEEK, YEAR, WEEK_DATE);
+
+    // Joint credits duplicate rows per artist, so the same appleSongId exists
+    // for several artists — the lookup must be scoped to this one.
+    expect(pm.chartEntry.findFirst.mock.calls[0][0].where.artistId).toBe(ARTIST);
+    expect(capturedCreate().songMovementPoints).toBe(15); // +15 cap on +15 climb
+  });
+
+  it('two artists sharing an appleSongId each get full position points and independent movement', async () => {
+    // Both credited artists have a rank-1 row for the same song this week;
+    // only artist-1 charted last week (rank 3), artist-2 is a debut.
+    pm.chartEntry.findMany.mockResolvedValue([song(1)]);
+    pm.chartEntry.findFirst.mockImplementation(async ({ where }: any) =>
+      where.artistId === 'artist-1' ? { rank: 3 } : null,
+    );
+    pm.chartEntry.count.mockResolvedValue(0);
+
+    await scoreArtistWeekFromCharts('artist-1', WEEK, YEAR, WEEK_DATE);
+    await scoreArtistWeekFromCharts('artist-2', WEEK, YEAR, WEEK_DATE);
+
+    const [first, second] = pm.weeklyScore.upsert.mock.calls.map((c) => c[0].create);
+    expect(first.songPositionPoints).toBe(25); // full points, not shared
+    expect(second.songPositionPoints).toBe(25);
+    expect(first.songMovementPoints).toBe(2); // climbed 3 -> 1
+    expect(first.songIsDebut).toBe(false);
+    expect(second.songIsDebut).toBe(true); // debut for the artist with no prior row
+    expect(second.songMovementPoints).toBe(10);
+  });
+});
+
 describe('scoreAllArtistsForWeek', () => {
+  it('excludes hidden (retired combined-credit) artists', async () => {
+    pm.artist.findMany.mockResolvedValue([]);
+    await scoreAllArtistsForWeek(WEEK, YEAR, WEEK_DATE);
+    expect(pm.artist.findMany).toHaveBeenCalledWith({ where: { hiddenAt: null }, select: { id: true } });
+  });
+
   it('scores every artist in the DB, including ones off both charts this week', async () => {
     // Bug: this used to only score artists returned by a distinct chartEntry/
     // albumChartEntry query for this weekDate, so an artist that fell off both

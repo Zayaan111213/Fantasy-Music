@@ -30,6 +30,7 @@ router.get('/', requireAuth, async (req, res, next) => {
 
     const artists = await prisma.artist.findMany({
       where: {
+        hiddenAt: null, // retired combined credits stay out of the player pool
         ...(q && { name: { contains: q, mode: 'insensitive' } }),
         ...(genre && genreFilterToWhere(genre)),
       },
@@ -93,8 +94,8 @@ router.get('/:id', requireAuth, async (req, res, next) => {
       let songIsDebut = false;
       if (bestSong) {
         const priorSong = bestSong.appleSongId
-          ? await prisma.chartEntry.findFirst({ where: { weekDate: priorDate, chart: bestSong.chart, appleSongId: bestSong.appleSongId } })
-          : await prisma.chartEntry.findFirst({ where: { weekDate: priorDate, chart: bestSong.chart, songTitle: bestSong.songTitle } });
+          ? await prisma.chartEntry.findFirst({ where: { weekDate: priorDate, chart: bestSong.chart, artistId: artist.id, appleSongId: bestSong.appleSongId } })
+          : await prisma.chartEntry.findFirst({ where: { weekDate: priorDate, chart: bestSong.chart, artistId: artist.id, songTitle: bestSong.songTitle } });
         songIsDebut = priorSong === null;
         songMovement = priorSong !== null ? priorSong.rank - bestSong.rank : null;
       }
@@ -103,8 +104,8 @@ router.get('/:id', requireAuth, async (req, res, next) => {
       let albumIsDebut = false;
       if (bestAlbum) {
         const priorAlbum = bestAlbum.appleAlbumId
-          ? await prisma.albumChartEntry.findFirst({ where: { weekDate: priorDate, chart: bestAlbum.chart, appleAlbumId: bestAlbum.appleAlbumId } })
-          : await prisma.albumChartEntry.findFirst({ where: { weekDate: priorDate, chart: bestAlbum.chart, albumTitle: bestAlbum.albumTitle } });
+          ? await prisma.albumChartEntry.findFirst({ where: { weekDate: priorDate, chart: bestAlbum.chart, artistId: artist.id, appleAlbumId: bestAlbum.appleAlbumId } })
+          : await prisma.albumChartEntry.findFirst({ where: { weekDate: priorDate, chart: bestAlbum.chart, artistId: artist.id, albumTitle: bestAlbum.albumTitle } });
         albumIsDebut = priorAlbum === null;
         albumMovement = priorAlbum !== null ? priorAlbum.rank - bestAlbum.rank : null;
       }

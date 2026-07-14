@@ -145,6 +145,7 @@ model Artist {
   appleArtistId   BigInt?   @unique
   createdAt       DateTime  @default(now())
   genreEnrichedAt DateTime?
+  hiddenAt        DateTime? // retired (e.g. combined multi-artist credit split into individuals); kept for history, excluded from player pools
 
   weeklyScores      WeeklyScore[]
   rosterSpots       RosterSpot[]
@@ -166,7 +167,8 @@ model ChartEntry {
   artist      Artist?  @relation(fields: [artistId], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
 
-  @@unique([weekDate, chart, rank])
+  // One row per credited artist: multi-artist songs appear once per component
+  @@unique([weekDate, chart, rank, artistId])
   @@index([weekDate])
   @@index([artistId])
 }
@@ -182,7 +184,8 @@ model AlbumChartEntry {
   artist       Artist?  @relation(fields: [artistId], references: [id], onDelete: SetNull)
   createdAt    DateTime @default(now())
 
-  @@unique([weekDate, chart, rank])
+  // One row per credited artist: multi-artist albums appear once per component
+  @@unique([weekDate, chart, rank, artistId])
   @@index([weekDate])
   @@index([artistId])
 }
