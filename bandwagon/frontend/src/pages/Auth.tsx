@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import type { User } from '../api/types';
+import { passwordPolicyError } from '../utils/passwordPolicy';
 
 export function Auth() {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
@@ -21,6 +22,10 @@ export function Auth() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    if (mode === 'signup') {
+      const policyError = passwordPolicyError(password);
+      if (policyError) { setError(policyError); return; }
+    }
     setLoading(true);
     try {
       const path = mode === 'login' ? '/auth/login' : '/auth/signup';

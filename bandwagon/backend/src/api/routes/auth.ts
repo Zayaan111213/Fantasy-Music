@@ -14,8 +14,17 @@ const router = Router();
 
 const SignupSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(6),
+  password: z.string(),
 });
+
+// New-password policy (signup + reset). Login is deliberately not policed —
+// accounts created under the old rules must keep working.
+export function passwordPolicyError(password: string): string | null {
+  if (password.length < 8) return 'Password must be at least 8 characters';
+  if (!/[0-9]/.test(password)) return 'Password must include at least one number';
+  if (!/[^A-Za-z0-9]/.test(password)) return 'Password must include at least one special character';
+  return null;
+}
 
 const LoginSchema = z.object({
   email: z.string().email(),
@@ -39,6 +48,9 @@ function userResponse(user: { id: string; email: string; username: string | null
 router.post('/signup', async (req, res, next) => {
   try {
     const { email, password } = SignupSchema.parse(req.body);
+
+    const policyError = passwordPolicyError(password);
+    if (policyError) { res.status(400).json({ error: policyError }); return; }
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
@@ -238,12 +250,15 @@ router.post('/forgot-password', async (req, res, next) => {
 
 const ResetPasswordSchema = z.object({
   token: z.string().min(1),
-  password: z.string().min(6),
+  password: z.string(),
 });
 
 router.post('/reset-password', async (req, res, next) => {
   try {
     const { token, password } = ResetPasswordSchema.parse(req.body);
+
+    const policyError = passwordPolicyError(password);
+    if (policyError) { res.status(400).json({ error: policyError }); return; }
 
     const row = await prisma.passwordResetToken.findFirst({
       where: { tokenHash: hashResetToken(token), usedAt: null, expiresAt: { gt: new Date() } },

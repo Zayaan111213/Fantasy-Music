@@ -8,7 +8,7 @@ function uniqueEmail() {
 test.describe('Authentication', () => {
   test('signup flow — new user reaches onboarding then home', async ({ page }) => {
     const email = uniqueEmail();
-    const password = 'testpass123';
+    const password = 'testpass123!';
 
     await page.goto('/auth');
     await page.getByRole('button', { name: 'Sign Up' }).click();
@@ -41,11 +41,11 @@ test.describe('Authentication', () => {
 
   test('login flow — existing user lands on home', async ({ page }) => {
     const email = uniqueEmail();
-    const user = await createUser(email, 'testpass123', `lt${Date.now()}${Math.random().toString(36).slice(2, 5)}`.slice(0, 20));
+    const user = await createUser(email, 'testpass123!', `lt${Date.now()}${Math.random().toString(36).slice(2, 5)}`.slice(0, 20));
 
     await page.goto('/auth');
     await page.getByLabel('Email').fill(user.email);
-    await page.getByLabel('Password').fill('testpass123');
+    await page.getByLabel('Password').fill('testpass123!');
     await page.locator('form').getByRole('button', { name: 'Log In' }).click();
 
     await page.waitForURL('**/home', { timeout: 10_000 });
@@ -54,7 +54,7 @@ test.describe('Authentication', () => {
 
   test('wrong password — shows error banner', async ({ page }) => {
     const email = uniqueEmail();
-    await createUser(email, 'rightpass123', `et${Date.now()}${Math.random().toString(36).slice(2, 5)}`.slice(0, 20));
+    await createUser(email, 'rightpass123!', `et${Date.now()}${Math.random().toString(36).slice(2, 5)}`.slice(0, 20));
 
     await page.goto('/auth');
     await page.getByLabel('Email').fill(email);

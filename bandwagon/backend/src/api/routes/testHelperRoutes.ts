@@ -19,7 +19,7 @@ router.post('/active-league', async (req, res, next) => {
     // Random suffix: the fast and full Playwright projects run concurrently
     // and can hit this in the same millisecond.
     const ts = `${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
-    const hash = await bcrypt.hash('testpass123', 10);
+    const hash = await bcrypt.hash('testpass123!', 10);
     // draftDaysAgo: 0 puts the league in the week-1 pre-game window (lineup
     // adjustable ⇒ instant free agency) on any real day; default 14 is a
     // normal locked scoring week.
@@ -196,7 +196,7 @@ router.post('/advance-to-playoffs', async (req, res, next) => {
     const teamCount = Math.min(Math.max(Number(req.body?.teamCount) || 8, 2), 12);
     // Random suffix: concurrent Playwright projects can collide on Date.now().
     const ts = `${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
-    const hash = await bcrypt.hash('testpass123', 10);
+    const hash = await bcrypt.hash('testpass123!', 10);
 
     const users = await Promise.all(
       Array.from({ length: teamCount }, (_, i) =>
