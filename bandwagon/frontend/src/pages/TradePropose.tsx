@@ -171,7 +171,7 @@ export function TradePropose() {
 
   const clearDraftAndLeave = () => {
     sessionStorage.removeItem(draftKey(leagueId));
-    navigate(`/leagues/${leagueId}`);
+    navigate(-1);
   };
 
   const canSubmit = !tradesMeta.tradingClosed
@@ -187,7 +187,10 @@ export function TradePropose() {
 
       <header className="relative border-b border-white/10">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
-          <button onClick={() => navigate(`/leagues/${leagueId}`)} className="text-gray-400 hover:text-white transition-colors">
+          {/* History back, not the league hub — entry points include the
+              Players tab and artist profiles, and landing on My Team instead
+              of where you came from is disorienting. */}
+          <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-white transition-colors">
             <ChevronLeft className="w-5 h-5" />
           </button>
           <ArrowLeftRight className="w-4 h-4 text-indigo-400" />
