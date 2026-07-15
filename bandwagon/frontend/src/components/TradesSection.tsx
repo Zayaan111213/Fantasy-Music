@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeftRight, Check, ChevronDown, X } from 'lucide-react';
+import { ArrowLeftRight, Check, X } from 'lucide-react';
 import { api } from '../api/client';
 import { Card } from './ui/Card';
 import { Badge } from './ui/Badge';
@@ -79,6 +79,47 @@ function TradeDetailSide({ leagueId, label, items }: { leagueId: string; label: 
       <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">{label}</div>
       <div className="divide-y divide-white/5">
         {items.map((i) => <TradeDetailArtistRow key={i.id} leagueId={leagueId} artist={i.artist} />)}
+      </div>
+    </div>
+  );
+}
+
+function TradeDetailModal({ leagueId, trade, onClose }: {
+  leagueId: string;
+  trade: TradeView;
+  onClose: () => void;
+}) {
+  const toReceiver = trade.items.filter((i) => i.toTeamId === trade.receiverTeam.id);
+  const toProposer = trade.items.filter((i) => i.toTeamId === trade.proposerTeam.id);
+  const dropped = trade.items.filter((i) => i.toTeamId === null);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
+      <div
+        className="bg-gray-900 border border-white/10 rounded-xl w-full max-w-md shadow-2xl max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between p-4 border-b border-white/10">
+          <div className="min-w-0">
+            <h2 className="font-semibold text-white truncate">
+              {trade.proposerTeam.name} <span className="text-gray-600">↔</span> {trade.receiverTeam.name}
+            </h2>
+            <div className="mt-1"><StatusChip status={trade.status} /></div>
+          </div>
+          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors shrink-0 ml-3">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-4 overflow-y-auto space-y-4">
+          <TradeDetailSide leagueId={leagueId} label={`${trade.proposerTeam.name} sends`} items={toReceiver} />
+          <TradeDetailSide leagueId={leagueId} label={`${trade.receiverTeam.name} sends`} items={toProposer} />
+          <TradeDetailSide leagueId={leagueId} label="Dropped to free agency" items={dropped} />
+          <div className="text-[11px] text-gray-600">
+            Proposed {new Date(trade.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+            {trade.acceptedAt && ` · accepted ${new Date(trade.acceptedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`}
+            {trade.resolvedAt && ` · resolved ${new Date(trade.resolvedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -178,7 +219,7 @@ export function TradesSection({ leagueId, league }: {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [acceptTarget, setAcceptTarget] = useState<TradeView | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [detailTarget, setDetailTarget] = useState<TradeView | null>(null);
   const [actionError, setActionError] = useState('');
 
   const { data } = useQuery({
@@ -235,46 +276,27 @@ export function TradesSection({ leagueId, league }: {
             const toReceiver = trade.items.filter((i) => i.toTeamId === trade.receiverTeam.id);
             const toProposer = trade.items.filter((i) => i.toTeamId === trade.proposerTeam.id);
             const dropped = trade.items.filter((i) => i.toTeamId === null);
-            const expanded = expandedId === trade.id;
             return (
               <div key={trade.id} className="bg-white/5 border border-white/10 rounded-lg p-3">
                 <button
                   type="button"
-                  onClick={() => setExpandedId(expanded ? null : trade.id)}
+                  onClick={() => setDetailTarget(trade)}
                   className="w-full text-left"
-                  aria-expanded={expanded}
                 >
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <div className="text-sm font-medium text-white truncate">
                       {trade.proposerTeam.name} <span className="text-gray-600">↔</span> {trade.receiverTeam.name}
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <StatusChip status={trade.status} />
-                      <ChevronDown className={`w-3.5 h-3.5 text-gray-500 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-                    </div>
+                    <StatusChip status={trade.status} />
                   </div>
-                  {!expanded && (
-                    <div className="text-xs text-gray-400 space-y-0.5">
-                      <div><span className="text-gray-500">{trade.proposerTeam.name} sends:</span> {toReceiver.map((i) => i.artist.name).join(', ') || '—'}</div>
-                      <div><span className="text-gray-500">{trade.receiverTeam.name} sends:</span> {toProposer.map((i) => i.artist.name).join(', ') || '—'}</div>
-                      {dropped.length > 0 && (
-                        <div><span className="text-gray-500">Dropped to free agency:</span> {dropped.map((i) => i.artist.name).join(', ')}</div>
-                      )}
-                    </div>
-                  )}
+                  <div className="text-xs text-gray-400 space-y-0.5">
+                    <div><span className="text-gray-500">{trade.proposerTeam.name} sends:</span> {toReceiver.map((i) => i.artist.name).join(', ') || '—'}</div>
+                    <div><span className="text-gray-500">{trade.receiverTeam.name} sends:</span> {toProposer.map((i) => i.artist.name).join(', ') || '—'}</div>
+                    {dropped.length > 0 && (
+                      <div><span className="text-gray-500">Dropped to free agency:</span> {dropped.map((i) => i.artist.name).join(', ')}</div>
+                    )}
+                  </div>
                 </button>
-                {expanded && (
-                  <div className="space-y-3 mt-1">
-                    <TradeDetailSide leagueId={leagueId} label={`${trade.proposerTeam.name} sends`} items={toReceiver} />
-                    <TradeDetailSide leagueId={leagueId} label={`${trade.receiverTeam.name} sends`} items={toProposer} />
-                    <TradeDetailSide leagueId={leagueId} label="Dropped to free agency" items={dropped} />
-                    <div className="text-[11px] text-gray-600">
-                      Proposed {new Date(trade.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                      {trade.acceptedAt && ` · accepted ${new Date(trade.acceptedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`}
-                      {trade.resolvedAt && ` · resolved ${new Date(trade.resolvedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`}
-                    </div>
-                  </div>
-                )}
 
                 <div className="flex items-center gap-2 mt-2">
                   {trade.status === 'pending' && isReceiver && !tradingClosed && (
@@ -327,6 +349,9 @@ export function TradesSection({ leagueId, league }: {
 
       {acceptTarget && (
         <AcceptTradeModal leagueId={leagueId} trade={acceptTarget} myTeamId={myTeamId} onClose={() => setAcceptTarget(null)} />
+      )}
+      {detailTarget && (
+        <TradeDetailModal leagueId={leagueId} trade={detailTarget} onClose={() => setDetailTarget(null)} />
       )}
     </Card>
   );
