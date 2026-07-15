@@ -27,6 +27,12 @@ test.describe('Authentication', () => {
     await page.getByRole('button', { name: 'Continue' }).click();
 
     await page.waitForURL('**/home', { timeout: 10_000 });
+
+    // New accounts get the how-it-works modal on their first Home visit
+    await expect(page.getByText('How Bandwagon Works')).toBeVisible();
+    await page.getByRole('button', { name: /Got it/ }).click();
+    await expect(page.getByText('How Bandwagon Works')).not.toBeVisible();
+
     await expect(page.getByText('Bandwagon')).toBeVisible();
   });
 

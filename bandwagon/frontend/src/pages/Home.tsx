@@ -1,13 +1,17 @@
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Users, Trophy, Music2, ChevronRight, Clock, X } from 'lucide-react';
+import { Plus, Users, Trophy, Music2, ChevronRight, Clock, X, HelpCircle } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Spinner } from '../components/ui/Spinner';
 import { Avatar } from '../components/ui/Avatar';
+import { HowItWorksModal } from '../components/HowItWorksModal';
 import type { LeagueCard, Notification } from '../api/types';
+
+const HOW_IT_WORKS_FLAG = 'bw_show_how_it_works';
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; cls: string }> = {
@@ -24,6 +28,15 @@ export function Home() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
+
+  // Auto-open once after account creation (flag set at signup)
+  useEffect(() => {
+    if (localStorage.getItem(HOW_IT_WORKS_FLAG)) {
+      localStorage.removeItem(HOW_IT_WORKS_FLAG);
+      setShowHowItWorks(true);
+    }
+  }, []);
 
   const { data: leagues, isLoading } = useQuery({
     queryKey: ['leagues'],
@@ -44,6 +57,8 @@ export function Home() {
     <div className="min-h-screen bg-gray-950">
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/30 via-gray-950 to-purple-950/20 pointer-events-none" />
 
+      {showHowItWorks && <HowItWorksModal onClose={() => setShowHowItWorks(false)} />}
+
       {/* Nav */}
       <header className="relative border-b border-white/10">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -54,6 +69,14 @@ export function Home() {
             <span className="font-bold text-white text-lg">Bandwagon</span>
           </Link>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowHowItWorks(true)}
+              className="text-gray-400 hover:text-white transition-colors"
+              aria-label="How Bandwagon works"
+              title="How Bandwagon works"
+            >
+              <HelpCircle className="w-5 h-5" />
+            </button>
             <Link to="/account" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
               <Avatar src={user?.avatarUrl} name={user?.username ?? '?'} size="sm" />
               <span className="text-gray-400 text-sm">{user?.username}</span>
