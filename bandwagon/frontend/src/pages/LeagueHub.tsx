@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Music2, ChevronLeft, Trophy, Users, Settings, Swords, Search, ArrowUpDown, User, Pencil, X, Check, Lock, ChevronRight, ChevronDown, ChevronUp, ArrowLeftRight, Bell, UserPlus, AlarmClock, Mail, Sparkles } from 'lucide-react';
 import { api } from '../api/client';
@@ -2200,9 +2200,17 @@ function SeasonCompleteBanner({ leagueId, league, isCommissioner }: {
   );
 }
 
+const TAB_IDS: readonly Tab[] = ['myteam', 'matchup', 'standings', 'players', 'notifications', 'settings'];
+
 export function LeagueHub() {
   const { id } = useParams<{ id: string }>();
-  const [tab, setTab] = useState<Tab>('myteam');
+  // The active tab lives in the URL (?tab=players) so browser back from an
+  // artist page (or anywhere) returns to the tab you left, not the default.
+  // Tab switches use replace so flipping tabs doesn't stack history entries.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const rawTab = searchParams.get('tab');
+  const tab: Tab = TAB_IDS.includes(rawTab as Tab) ? (rawTab as Tab) : 'myteam';
+  const setTab = (t: Tab) => setSearchParams(t === 'myteam' ? {} : { tab: t }, { replace: true });
   const { user } = useAuth();
   const navigate = useNavigate();
 

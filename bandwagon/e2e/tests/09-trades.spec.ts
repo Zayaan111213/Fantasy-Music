@@ -52,7 +52,10 @@ test.describe('Trades', () => {
     await expect(page.getByRole('heading', { name: 'Propose Trade' })).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText('You receive (1)')).toBeVisible({ timeout: 10_000 });
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
-    await expect(page.getByText('Free Agents Only')).not.toBeVisible();
+    // Cancel goes back through history, and the hub tab lives in the URL —
+    // so we land back on the Players tab we came from, not My Team.
+    await expect(page).toHaveURL(/tab=players/);
+    await expect(page.getByText('Free Agents Only')).toBeVisible({ timeout: 10_000 });
 
     // Artist-profile entry point: Trade button pre-includes that artist
     const theirs = await rosterArtists(fx.user1.token, fx.leagueId, fx.team2Id);
