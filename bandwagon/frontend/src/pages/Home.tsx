@@ -65,18 +65,30 @@ export function Home() {
 
       {notifications && notifications.length > 0 && (
         <div className="relative max-w-5xl mx-auto px-4 pt-4 space-y-2">
-          {notifications.map((n) => (
-            <div key={n.id} className="flex items-start gap-3 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 text-sm text-red-300">
-              <span className="flex-1">{n.message}</span>
-              <button
-                onClick={() => dismissMutation.mutate(n.id)}
-                className="shrink-0 text-red-400 hover:text-red-200 transition-colors mt-0.5"
-                aria-label="Dismiss"
+          {notifications.map((n) => {
+            const isDeletion = n.type === 'league_deleted';
+            return (
+              <div
+                key={n.id}
+                className={`flex items-start gap-3 rounded-lg px-4 py-3 text-sm ${
+                  isDeletion
+                    ? 'bg-red-500/10 border border-red-500/20 text-red-300'
+                    : 'bg-white/5 border border-white/10 text-gray-300 backdrop-blur-sm'
+                }`}
               >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
+                <span className="flex-1">{n.message}</span>
+                <button
+                  onClick={() => dismissMutation.mutate(n.id)}
+                  className={`shrink-0 transition-colors mt-0.5 ${
+                    isDeletion ? 'text-red-400 hover:text-red-200' : 'text-gray-500 hover:text-white'
+                  }`}
+                  aria-label="Dismiss"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
 
