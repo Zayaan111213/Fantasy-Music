@@ -461,3 +461,51 @@ describe('PUT /leagues/:id/roster/lineup', () => {
     expect(pm.rosterSpot.update).toHaveBeenCalledTimes(3);
   });
 });
+
+// ---------------------------------------------------------------------------
+// GET /leagues — home-page league cards
+// ---------------------------------------------------------------------------
+
+describe('GET /leagues (league cards)', () => {
+  const myTeam = {
+    id: 't-cw', leagueId: 'l1', name: 'ChartWatcher', logoUrl: null, wins: 3, losses: 0,
+    league: {
+      id: 'l1', name: 'Chart Toppers 2026', status: 'active', currentWeek: 4,
+      isPrivate: true, teamCount: 4, commissionerId: 'user-other',
+      teams: [{ user: { username: 'cw', avatarUrl: null } }],
+    },
+  };
+
+  it('fetches only the matchup involving the user\'s team', async () => {
+    pm.team.findMany.mockResolvedValue([myTeam]);
+    pm.matchup.findFirst.mockResolvedValue(null);
+
+    const res = await request(app).get('/leagues');
+    expect(res.status).toBe(200);
+    expect(pm.matchup.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          leagueId: 'l1',
+          week: 4,
+          OR: [{ homeTeamId: 't-cw' }, { awayTeamId: 't-cw' }],
+        }),
+      })
+    );
+  });
+
+  it('maps opponent and scores from the user\'s side of the matchup', async () => {
+    pm.team.findMany.mockResolvedValue([myTeam]);
+    // User's team is the away side of its own game
+    pm.matchup.findFirst.mockResolvedValue({
+      homeTeamId: 't-bb', awayTeamId: 't-cw', homeScore: 108, awayScore: 230,
+      homeTeam: { id: 't-bb', name: 'BeatBroker', logoUrl: null },
+      awayTeam: { id: 't-cw', name: 'ChartWatcher', logoUrl: null },
+    });
+
+    const res = await request(app).get('/leagues');
+    expect(res.status).toBe(200);
+    expect(res.body[0].opponent.name).toBe('BeatBroker');
+    expect(res.body[0].myScore).toBe(230);
+    expect(res.body[0].opponentScore).toBe(108);
+  });
+});

@@ -68,7 +68,11 @@ router.get('/', requireAuth, async (req: AuthRequest, res, next) => {
       teams.map(async (team) => {
         const currentWeek = team.league.currentWeek;
         const matchup = await prisma.matchup.findFirst({
-          where: { leagueId: team.leagueId, week: currentWeek },
+          where: {
+            leagueId: team.leagueId,
+            week: currentWeek,
+            OR: [{ homeTeamId: team.id }, { awayTeamId: team.id }],
+          },
           include: {
             homeTeam: { select: { id: true, name: true, logoUrl: true } },
             awayTeam: { select: { id: true, name: true, logoUrl: true } },
