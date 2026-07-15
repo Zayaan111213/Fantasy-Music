@@ -84,7 +84,7 @@ export function LeagueCreate() {
           if (logoFile) formData.append('logo', logoFile);
           await api.put(`/leagues/${league.id}/team`, formData);
         } catch {
-          setTeamSyncWarning("League created, but we couldn't save your team customization — you can set it from the My Team tab.");
+          setTeamSyncWarning("League created, but we couldn't save your team customization. You can set it from the My Team tab.");
         }
       }
 

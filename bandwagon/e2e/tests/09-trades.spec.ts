@@ -267,7 +267,7 @@ test.describe('Trades — acceptor designates drops in the UI', () => {
     await expect(page.getByText(/Accept trade from/)).toBeVisible();
 
     // Drop selector appears with the exact count, and Accept stays disabled
-    await expect(page.getByText(/select 1 player to drop \(0\/1\)/)).toBeVisible();
+    await expect(page.getByText(/select 1 player to drop \(0\/1\)/i)).toBeVisible();
     const acceptBtn = page.getByRole('button', { name: 'Accept Trade' });
     await expect(acceptBtn).toBeDisabled();
 

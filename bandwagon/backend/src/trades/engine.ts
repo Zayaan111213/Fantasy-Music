@@ -216,7 +216,7 @@ export async function executeAcceptedTrades(leagueId: string): Promise<void> {
             ? `${i.artist.name} to free agency`
             : `${i.artist.name} to ${i.toTeamId === trade.proposerTeamId ? trade.proposerTeam.name : trade.receiverTeam.name}`))
           .join(', ');
-        await logLeagueEvent(tx, leagueId, 'trade_executed', `Trade executed: ${label} — ${moves}`);
+        await logLeagueEvent(tx, leagueId, 'trade_executed', `Trade executed: ${label}. ${moves}`);
         console.log(`[trades] executed trade ${trade.id} (${label})`);
       });
     } catch (err) {

@@ -188,7 +188,7 @@ function AcceptTradeModal({ leagueId, trade, myTeamId, onClose }: {
           ) : dropsNeeded > 0 ? (
             <>
               <p className="text-xs text-amber-400">
-                You receive more players than you send — select {dropsNeeded} player{dropsNeeded === 1 ? '' : 's'} to drop ({drops.size}/{dropsNeeded})
+                You receive more players than you send. Select {dropsNeeded} player{dropsNeeded === 1 ? '' : 's'} to drop ({drops.size}/{dropsNeeded})
               </p>
               {dropCandidates.map((a) => (
                 <ArtistRow
@@ -274,7 +274,7 @@ export function TradesSection({ leagueId, league }: {
         )}
       </div>
       <p className="text-xs text-gray-600 mb-3">
-        {tradingClosed ?? 'Accepted trades execute Sunday night. The rest of the league can veto — unanimously — before then. Deadline: end of week 7.'}
+        {tradingClosed ?? 'Accepted trades execute Sunday night. The rest of the league can veto them, unanimously, before then. Deadline: end of week 7.'}
       </p>
 
       {actionError && <p className="text-xs text-red-400 mb-2">{actionError}</p>}
@@ -304,8 +304,8 @@ export function TradesSection({ leagueId, league }: {
                     <StatusChip status={trade.status} />
                   </div>
                   <div className="text-xs text-gray-400 space-y-0.5">
-                    <div><span className="text-gray-500">{trade.proposerTeam.name} sends:</span> {toReceiver.map((i) => i.artist.name).join(', ') || '—'}</div>
-                    <div><span className="text-gray-500">{trade.receiverTeam.name} sends:</span> {toProposer.map((i) => i.artist.name).join(', ') || '—'}</div>
+                    <div><span className="text-gray-500">{trade.proposerTeam.name} sends:</span> {toReceiver.map((i) => i.artist.name).join(', ') || 'nothing'}</div>
+                    <div><span className="text-gray-500">{trade.receiverTeam.name} sends:</span> {toProposer.map((i) => i.artist.name).join(', ') || 'nothing'}</div>
                     {dropped.length > 0 && (
                       <div><span className="text-gray-500">Dropped to free agency:</span> {dropped.map((i) => i.artist.name).join(', ')}</div>
                     )}

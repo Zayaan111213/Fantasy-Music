@@ -454,7 +454,7 @@ async function main() {
   // Seed a public pending league so the join page has something to show
   const publicLeague = await prisma.league.create({
     data: {
-      name: 'Open Draft — Join Now',
+      name: 'Open Draft: Join Now',
       commissionerId: user1.id,
       teamCount: 8,
       isPrivate: false,

@@ -984,7 +984,7 @@ router.put('/:id/roster/lineup', requireAuth, async (req: AuthRequest, res, next
         : new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/Los_Angeles' });
       const todayPT = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
       if (isLineupLocked(dayPT, league.currentWeek, league.draftTime, todayPT)) {
-        res.status(403).json({ error: 'Lineup is locked during the scoring week (Tuesday–Sunday).' });
+        res.status(403).json({ error: 'Lineup is locked during the scoring week (Tuesday-Sunday).' });
         return;
       }
     }

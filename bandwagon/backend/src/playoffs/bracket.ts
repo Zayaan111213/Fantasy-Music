@@ -170,7 +170,7 @@ export async function ensurePlayoffMatchups(leagueId: string, completedWeek: num
       prisma,
       leagueId,
       'playoffs_set',
-      `The playoff bracket is set — semifinals: ${semis}`,
+      `The playoff bracket is set. Semifinals: ${semis}`,
     );
   } else {
     const week11 = await prisma.matchup.findMany({

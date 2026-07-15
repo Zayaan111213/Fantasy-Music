@@ -366,7 +366,7 @@ describe('resolveWaivers', () => {
       where: { id: { in: ['c-low'] }, status: 'pending' },
       data: expect.objectContaining({
         status: 'lost',
-        resolution: 'Lost to Alpha — higher waiver priority',
+        resolution: 'Lost to Alpha (higher waiver priority)',
       }),
     }));
     expect(pm.notification.createMany).toHaveBeenCalledWith({
@@ -407,7 +407,7 @@ describe('resolveWaivers', () => {
     }));
     expect(pm.waiverClaim.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: { in: ['a-y'] }, status: 'pending' },
-      data: expect.objectContaining({ status: 'lost', resolution: 'Lost to Beta — higher waiver priority' }),
+      data: expect.objectContaining({ status: 'lost', resolution: 'Lost to Beta (higher waiver priority)' }),
     }));
     expect(pm.rosterSpot.update).toHaveBeenCalledTimes(2);
   });

@@ -105,7 +105,7 @@ describe('POST /auth/forgot-password', () => {
     sendEmailMock.mockResolvedValue({ status: 'failed', permanent: true, detail: 'Resend 403' });
     const res = await request(app).post('/auth/forgot-password').send({ email: USER.email });
     expect(res.status).toBe(502);
-    expect(res.body.error).toBe('Could not send the reset email — try again later');
+    expect(res.body.error).toBe('Could not send the reset email. Try again later');
   });
 
   it('200 when sending is skipped (no API key in dev/test)', async () => {

@@ -276,7 +276,7 @@ export async function resolveWaivers(leagueId: string): Promise<void> {
           where: { id: { in: losers.map((c) => c.id) }, status: 'pending' },
           data: {
             status: 'lost',
-            resolution: `Lost to ${claim.team.name} — higher waiver priority`,
+            resolution: `Lost to ${claim.team.name} (higher waiver priority)`,
             resolvedAt: new Date(),
           },
         });

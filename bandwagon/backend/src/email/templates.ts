@@ -11,7 +11,7 @@ const SUBJECTS: Record<string, string> = {
   trade_executed: 'Your trade went through',
   trade_failed: 'Your trade could not be completed',
   waiver_result: 'Your waiver claim results are in',
-  lineup_reminder: 'New week — set your lineup before Tuesday',
+  lineup_reminder: 'New week: set your lineup before Tuesday',
   league_deleted: 'One of your leagues was deleted',
   league_renewed: 'Your league is back for a new season',
 };

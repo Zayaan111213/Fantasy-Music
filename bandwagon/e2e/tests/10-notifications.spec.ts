@@ -73,7 +73,7 @@ test.describe('League notifications tab', () => {
     // Before the finalize, the claim produces no feed event — it's only queued.
     await page.goto(`/leagues/${fx.leagueId}`);
     await page.getByRole('button', { name: /Notifications/ }).click();
-    await expect(page.getByText('Nothing yet — league activity will show up here.')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('Nothing yet. League activity will show up here.')).toBeVisible({ timeout: 10_000 });
 
     // Sunday night: the week finalizes, resolving the claim.
     await apiPost('', '/api/test/finalize-week', { leagueId: fx.leagueId });
@@ -83,7 +83,7 @@ test.describe('League notifications tab', () => {
 
     // Week recap + lineup reminder + waiver resolution, all in the feed
     await expect(page.getByText(/Week 1 final:/).first()).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText(/set your lineup/).first()).toBeVisible();
+    await expect(page.getByText(/set your lineup/i).first()).toBeVisible();
     await expect(page.getByText(`E2E Team A claimed ${freeAgent.name} off waivers`, { exact: false })).toBeVisible();
     await expect(page.getByText('Your waiver claim went through', { exact: false })).toBeVisible();
     await expect(page.getByText('For you').first()).toBeVisible();

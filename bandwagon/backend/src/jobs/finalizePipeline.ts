@@ -99,7 +99,7 @@ export async function finalizeLeagueWeek(
       prisma,
       leagueId,
       'week_result',
-      `Week ${week} final: ${home} ${m.homeScore} — ${away} ${m.awayScore} · ${outcome}`,
+      `Week ${week} final: ${home} ${m.homeScore} - ${away} ${m.awayScore} · ${outcome}`,
     );
 
     // Update team stats: both teams accumulate pointsFor; winner/loser get wins/losses.
@@ -185,7 +185,7 @@ async function advanceSeason(leagueId: string, week: number): Promise<void> {
             userId: t.userId,
             leagueId,
             type: 'lineup_reminder',
-            message: `Week ${week + 1} is here — set your lineup before it locks on Tuesday!`,
+            message: `Week ${week + 1} is here. Set your lineup before it locks on Tuesday!`,
           })),
         });
       }

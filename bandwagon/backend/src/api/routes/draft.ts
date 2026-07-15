@@ -228,7 +228,7 @@ export async function makePick(
       }
 
       await tx.league.update({ where: { id: leagueId }, data: { status: 'active', currentWeek: 1 } });
-      await logLeagueEvent(tx, leagueId, 'draft_complete', 'The draft is complete — the season begins!');
+      await logLeagueEvent(tx, leagueId, 'draft_complete', 'The draft is complete. The season begins!');
     }
   });
 

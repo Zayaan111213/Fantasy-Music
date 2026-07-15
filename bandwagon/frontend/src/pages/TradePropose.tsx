@@ -105,7 +105,7 @@ export function TradePropose() {
     if (!player) {
       setNotice('That artist could not be found in this league.');
     } else if (!player.rosteredBy) {
-      setNotice(`${player.name} is a free agent — claim them from the Players tab instead of trading.`);
+      setNotice(`${player.name} is a free agent. Claim them from the Players tab instead of trading.`);
     } else if (player.rosteredBy.id === myTeamId) {
       setGive((prev) => new Set(prev).add(player.id));
     } else {
@@ -257,7 +257,7 @@ export function TradePropose() {
         {dropsNeeded > 0 && (
           <Card className="p-4">
             <div className="text-[10px] text-amber-400 uppercase tracking-wider font-medium mb-2">
-              You receive more than you send — drop {dropsNeeded} player{dropsNeeded === 1 ? '' : 's'} ({effectiveDrops.size}/{dropsNeeded} selected)
+              You receive more than you send. Drop {dropsNeeded} player{dropsNeeded === 1 ? '' : 's'} ({effectiveDrops.size}/{dropsNeeded} selected)
             </div>
             <div className="space-y-1">
               {dropCandidates.map((p) => (

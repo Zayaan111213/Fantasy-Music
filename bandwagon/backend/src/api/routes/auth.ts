@@ -229,13 +229,13 @@ router.post('/forgot-password', async (req, res, next) => {
         'We received a request to reset your Bandwagon password. Click the button below to choose a new one. This link expires in 1 hour and can be used once.',
       cta: { url: resetUrl, label: 'Reset Password' },
       footer:
-        "You're receiving this because a password reset was requested for your Bandwagon account. If this wasn't you, you can safely ignore this email — your password won't change.",
+        "You're receiving this because a password reset was requested for your Bandwagon account. If this wasn't you, you can safely ignore this email. Your password won't change.",
     });
     const result = await sendEmail({ to: user.email, subject: 'Reset your Bandwagon password', html, text });
 
     if (result.status === 'failed') {
       console.error(`[auth] password reset email to ${user.email} failed: ${result.detail}`);
-      res.status(502).json({ error: 'Could not send the reset email — try again later' });
+      res.status(502).json({ error: 'Could not send the reset email. Try again later' });
       return;
     }
     if (result.status === 'skipped') {
