@@ -15,7 +15,35 @@ import { getCurrentWeekDate } from '../../jobs/ingestCharts';
 
 const router = Router();
 
-const artistSelect = { select: { id: true, name: true, primaryGenre: true, imageUrl: true } };
+const artistSelect = {
+  select: {
+    id: true,
+    name: true,
+    primaryGenre: true,
+    imageUrl: true,
+    // Last 5 chart weeks for the Last/5W-avg stats shown when a trade row is
+    // expanded (same figures as the player lists).
+    weeklyScores: {
+      where: { weekDate: { lte: getCurrentWeekDate() } },
+      orderBy: { weekDate: 'desc' as const },
+      take: 5,
+      select: { totalPoints: true },
+    },
+  },
+};
+
+function artistWithStats(artist: { id: string; name: string; primaryGenre: string; imageUrl: string | null; weeklyScores: { totalPoints: number }[] }) {
+  return {
+    id: artist.id,
+    name: artist.name,
+    primaryGenre: artist.primaryGenre,
+    imageUrl: artist.imageUrl,
+    lastWeekPoints: artist.weeklyScores[0]?.totalPoints ?? 0,
+    avgLast5Points: artist.weeklyScores.length > 0
+      ? artist.weeklyScores.reduce((sum, w) => sum + w.totalPoints, 0) / artist.weeklyScores.length
+      : 0,
+  };
+}
 
 // Resolved trades stay in the Trades section for the rest of the Pacific day
 // they resolved (so both sides see the outcome), then drop out. The activity
@@ -131,7 +159,7 @@ router.get('/:id/trades', requireAuth, async (req: AuthRequest, res, next) => {
           artistId: i.artistId,
           fromTeamId: i.fromTeamId,
           toTeamId: i.toTeamId,
-          artist: i.artist,
+          artist: artistWithStats(i.artist),
         })),
         vetoCount: t.vetoes.length,
         myVetoed: t.vetoes.some((v) => v.teamId === myTeam.id),
