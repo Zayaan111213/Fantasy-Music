@@ -31,6 +31,8 @@ export function Auth() {
       const path = mode === 'login' ? '/auth/login' : '/auth/signup';
       const { token, user } = await api.post<{ token: string; user: User }>(path, { email, password });
       login(token, user);
+      // New accounts see the "How Bandwagon Works" modal on their first Home visit
+      if (mode === 'signup') localStorage.setItem('bw_show_how_it_works', '1');
       navigate(mode === 'signup' ? '/onboarding' : redirect, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
