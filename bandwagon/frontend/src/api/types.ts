@@ -162,6 +162,9 @@ export interface TradeArtist {
   name: string;
   primaryGenre: string;
   imageUrl: string | null;
+  // Present on GET /trades items (expanded trade rows show them)
+  lastWeekPoints?: number;
+  avgLast5Points?: number;
 }
 
 export interface TradeItemView {
