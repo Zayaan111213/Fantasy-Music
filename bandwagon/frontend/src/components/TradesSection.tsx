@@ -6,6 +6,7 @@ import { api } from '../api/client';
 import { Card } from './ui/Card';
 import { Badge } from './ui/Badge';
 import { Avatar } from './ui/Avatar';
+import { Spinner } from './ui/Spinner';
 import type { League, TeamWithRoster, TradeArtist, TradeItemView, TradesResponse, TradeView } from '../api/types';
 
 // Drops required to keep a 9-slot roster legal after a trade (mirrors the
@@ -135,12 +136,16 @@ function AcceptTradeModal({ leagueId, trade, myTeamId, onClose }: {
   const [drops, setDrops] = useState<Set<string>>(new Set());
   const [error, setError] = useState('');
 
-  const { data: teams } = useQuery({
+  const { data: teams, isPending: rosterLoading, isError: rosterError, refetch } = useQuery({
     queryKey: ['tradeTargets', leagueId],
     queryFn: () => api.get<TeamWithRoster[]>(`/leagues/${leagueId}/teams-with-rosters`),
   });
 
   const myTeam = teams?.find((t) => t.id === myTeamId);
+  // Until the roster is loaded we can't know how many drops the trade needs,
+  // so accepting must stay disabled — otherwise a 9-man roster receiving more
+  // than it sends would see "No drops needed" and a 400 on accept.
+  const rosterReady = !rosterLoading && !rosterError && !!myTeam;
   const myArtists = (myTeam?.rosterSpots ?? []).filter((s) => s.artist).map((s) => s.artist!);
   const myOutgoing = trade.items.filter((i) => i.fromTeamId === myTeamId && i.toTeamId !== null);
   const myIncoming = trade.items.filter((i) => i.toTeamId === myTeamId);
@@ -171,7 +176,16 @@ function AcceptTradeModal({ leagueId, trade, myTeamId, onClose }: {
         </div>
 
         <div className="p-4 overflow-y-auto space-y-2">
-          {dropsNeeded > 0 ? (
+          {!rosterReady ? (
+            rosterError || (!rosterLoading && !myTeam) ? (
+              <p className="text-xs text-red-400">
+                Couldn't load your roster to check whether this trade needs a drop.{' '}
+                <button onClick={() => refetch()} className="underline hover:text-red-200">Retry</button>
+              </p>
+            ) : (
+              <div className="flex justify-center py-4"><Spinner className="w-5 h-5" /></div>
+            )
+          ) : dropsNeeded > 0 ? (
             <>
               <p className="text-xs text-amber-400">
                 You receive more players than you send — select {dropsNeeded} player{dropsNeeded === 1 ? '' : 's'} to drop ({drops.size}/{dropsNeeded})
@@ -200,7 +214,7 @@ function AcceptTradeModal({ leagueId, trade, myTeamId, onClose }: {
             Cancel
           </button>
           <button
-            disabled={drops.size !== dropsNeeded || acceptMutation.isPending}
+            disabled={!rosterReady || drops.size !== dropsNeeded || acceptMutation.isPending}
             onClick={() => acceptMutation.mutate()}
             className="flex-1 px-3 py-2 rounded-lg bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white text-sm font-medium transition-colors"
           >
