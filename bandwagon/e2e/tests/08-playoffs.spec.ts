@@ -163,7 +163,7 @@ test.describe('Playoffs', () => {
     await page.screenshot({ path: test.info().outputPath('season-complete-final.png') });
 
     await page.getByRole('button', { name: 'My Team' }).click();
-    await expect(page.getByText('Season complete — lineups are final')).toBeVisible();
+    await expect(page.getByText('Season complete. Lineups are final')).toBeVisible();
 
     await page.getByRole('button', { name: 'Standings' }).click();
     await expect(page.getByText('Final regular-season standings')).toBeVisible();

@@ -161,7 +161,7 @@ export async function splitCombinedArtists(dryRun: boolean): Promise<void> {
             leagueId,
             type: 'artist_split',
             message: choice
-              ? `"${c.name}" was split into individual artists — your roster now has ${fix.replacement} instead.`
+              ? `"${c.name}" was split into individual artists. Your roster now has ${fix.replacement} instead.`
               : `"${c.name}" was split into individual artists. All of them are already rostered in your league, so your ${spot.slot} slot is now open.`,
           }],
         });
@@ -230,7 +230,7 @@ export async function splitCombinedArtists(dryRun: boolean): Promise<void> {
           prisma,
           leagueId,
           'artist_split',
-          `"${c.name}" was split into ${names.join(', ')} — each now scores the shared songs${detail ? `. ${detail}` : ''}.`,
+          `"${c.name}" was split into ${names.join(', ')}. Each now scores the shared songs${detail ? `. ${detail}` : ''}.`,
         );
       }
     }

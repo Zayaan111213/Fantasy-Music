@@ -82,14 +82,14 @@ export async function renewLeague(
       tx,
       leagueId,
       'league_renewed',
-      `The league has been renewed for ${newSeasonYear}! Draft scheduled for ${draftLabel} PT — worst team picks first.`,
+      `The league has been renewed for ${newSeasonYear}! Draft scheduled for ${draftLabel} PT. Worst team picks first.`,
     );
     await tx.notification.createMany({
       data: league.teams.map((t) => ({
         userId: t.userId,
         leagueId,
         type: 'league_renewed',
-        message: `${league.name} is back for ${newSeasonYear} — the draft is scheduled for ${draftLabel} PT.`,
+        message: `${league.name} is back for ${newSeasonYear}. The draft is scheduled for ${draftLabel} PT.`,
       })),
     });
   });

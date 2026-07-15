@@ -316,7 +316,7 @@ router.post('/:id/trades/:tradeId/accept', requireAuth, async (req: AuthRequest,
           userId: trade.proposerTeam.userId,
           leagueId: req.params.id,
           type: 'trade_cancelled',
-          message: `Your trade proposal to ${myTeam.name} was cancelled — a player in it is no longer on the expected roster.`,
+          message: `Your trade proposal to ${myTeam.name} was cancelled. A player in it is no longer on the expected roster.`,
         }],
       });
       res.status(409).json({ error: 'A player in this trade is no longer available; the trade was cancelled' });
@@ -388,7 +388,7 @@ router.post('/:id/trades/:tradeId/accept', requireAuth, async (req: AuthRequest,
         tx,
         req.params.id,
         'trade_accepted',
-        `Trade accepted: ${trade.proposerTeam.name} ↔ ${myTeam.name} — executes Sunday night unless vetoed`,
+        `Trade accepted: ${trade.proposerTeam.name} ↔ ${myTeam.name}. Executes Sunday night unless vetoed`,
       );
       return true;
     });

@@ -165,7 +165,7 @@ export function ArtistDetail() {
             </h2>
             {activeIsLegacy ? (
               <p className="text-xs text-gray-500 italic">
-                Detailed breakdown isn't available for this week — it was scored before per-signal tracking was added. Total: {activeScore.totalPoints.toFixed(1)}
+                Detailed breakdown isn't available for this week. It was scored before per-signal tracking was added. Total: {activeScore.totalPoints.toFixed(1)}
               </p>
             ) : (
             <div className="space-y-4">

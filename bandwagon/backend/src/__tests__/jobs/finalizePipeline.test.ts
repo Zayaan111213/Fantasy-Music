@@ -222,7 +222,7 @@ describe('finalizeLeagueWeek', () => {
       data: expect.objectContaining({
         leagueId: 'league1',
         type: 'week_result',
-        message: 'Week 1 final: Heavy Hitters 100 — Airwaves 80 · Heavy Hitters wins',
+        message: 'Week 1 final: Heavy Hitters 100 - Airwaves 80 · Heavy Hitters wins',
       }),
     });
   });

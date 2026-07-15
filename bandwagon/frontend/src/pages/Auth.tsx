@@ -111,7 +111,7 @@ export function Auth() {
           </form>
 
           <div className="mt-4 p-3 bg-white/5 rounded-lg">
-            <p className="text-xs text-gray-400 text-center mb-2">Demo accounts — click to fill</p>
+            <p className="text-xs text-gray-400 text-center mb-2">Demo accounts: click to fill</p>
             <div className="grid grid-cols-2 gap-2 text-xs">
               {[
                 { email: 'demo1@bandwagon.app', label: 'MusicMaven' },

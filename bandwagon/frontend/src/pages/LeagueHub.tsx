@@ -78,7 +78,7 @@ function BracketGame({ m, showScores }: { m: BracketMatchup; showScores: boolean
     const isWinner = m.isFinalized && m.winnerId === team.id;
     return (
       <div className="flex items-center gap-1.5 py-0.5 min-w-0">
-        <span className="w-5 shrink-0 text-center text-[10px] font-mono rounded bg-white/10 text-gray-400">{seed ?? '–'}</span>
+        <span className="w-5 shrink-0 text-center text-[10px] font-mono rounded bg-white/10 text-gray-400">{seed ?? '-'}</span>
         <span className={`truncate text-sm ${isWinner ? 'text-green-400 font-semibold' : 'text-white'}`}>{team.name}</span>
         <span className="shrink-0 text-[10px] font-mono text-gray-500">{team.wins}-{team.losses}</span>
         {showScores && (
@@ -305,7 +305,7 @@ function RosterRow({ spot, onSwapSelect, selectedSlot, readOnly = false, compact
               </div>
             ) : (
               <div className={`font-bold ${compact ? 'text-sm' : 'text-base'} ${isBench ? 'text-gray-500' : 'text-white'}`}>
-                {score ? score.totalPoints.toFixed(1) : '—'}
+                {score ? score.totalPoints.toFixed(1) : '-'}
               </div>
             )}
             {!compact && <div className="text-xs text-gray-600">{prevScore != null ? 'prev' : 'pts'}</div>}
@@ -318,7 +318,7 @@ function RosterRow({ spot, onSwapSelect, selectedSlot, readOnly = false, compact
             {compact && <SlotLabel slot={spot.slot} />}
             <span className={`block text-gray-600 italic ${compact ? 'text-xs' : 'text-sm'}`}>Empty slot</span>
           </div>
-          <span className="text-xs text-gray-600 shrink-0">—</span>
+          <span className="text-xs text-gray-600 shrink-0">-</span>
         </>
       )}
     </div>
@@ -625,7 +625,7 @@ function MyTeamTab({ leagueId, league, phase }: { leagueId: string; league: Leag
       {seasonOver ? (
         <div className="bg-white/5 border border-white/10 rounded-lg p-3 text-sm text-gray-400 flex items-center gap-2">
           <Trophy className="w-4 h-4 shrink-0" />
-          Season complete — lineups are final
+          Season complete. Lineups are final
         </div>
       ) : isLocked && (
         <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-sm text-amber-400 flex items-center gap-2">
@@ -743,11 +743,11 @@ function LeagueMatchupsCard({ leagueId, week, myTeamId, upcoming = false }: {
               <div className="col-span-4 flex flex-col items-center gap-0.5">
                 <div className="font-mono text-sm whitespace-nowrap">
                   {upcoming ? (
-                    <span className="text-gray-600">— vs —</span>
+                    <span className="text-gray-600">vs</span>
                   ) : (
                     <>
                       <span className={homeWon ? 'text-green-400 font-semibold' : 'text-gray-300'}>{m.homeScore.toFixed(1)}</span>
-                      <span className="text-gray-600 mx-1.5">–</span>
+                      <span className="text-gray-600 mx-1.5">-</span>
                       <span className={awayWon ? 'text-green-400 font-semibold' : 'text-gray-300'}>{m.awayScore.toFixed(1)}</span>
                     </>
                   )}
@@ -1011,12 +1011,12 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
           <div className="flex items-center justify-center gap-6">
             <div className="text-center">
               <div className="font-semibold text-white mb-1">{myTeamData?.name ?? 'Your Team'}</div>
-              <div className="text-3xl font-bold text-gray-600">—</div>
+              <div className="text-3xl font-bold text-gray-600">-</div>
             </div>
             <div className="text-gray-600 text-lg font-light">vs</div>
             <div className="text-center">
               <div className="font-semibold text-white mb-1">{oppTeamData?.name ?? 'Opponent'}</div>
-              <div className="text-3xl font-bold text-gray-600">—</div>
+              <div className="text-3xl font-bold text-gray-600">-</div>
             </div>
           </div>
         </Card>
@@ -1597,18 +1597,18 @@ function PlayersTab({ leagueId, league, onProposeTrade }: {
   );
 }
 
-const CHART_POSITION_LABELS = ['#1', '#2–10', '#11–25', '#26–50', '#51–100'];
+const CHART_POSITION_LABELS = ['#1', '#2-10', '#11-25', '#26-50', '#51-100'];
 const DEFAULT_CHART_POSITION: [number, number, number, number, number] = [25, 18, 12, 8, 4];
 const DEFAULT_CHART_MOVEMENT = { newEntryBonus: 10, maxGain: 15, maxDrop: 10 };
 const GENRES = ['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country', 'Dance', 'Other'];
 const DEFAULT_STREAMING: [number, number, number, number, number, number, number] = [40, 30, 20, 12, 6, 2, 0];
 const STREAMING_TIER_LABELS: Record<string, string[]> = {
-  'R&B/Hip-Hop':        ['50M+', '25–49M', '10–24M', '5–9M', '1–4M', '1K–999K', '0'],
-  'Pop':                ['50M+', '25–49M', '10–24M', '5–9M', '1–4M', '1K–999K', '0'],
-  'Rock & Alternative': ['20M+', '10–19M', '4–9M',   '2–3M', '500K–1.9M', '1K–499K', '0'],
-  'Country':            ['15M+', '8–14M',  '3–7M',   '1.5–2M', '400K–1.4M', '1K–399K', '0'],
-  'Dance':              ['10M+', '5–9M',   '2–4M',   '1–1.9M', '250K–999K', '1K–249K', '0'],
-  'Other':              ['15M+', '7–14M',  '3–6M',   '1–2M', '250K–999K', '1K–249K', '0'],
+  'R&B/Hip-Hop':        ['50M+', '25-49M', '10-24M', '5-9M', '1-4M', '1K-999K', '0'],
+  'Pop':                ['50M+', '25-49M', '10-24M', '5-9M', '1-4M', '1K-999K', '0'],
+  'Rock & Alternative': ['20M+', '10-19M', '4-9M',   '2-3M', '500K-1.9M', '1K-499K', '0'],
+  'Country':            ['15M+', '8-14M',  '3-7M',   '1.5-2M', '400K-1.4M', '1K-399K', '0'],
+  'Dance':              ['10M+', '5-9M',   '2-4M',   '1-1.9M', '250K-999K', '1K-249K', '0'],
+  'Other':              ['15M+', '7-14M',  '3-6M',   '1-2M', '250K-999K', '1K-249K', '0'],
 };
 
 function SettingsTab({ leagueId, league }: { leagueId: string; league: League }) {
@@ -2081,7 +2081,7 @@ function NotificationsTab({ leagueId }: { leagueId: string }) {
     return (
       <Card className="p-10 flex flex-col items-center gap-3 text-center">
         <Bell className="w-8 h-8 text-gray-600" />
-        <p className="text-gray-400 text-sm">Nothing yet — league activity will show up here.</p>
+        <p className="text-gray-400 text-sm">Nothing yet. League activity will show up here.</p>
       </Card>
     );
   }
@@ -2157,7 +2157,7 @@ function SeasonCompleteBanner({ leagueId, league, isCommissioner }: {
           </div>
           <div className="text-xs text-gray-400 mt-0.5">
             {isCommissioner
-              ? 'Renew the league to run it back — everyone keeps their team, and the worst team drafts first.'
+              ? 'Renew the league to run it back. Everyone keeps their team, and the worst team drafts first.'
               : 'Ask your commissioner to renew the league for another season.'}
           </div>
         </div>

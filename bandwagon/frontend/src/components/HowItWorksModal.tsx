@@ -31,8 +31,8 @@ export function HowItWorksModal({ onClose }: { onClose: () => void }) {
               <h3 className="font-semibold text-white mb-1">Draft your roster</h3>
               <p>
                 Join a league with friends and take part in a live snake draft. Every team fills 9
-                slots: 6 starters — R&amp;B/Hip-Hop, Pop, Rock &amp; Alternative, Country, Other, and a
-                Flex that takes any genre — plus 3 bench spots.
+                slots: 6 starters (R&amp;B/Hip-Hop, Pop, Rock &amp; Alternative, Country, Other, and a
+                Flex that takes any genre) plus 3 bench spots.
               </p>
             </div>
           </div>
@@ -46,9 +46,9 @@ export function HowItWorksModal({ onClose }: { onClose: () => void }) {
                 (Top 100):
               </p>
               <ul className="space-y-1 text-gray-400">
-                <li>· <span className="text-gray-300">Chart position</span> — #1 scores 25, top 10 scores 18, down to 4 points for ranks 51–100</li>
-                <li>· <span className="text-gray-300">Movement</span> — debuts earn +10; climbing the chart earns +1 per spot (falling costs points)</li>
-                <li>· <span className="text-gray-300">Longevity</span> — +2 per consecutive week on the chart, up to +10</li>
+                <li>· <span className="text-gray-300">Chart position:</span> #1 scores 25, top 10 scores 18, down to 4 points for ranks 51-100</li>
+                <li>· <span className="text-gray-300">Movement:</span> debuts earn +10; climbing the chart earns +1 per spot (falling costs points)</li>
+                <li>· <span className="text-gray-300">Longevity:</span> +2 per consecutive week on the chart, up to +10</li>
               </ul>
             </div>
           </div>
@@ -71,7 +71,7 @@ export function HowItWorksModal({ onClose }: { onClose: () => void }) {
             <div>
               <h3 className="font-semibold text-white mb-1">Win your matchup, make the playoffs</h3>
               <p>
-                Every week you face another team head-to-head — most points wins. After a 10-week
+                Every week you face another team head-to-head, and most points wins. After a 10-week
                 regular season, the top 4 teams enter a playoff bracket to crown the league champion.
               </p>
             </div>
@@ -83,7 +83,7 @@ export function HowItWorksModal({ onClose }: { onClose: () => void }) {
             onClick={onClose}
             className="w-full px-4 py-2.5 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-white font-medium transition-colors"
           >
-            Got it — let's play
+            Got it, let's play
           </button>
         </div>
       </div>
