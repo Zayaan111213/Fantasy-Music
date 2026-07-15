@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import type { User } from '../api/types';
+import { passwordPolicyError } from '../utils/passwordPolicy';
 
 export function ResetPassword() {
   const [params] = useSearchParams();
@@ -24,8 +25,9 @@ export function ResetPassword() {
       setError('Passwords do not match');
       return;
     }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+    const policyError = passwordPolicyError(password);
+    if (policyError) {
+      setError(policyError);
       return;
     }
     setLoading(true);
