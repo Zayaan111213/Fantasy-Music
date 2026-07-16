@@ -34,5 +34,8 @@ export const api = {
     method: 'PUT',
     body: body instanceof FormData ? body : JSON.stringify(body),
   }),
-  del: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  del: <T>(path: string, body?: unknown) => request<T>(path, {
+    method: 'DELETE',
+    ...(body !== undefined && { body: JSON.stringify(body) }),
+  }),
 };

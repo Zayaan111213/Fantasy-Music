@@ -201,6 +201,7 @@ describe('draft:skip-countdown', () => {
     mockJwtVerify.mockReturnValue({ userId: 'user-1' } as any);
     pm.league.findUnique
       .mockResolvedValueOnce({ id: 'l1', commissionerId: 'user-1', status: 'pre_draft' })
+      .mockResolvedValueOnce({ id: 'l1' }) // transitionToLiveDraft existence guard
       .mockResolvedValueOnce({ // state after transition
         id: 'l1', status: 'drafting',
         draftState: { currentPick: 0, pickOrder: ['t1'], timerEndsAt: new Date() },
@@ -227,6 +228,7 @@ describe('draft:skip-countdown', () => {
     mockJwtVerify.mockReturnValue({ userId: 'user-1' } as any);
     pm.league.findUnique
       .mockResolvedValueOnce({ id: 'l1', commissionerId: 'user-1', status: 'pre_draft' })
+      .mockResolvedValueOnce({ id: 'l1' }) // transitionToLiveDraft existence guard
       .mockResolvedValueOnce({
         id: 'l1', status: 'drafting',
         draftState: { currentPick: 0, pickOrder: ['t1'], timerEndsAt: new Date() },

@@ -1,8 +1,18 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import jwt from 'jsonwebtoken';
+
+vi.mock('../../../db/prisma', () => ({
+  prisma: {
+    user: { findUnique: vi.fn() },
+  },
+}));
+
+import { prisma } from '../../../db/prisma';
 import { signToken, requireAuth } from '../../../api/middleware/auth';
 import type { Response, NextFunction } from 'express';
 import type { AuthRequest } from '../../../api/middleware/auth';
+
+const pm = prisma as unknown as { user: { findUnique: ReturnType<typeof vi.fn> } };
 
 const JWT_SECRET = process.env.JWT_SECRET || 'bandwagon-dev-secret';
 
@@ -13,6 +23,11 @@ function mockRes() {
   } as unknown as Response;
   return res;
 }
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  pm.user.findUnique.mockResolvedValue({ deletedAt: null });
+});
 
 describe('signToken', () => {
   it('returns a JWT string', () => {
@@ -36,59 +51,85 @@ describe('signToken', () => {
 });
 
 describe('requireAuth', () => {
-  it('returns 401 when Authorization header is missing', () => {
+  it('returns 401 when Authorization header is missing', async () => {
     const req = { headers: {} } as AuthRequest;
     const res = mockRes();
     const next = vi.fn() as NextFunction;
 
-    requireAuth(req, res, next);
+    await requireAuth(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(401);
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('returns 401 when Authorization header lacks Bearer prefix', () => {
+  it('returns 401 when Authorization header lacks Bearer prefix', async () => {
     const req = { headers: { authorization: 'Token abc123' } } as AuthRequest;
     const res = mockRes();
     const next = vi.fn() as NextFunction;
 
-    requireAuth(req, res, next);
+    await requireAuth(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(401);
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('sets req.userId and calls next() for a valid token', () => {
+  it('sets req.userId and calls next() for a valid token', async () => {
     const token = signToken('user-456');
     const req = { headers: { authorization: `Bearer ${token}` } } as AuthRequest;
     const res = mockRes();
     const next = vi.fn() as NextFunction;
 
-    requireAuth(req, res, next);
+    await requireAuth(req, res, next);
 
     expect(req.userId).toBe('user-456');
     expect(next).toHaveBeenCalled();
     expect(res.status).not.toHaveBeenCalled();
   });
 
-  it('returns 401 for an invalid (tampered) token', () => {
+  it('returns 401 for an invalid (tampered) token', async () => {
     const req = { headers: { authorization: 'Bearer not.a.valid.jwt' } } as AuthRequest;
     const res = mockRes();
     const next = vi.fn() as NextFunction;
 
-    requireAuth(req, res, next);
+    await requireAuth(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(401);
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('returns 401 for a token signed with a different secret', () => {
+  it('returns 401 for a token signed with a different secret', async () => {
     const token = jwt.sign({ userId: 'user-789' }, 'wrong-secret', { expiresIn: '1h' });
     const req = { headers: { authorization: `Bearer ${token}` } } as AuthRequest;
     const res = mockRes();
     const next = vi.fn() as NextFunction;
 
-    requireAuth(req, res, next);
+    await requireAuth(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 for a valid token whose user no longer exists', async () => {
+    pm.user.findUnique.mockResolvedValue(null);
+    const token = signToken('user-gone');
+    const req = { headers: { authorization: `Bearer ${token}` } } as AuthRequest;
+    const res = mockRes();
+    const next = vi.fn() as NextFunction;
+
+    await requireAuth(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 for a valid token whose account was soft-deleted', async () => {
+    pm.user.findUnique.mockResolvedValue({ deletedAt: new Date() });
+    const token = signToken('user-deleted');
+    const req = { headers: { authorization: `Bearer ${token}` } } as AuthRequest;
+    const res = mockRes();
+    const next = vi.fn() as NextFunction;
+
+    await requireAuth(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(401);
     expect(next).not.toHaveBeenCalled();

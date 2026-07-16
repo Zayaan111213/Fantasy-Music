@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { prisma } from '../../db/prisma';
 import { signToken, requireAuth, type AuthRequest } from '../middleware/auth';
 import { uploadAvatar } from '../middleware/upload';
+import { deleteAccount } from '../../account/deleteAccount';
 import { sendEmail } from '../../email/mailer';
 import { renderEmail } from '../../email/templates';
 
@@ -73,7 +74,7 @@ router.post('/login', async (req, res, next) => {
     const { email, password } = LoginSchema.parse(req.body);
 
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
+    if (!user || user.deletedAt) {
       res.status(401).json({ error: 'Invalid email or password' });
       return;
     }
@@ -94,7 +95,7 @@ router.post('/login', async (req, res, next) => {
 router.get('/me', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.userId! } });
-    if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+    if (!user || user.deletedAt) { res.status(404).json({ error: 'User not found' }); return; }
     res.json(userResponse(user));
   } catch (err) {
     next(err);
@@ -184,6 +185,23 @@ router.put('/me', requireAuth, uploadAvatar, async (req: AuthRequest, res, next)
   }
 });
 
+// Delete the account. Requires the current password; the heavy lifting
+// (league handoffs, team cleanup, hard vs soft delete) lives in
+// account/deleteAccount.ts.
+router.delete('/me', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const { password } = z.object({ password: z.string().min(1) }).parse(req.body);
+    const result = await deleteAccount(req.userId!, password);
+    if ('error' in result) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    res.json({ message: 'Account deleted' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // reset links expire after 1 hour
 
 function hashResetToken(raw: string): string {
@@ -214,7 +232,7 @@ router.post('/forgot-password', async (req, res, next) => {
 
     // Deliberately reveals whether an account exists (explicit product decision).
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
+    if (!user || user.deletedAt) {
       res.status(404).json({ error: 'No account found with that email' });
       return;
     }
@@ -264,7 +282,7 @@ router.post('/reset-password', async (req, res, next) => {
       where: { tokenHash: hashResetToken(token), usedAt: null, expiresAt: { gt: new Date() } },
       include: { user: true },
     });
-    if (!row) {
+    if (!row || row.user.deletedAt) {
       // One message for garbage/expired/already-used — don't leak which.
       res.status(400).json({ error: 'Invalid or expired reset link' });
       return;
