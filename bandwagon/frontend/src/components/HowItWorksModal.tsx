@@ -12,7 +12,7 @@ export function HowItWorksModal({ onClose }: { onClose: () => void }) {
             <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
               <Music2 className="w-4 h-4 text-indigo-400" />
             </div>
-            <h2 className="text-lg font-bold text-white">How Bandwagon Works</h2>
+            <h2 className="text-lg font-bold text-white">How Bandwagoner Works</h2>
           </div>
           <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors" aria-label="Close">
             <X className="w-5 h-5" />
@@ -21,7 +21,7 @@ export function HowItWorksModal({ onClose }: { onClose: () => void }) {
 
         <div className="px-6 py-5 space-y-5 overflow-y-auto text-sm text-gray-300">
           <p className="text-gray-400">
-            Bandwagon is fantasy sports for music. Draft real recording artists, then earn points
+            Bandwagoner is fantasy sports for music. Draft real recording artists, then earn points
             each week based on how they perform on the Apple Music charts.
           </p>
 

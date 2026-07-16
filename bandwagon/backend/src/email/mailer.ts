@@ -3,7 +3,7 @@
 // a pipeline or request handler.
 
 const RESEND_URL = 'https://api.resend.com/emails';
-const DEFAULT_FROM = 'Bandwagon <onboarding@resend.dev>';
+const DEFAULT_FROM = 'Bandwagoner <onboarding@resend.dev>';
 
 export type SendResult =
   | { status: 'sent'; id?: string }

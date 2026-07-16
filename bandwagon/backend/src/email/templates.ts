@@ -16,7 +16,7 @@ const SUBJECTS: Record<string, string> = {
   league_renewed: 'Your league is back for a new season',
 };
 
-const FALLBACK_SUBJECT = 'Bandwagon update';
+const FALLBACK_SUBJECT = 'Bandwagoner update';
 
 export function subjectFor(type: string): string {
   return SUBJECTS[type] ?? FALLBACK_SUBJECT;
@@ -34,14 +34,14 @@ export function escapeHtml(raw: string): string {
 export interface RenderInput {
   username: string | null;
   message: string;
-  cta?: { url: string; label: string }; // defaults to the app-root "Open Bandwagon" button
+  cta?: { url: string; label: string }; // defaults to the app-root "Open Bandwagoner" button
   footer?: string;
 }
 
 export function renderEmail({ username, message, cta, footer }: RenderInput): { html: string; text: string } {
-  const appUrl = process.env.FRONTEND_URL || 'https://bandwagon.up.railway.app';
-  const button = cta ?? { url: appUrl, label: 'Open Bandwagon' };
-  const footerText = footer ?? "You're receiving this because of activity in your Bandwagon league.";
+  const appUrl = process.env.FRONTEND_URL || 'https://bandwagoner.com';
+  const button = cta ?? { url: appUrl, label: 'Open Bandwagoner' };
+  const footerText = footer ?? "You're receiving this because of activity in your Bandwagoner league.";
   const greeting = `Hi ${username ?? 'there'},`;
   // message/username include user-controlled team and league names — escape them.
   const html = `
@@ -49,7 +49,7 @@ export function renderEmail({ username, message, cta, footer }: RenderInput): { 
   <tr><td align="center">
     <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
       <tr><td style="background:#18181b;padding:20px 32px;">
-        <span style="color:#fafafa;font-size:20px;font-weight:700;letter-spacing:-0.5px;">Bandwagon</span>
+        <span style="color:#fafafa;font-size:20px;font-weight:700;letter-spacing:-0.5px;">Bandwagoner</span>
       </td></tr>
       <tr><td style="padding:28px 32px 8px;color:#18181b;font-size:15px;line-height:1.6;">
         <p style="margin:0 0 12px;">${escapeHtml(greeting)}</p>

@@ -220,18 +220,18 @@ router.post('/forgot-password', async (req, res, next) => {
     }
 
     const raw = await createPasswordResetToken(user.id);
-    const appUrl = process.env.FRONTEND_URL || 'https://bandwagon.up.railway.app';
+    const appUrl = process.env.FRONTEND_URL || 'https://bandwagoner.com';
     const resetUrl = `${appUrl}/reset-password?token=${raw}`;
 
     const { html, text } = renderEmail({
       username: user.username,
       message:
-        'We received a request to reset your Bandwagon password. Click the button below to choose a new one. This link expires in 1 hour and can be used once.',
+        'We received a request to reset your Bandwagoner password. Click the button below to choose a new one. This link expires in 1 hour and can be used once.',
       cta: { url: resetUrl, label: 'Reset Password' },
       footer:
-        "You're receiving this because a password reset was requested for your Bandwagon account. If this wasn't you, you can safely ignore this email. Your password won't change.",
+        "You're receiving this because a password reset was requested for your Bandwagoner account. If this wasn't you, you can safely ignore this email. Your password won't change.",
     });
-    const result = await sendEmail({ to: user.email, subject: 'Reset your Bandwagon password', html, text });
+    const result = await sendEmail({ to: user.email, subject: 'Reset your Bandwagoner password', html, text });
 
     if (result.status === 'failed') {
       console.error(`[auth] password reset email to ${user.email} failed: ${result.detail}`);
