@@ -45,6 +45,7 @@ export interface Artist {
   imageUrl: string | null;
   spotifyId: string | null;
   appleMusicId: string | null;
+  appleArtistId: string | null; // BigInt in the DB; serialized as a string
   lastWeekPoints?: number;
   avgLast5Points?: number;
 }

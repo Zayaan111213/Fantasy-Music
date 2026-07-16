@@ -139,6 +139,18 @@ export function ArtistDetail() {
                   Trade
                 </Link>
               )}
+              <a
+                href={artist.appleArtistId
+                  ? `https://music.apple.com/us/artist/${artist.appleArtistId}`
+                  : `https://music.apple.com/us/search?term=${encodeURIComponent(artist.name)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/20 border border-rose-500/30 rounded-lg text-rose-400 text-xs font-medium hover:bg-rose-500/30 transition-colors"
+              >
+                <Music2 className="w-3.5 h-3.5" />
+                Apple Music
+                <ExternalLink className="w-3 h-3" />
+              </a>
               {artist.spotifyId && (
                 <a
                   href={`https://open.spotify.com/artist/${artist.spotifyId}`}
