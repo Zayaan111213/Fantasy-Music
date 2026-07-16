@@ -73,5 +73,5 @@ startEmailDispatcher(); // no-op under NODE_ENV=test / EMAIL_DISPATCH_DISABLED /
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 httpServer.listen(PORT, () => {
-  console.log(`🎵 Bandwagon backend running on http://localhost:${PORT}`);
+  console.log(`🎵 Bandwagoner backend running on http://localhost:${PORT}`);
 });

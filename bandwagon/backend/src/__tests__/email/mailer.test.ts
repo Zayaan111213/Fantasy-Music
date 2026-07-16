@@ -49,7 +49,7 @@ describe('sendEmail', () => {
     );
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body).toEqual({
-      from: 'Bandwagon <onboarding@resend.dev>', // default when EMAIL_FROM unset
+      from: 'Bandwagoner <onboarding@resend.dev>', // default when EMAIL_FROM unset
       to: ['user@example.com'],
       subject: 'Test subject',
       html: '<p>hi</p>',

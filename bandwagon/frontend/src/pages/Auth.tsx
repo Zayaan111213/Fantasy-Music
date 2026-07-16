@@ -31,7 +31,7 @@ export function Auth() {
       const path = mode === 'login' ? '/auth/login' : '/auth/signup';
       const { token, user } = await api.post<{ token: string; user: User }>(path, { email, password });
       login(token, user);
-      // New accounts see the "How Bandwagon Works" modal on their first Home visit
+      // New accounts see the "How Bandwagoner Works" modal on their first Home visit
       if (mode === 'signup') localStorage.setItem('bw_show_how_it_works', '1');
       navigate(mode === 'signup' ? '/onboarding' : redirect, { replace: true });
     } catch (err) {
@@ -52,7 +52,7 @@ export function Auth() {
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 mb-4">
             <Music2 className="w-7 h-7 text-indigo-400" />
           </div>
-          <h1 className="text-3xl font-bold text-white">Bandwagon</h1>
+          <h1 className="text-3xl font-bold text-white">Bandwagoner</h1>
           <p className="text-gray-400 mt-1">Fantasy sports for music fans</p>
         </div>
 

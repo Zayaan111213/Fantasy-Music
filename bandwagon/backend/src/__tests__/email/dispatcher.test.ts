@@ -98,7 +98,7 @@ describe('email dispatcher tick', () => {
     pm.notification.findMany.mockResolvedValue([makeRow({ type: 'mystery_type' })]);
     const { dispatcher, sendMock } = makeDispatcher(async () => ({ status: 'sent' }));
     await dispatcher.tick();
-    expect(sendMock.mock.calls[0][0]).toMatchObject({ subject: 'Bandwagon update' });
+    expect(sendMock.mock.calls[0][0]).toMatchObject({ subject: 'Bandwagoner update' });
   });
 
   it('leaves transient failures unmarked but continues to later rows', async () => {

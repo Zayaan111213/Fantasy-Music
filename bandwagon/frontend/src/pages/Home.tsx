@@ -66,14 +66,14 @@ export function Home() {
             <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
               <Music2 className="w-4 h-4 text-indigo-400" />
             </div>
-            <span className="font-bold text-white text-lg">Bandwagon</span>
+            <span className="font-bold text-white text-lg">Bandwagoner</span>
           </Link>
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowHowItWorks(true)}
               className="text-gray-400 hover:text-white transition-colors"
-              aria-label="How Bandwagon works"
-              title="How Bandwagon works"
+              aria-label="How Bandwagoner works"
+              title="How Bandwagoner works"
             >
               <HelpCircle className="w-5 h-5" />
             </button>

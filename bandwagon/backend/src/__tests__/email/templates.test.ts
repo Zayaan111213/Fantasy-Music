@@ -19,12 +19,12 @@ const PERSONAL_TYPES = [
 describe('subjectFor', () => {
   it('has a distinct subject for every personal notification type', () => {
     const subjects = PERSONAL_TYPES.map(subjectFor);
-    expect(subjects).not.toContain('Bandwagon update');
+    expect(subjects).not.toContain('Bandwagoner update');
     expect(new Set(subjects).size).toBe(PERSONAL_TYPES.length);
   });
 
   it('falls back for unknown types', () => {
-    expect(subjectFor('some_future_type')).toBe('Bandwagon update');
+    expect(subjectFor('some_future_type')).toBe('Bandwagoner update');
   });
 });
 
@@ -33,7 +33,7 @@ describe('renderEmail', () => {
     const { html, text } = renderEmail({ username: 'MusicMaven', message: 'Your trade went through.' });
     expect(html).toContain('Hi MusicMaven,');
     expect(html).toContain('Your trade went through.');
-    expect(html).toContain('https://bandwagon.up.railway.app');
+    expect(html).toContain('https://bandwagoner.com');
     expect(text).toContain('Hi MusicMaven,');
     expect(text).toContain('Your trade went through.');
   });
@@ -45,24 +45,24 @@ describe('renderEmail', () => {
 
   it('uses the default CTA and footer when no overrides are given', () => {
     const { html, text } = renderEmail({ username: null, message: 'msg' });
-    expect(html).toContain('>Open Bandwagon</a>');
-    expect(html).toContain('href="https://bandwagon.up.railway.app"');
-    expect(html).toContain('activity in your Bandwagon league');
-    expect(text.trim().endsWith('https://bandwagon.up.railway.app')).toBe(true);
+    expect(html).toContain('>Open Bandwagoner</a>');
+    expect(html).toContain('href="https://bandwagoner.com"');
+    expect(html).toContain('activity in your Bandwagoner league');
+    expect(text.trim().endsWith('https://bandwagoner.com')).toBe(true);
   });
 
   it('honors cta and footer overrides in html and text', () => {
     const { html, text } = renderEmail({
       username: 'MusicMaven',
       message: 'Reset requested.',
-      cta: { url: 'https://bandwagon.up.railway.app/reset-password?token=abc123', label: 'Reset Password' },
+      cta: { url: 'https://bandwagoner.com/reset-password?token=abc123', label: 'Reset Password' },
       footer: 'If this was not you, ignore this email.',
     });
-    expect(html).toContain('href="https://bandwagon.up.railway.app/reset-password?token=abc123"');
+    expect(html).toContain('href="https://bandwagoner.com/reset-password?token=abc123"');
     expect(html).toContain('>Reset Password</a>');
     expect(html).toContain('If this was not you, ignore this email.');
-    expect(html).not.toContain('activity in your Bandwagon league');
-    expect(text).toContain('https://bandwagon.up.railway.app/reset-password?token=abc123');
+    expect(html).not.toContain('activity in your Bandwagoner league');
+    expect(text).toContain('https://bandwagoner.com/reset-password?token=abc123');
   });
 
   it('escapes html in cta label and footer', () => {
