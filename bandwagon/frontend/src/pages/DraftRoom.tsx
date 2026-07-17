@@ -10,6 +10,7 @@ import { Card } from '../components/ui/Card';
 import { Spinner } from '../components/ui/Spinner';
 import type { DraftState, DraftPick, Artist } from '../api/types';
 import { api } from '../api/client';
+import { SlotPill } from '../components/SlotPill';
 
 const ALL_SLOTS = ['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country', 'Other', 'Flex', 'Bench-1', 'Bench-2', 'Bench-3'];
 
@@ -27,7 +28,7 @@ function TimerRing({ seconds, total = 60 }: { seconds: number; total?: number })
   const r = 36;
   const circ = 2 * Math.PI * r;
   const dash = pct * circ;
-  const color = seconds > 20 ? '#E8B23A' : seconds > 10 ? '#E07A3E' : '#B8442D';
+  const color = seconds > 20 ? '#E8B23A' : seconds > 10 ? '#E07A3E' : '#C24A2E';
 
   return (
     <div className="relative w-24 h-24 flex items-center justify-center">
@@ -201,7 +202,7 @@ export function DraftRoom() {
       {/* Toast notifications */}
       <div className="fixed top-4 right-4 z-50 space-y-2 max-w-xs">
         {toasts.map(({ id, msg }) => (
-          <div key={id} className="flex items-start gap-2 bg-gray-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white shadow-xl animate-in slide-in-from-right">
+          <div key={id} className="flex items-start gap-2 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white shadow-xl animate-in slide-in-from-right">
             <span className="flex-1">{msg}</span>
             <button onClick={() => dismissToast(id)} className="shrink-0 text-gray-500 hover:text-white transition-colors mt-0.5">
               <X className="w-3.5 h-3.5" />
@@ -229,7 +230,7 @@ export function DraftRoom() {
                 </>
               ) : (
                 <>
-                  <div className="text-xs text-gray-500 mb-2">Round {round} · Pick {state.currentPickIndex + 1} of {totalPicks}</div>
+                  <div className="font-serif text-sm text-gray-400 mb-2">Round {round} · Pick {state.currentPickIndex + 1} of {totalPicks}</div>
                   <TimerRing seconds={secondsLeft} />
                   <div className="mt-3">
                     {state.isComplete ? (
@@ -259,15 +260,13 @@ export function DraftRoom() {
                   const filled = filledSlots.has(slot);
                   const pick = state.picks.find((p) => p.teamId === myTeam?.id && p.slot === slot);
                   return (
-                    <div key={slot} className="flex items-center gap-2 text-sm">
+                    <div key={slot} className="flex items-center gap-2 py-0.5">
                       {filled ? (
-                        <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
+                        <CheckCircle className="w-4 h-4 text-green-400 shrink-0" />
                       ) : (
                         <Circle className="w-4 h-4 text-gray-700 shrink-0" />
                       )}
-                      <span className={`${slot.startsWith('Bench') ? 'text-gray-600' : 'text-gray-400'} text-xs`}>
-                        {slot.startsWith('Bench') ? 'Bench' : slot}
-                      </span>
+                      <SlotPill slot={slot} />
                       {filled && pick && (
                         <span className="text-xs text-white truncate">{pick.artist?.name}</span>
                       )}
@@ -302,7 +301,7 @@ export function DraftRoom() {
 
             <Card>
               {/* Sort header */}
-              <div className="px-3 py-2 border-b border-white/10 grid grid-cols-12 gap-1 text-xs uppercase tracking-wider font-medium">
+              <div className="px-3 py-2 border-b border-gray-700 grid grid-cols-12 gap-1 text-xs uppercase tracking-wider font-medium">
                 <div className="col-span-5">
                   <button
                     onClick={() => setSort((p) => p.field === 'name' ? { field: 'name', dir: p.dir === 'desc' ? 'asc' : 'desc' } : { field: 'name', dir: 'desc' })}
@@ -332,7 +331,7 @@ export function DraftRoom() {
               {loadingArtists ? (
                 <div className="flex justify-center py-8"><Spinner className="w-6 h-6" /></div>
               ) : (
-                <div className="divide-y divide-white/5 max-h-[55vh] overflow-y-auto">
+                <div className="divide-y divide-gray-900 max-h-[55vh] overflow-y-auto">
                   {[...availableArtists]
                     .sort((a, b) => {
                       let cmp = 0;
@@ -357,10 +356,10 @@ export function DraftRoom() {
                               <Badge genre={artist.primaryGenre}>{artist.primaryGenre}</Badge>
                             </div>
                           </a>
-                          <div className="col-span-3 text-right font-mono text-sm text-gray-300">
+                          <div className="col-span-3 text-right font-serif text-[15px] text-gray-300">
                             {(artist.lastWeekPoints ?? 0).toFixed(1)}
                           </div>
-                          <div className="col-span-2 text-right font-mono text-sm text-gray-400">
+                          <div className="col-span-2 text-right font-serif text-[15px] text-gray-400">
                             {(artist.avgLast5Points ?? 0).toFixed(1)}
                           </div>
                           <div className="col-span-2 flex justify-end">
@@ -403,7 +402,7 @@ export function DraftRoom() {
                           <div className="text-xs text-gray-600">{team.user?.username ?? ''}</div>
                         </div>
                         {team.draftPosition != null && (
-                          <span className="ml-auto text-xs text-gray-600 font-mono shrink-0">#{team.draftPosition}</span>
+                          <span className="ml-auto text-xs text-gray-600 font-serif shrink-0">#{team.draftPosition}</span>
                         )}
                       </div>
                     ))}
@@ -414,7 +413,7 @@ export function DraftRoom() {
                   <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Recent Picks</h3>
                   <div className="space-y-2 max-h-[70vh] overflow-y-auto">
                     {[...state.picks].reverse().map((pick) => (
-                      <div key={pick.id} className="flex items-center gap-2 py-1.5 border-b border-white/5 last:border-0">
+                      <div key={pick.id} className="flex items-center gap-2 py-1.5 border-b border-gray-900 last:border-0">
                         <div className="shrink-0">
                           <Avatar src={pick.artist?.imageUrl} name={pick.artist?.name ?? '?'} size="sm" />
                         </div>
@@ -422,7 +421,7 @@ export function DraftRoom() {
                           <div className="text-xs font-medium text-white truncate">{pick.artist?.name}</div>
                           <div className="text-xs text-gray-600">{pick.team?.name} · {pick.slot}</div>
                         </div>
-                        <div className="text-xs text-gray-600 font-mono">#{pick.pickNumber}</div>
+                        <div className="text-xs text-gray-600 font-serif">#{pick.pickNumber}</div>
                       </div>
                     ))}
                     {state.picks.length === 0 && (
