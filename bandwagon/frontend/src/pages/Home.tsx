@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Users, Trophy, ChevronRight, Clock, X, HelpCircle } from 'lucide-react';
+import { Plus, Users, Trophy, ChevronRight, Clock, X, HelpCircle, Music, Disc3 } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
@@ -9,8 +9,102 @@ import { Card } from '../components/ui/Card';
 import { Spinner } from '../components/ui/Spinner';
 import { Avatar } from '../components/ui/Avatar';
 import { HowItWorksModal } from '../components/HowItWorksModal';
-import type { LeagueCard, Notification } from '../api/types';
+import type { ChartRow, GlobalActivityItem, LeagueCard, MoversPayload, Notification } from '../api/types';
 import { WagonMark, Wordmark } from '../components/Logo';
+import { timeAgo } from '../utils/timeAgo';
+
+function MoverRow({ row }: { row: ChartRow }) {
+  const up = (row.delta ?? 0) > 0;
+  const a = row.artists[0];
+  const inner = (
+    <>
+      <div className="w-6 font-serif text-base text-gray-500 text-center shrink-0">{row.rank}</div>
+      {a ? (
+        <Avatar src={a.imageUrl} name={a.name} size="sm" />
+      ) : (
+        <div className="w-8 h-8 shrink-0 rounded-lg bg-gray-800 border border-gray-700 flex items-center justify-center text-gray-500 text-xs">♪</div>
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-semibold text-white truncate">{row.title}</div>
+        <div className="text-xs text-gray-400 truncate">{row.artists.map((x) => x.name).join(', ') || '—'}</div>
+      </div>
+      <div className={`text-[13px] font-bold shrink-0 ${up ? 'text-green-400' : 'text-red-400'}`}>
+        {up ? '▲' : '▼'} {Math.abs(row.delta ?? 0)}
+      </div>
+    </>
+  );
+  const cls = 'flex items-center gap-3 py-2 border-b border-gray-900 last:border-0';
+  return a ? (
+    <Link to={`/artists/${a.id}`} className={`${cls} hover:bg-white/5 -mx-2 px-2 rounded-lg transition-colors`}>{inner}</Link>
+  ) : (
+    <div className={cls}>{inner}</div>
+  );
+}
+
+function MoversCard({ label, icon: Icon, tab, data }: {
+  label: string;
+  icon: typeof Music;
+  tab: 'songs' | 'albums';
+  data?: { risers: ChartRow[]; fallers: ChartRow[] };
+}) {
+  const rows = [...(data?.risers.slice(0, 4) ?? []), ...(data?.fallers.slice(0, 3) ?? [])];
+  return (
+    <Card className="p-5">
+      <h3 className="flex items-center justify-between mb-2">
+        <span className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-gray-400">
+          <Icon className="w-4 h-4" />
+          {label} · This Week's Movers
+        </span>
+        <Link to={`/charts?tab=${tab}`} className="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 transition-colors">
+          Full chart →
+        </Link>
+      </h3>
+      {rows.length > 0 ? (
+        rows.map((row) => <MoverRow key={row.rank} row={row} />)
+      ) : (
+        <p className="text-sm text-gray-500 py-4 text-center">No chart movement yet this week.</p>
+      )}
+    </Card>
+  );
+}
+
+function activityGlyph(type: string): { glyph: string; color: string } {
+  if (type.startsWith('trade')) return { glyph: '⇄', color: '#E8B23A' };
+  if (type.startsWith('waiver') || type === 'claim') return { glyph: '＋', color: '#E07A3E' };
+  if (type === 'member_joined') return { glyph: '＋', color: '#6FA595' };
+  if (type === 'week_result' || type === 'season_complete' || type === 'playoffs_set') return { glyph: '♪', color: '#E8B23A' };
+  return { glyph: '♪', color: '#A88F70' };
+}
+
+function ActivityCard({ items }: { items?: GlobalActivityItem[] }) {
+  return (
+    <Card className="p-5">
+      <h3 className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">Around Your Leagues</h3>
+      {items && items.length > 0 ? (
+        items.slice(0, 10).map((item) => {
+          const { glyph, color } = activityGlyph(item.type);
+          return (
+            <Link
+              key={item.id}
+              to={`/leagues/${item.leagueId}`}
+              className="flex gap-3 py-2.5 border-b border-gray-900 last:border-0 hover:bg-white/5 -mx-2 px-2 rounded-lg transition-colors"
+            >
+              <div className="w-7 h-7 rounded-lg bg-gray-800 border border-gray-700 flex items-center justify-center text-[13px] shrink-0" style={{ color }}>
+                {glyph}
+              </div>
+              <div className="min-w-0">
+                <p className="text-[13px] text-gray-300 leading-snug">{item.message}</p>
+                <p className="text-[11px] text-gray-500 mt-0.5">{item.leagueName} · {timeAgo(item.createdAt)}</p>
+              </div>
+            </Link>
+          );
+        })
+      ) : (
+        <p className="text-sm text-gray-500 py-4 text-center">League activity will show up here.</p>
+      )}
+    </Card>
+  );
+}
 
 const HOW_IT_WORKS_FLAG = 'bw_show_how_it_works';
 
@@ -52,6 +146,16 @@ export function Home() {
   const dismissMutation = useMutation({
     mutationFn: (id: string) => api.post(`/notifications/${id}/dismiss`, {}),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+  });
+
+  const { data: movers } = useQuery({
+    queryKey: ['chartMovers'],
+    queryFn: () => api.get<MoversPayload>('/charts/movers?limit=4'),
+  });
+
+  const { data: allActivity } = useQuery({
+    queryKey: ['globalActivity'],
+    queryFn: () => api.get<{ items: GlobalActivityItem[] }>('/notifications/activity'),
   });
 
   return (
@@ -221,6 +325,17 @@ export function Home() {
             </div>
           </div>
         )}
+
+        {/* Charts movers + cross-league activity */}
+        <div className="grid gap-5 lg:grid-cols-3 mt-8">
+          <div className="lg:col-span-2 space-y-5">
+            <MoversCard label="Songs" icon={Music} tab="songs" data={movers?.songs} />
+            <MoversCard label="Albums" icon={Disc3} tab="albums" data={movers?.albums} />
+          </div>
+          <div>
+            <ActivityCard items={allActivity?.items} />
+          </div>
+        </div>
       </main>
     </div>
   );

@@ -7,6 +7,7 @@ import { ResetPassword } from './pages/ResetPassword';
 import { Onboarding } from './pages/Onboarding';
 import { AccountSettings } from './pages/AccountSettings';
 import { Home } from './pages/Home';
+import { Charts } from './pages/Charts';
 import { LeagueCreate } from './pages/LeagueCreate';
 import { LeagueJoin } from './pages/LeagueJoin';
 import { LeagueHub } from './pages/LeagueHub';
@@ -47,6 +48,7 @@ export function App() {
       <Route path="/onboarding" element={<RequireAuth><Onboarding /></RequireAuth>} />
       <Route path="/" element={<Navigate to="/home" replace />} />
       <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+      <Route path="/charts" element={<ProtectedRoute><Charts /></ProtectedRoute>} />
       <Route path="/account" element={<ProtectedRoute><AccountSettings /></ProtectedRoute>} />
       <Route path="/leagues/create" element={<ProtectedRoute><LeagueCreate /></ProtectedRoute>} />
       <Route path="/leagues/join" element={<ProtectedRoute><LeagueJoin /></ProtectedRoute>} />
