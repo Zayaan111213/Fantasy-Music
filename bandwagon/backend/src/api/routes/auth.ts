@@ -125,7 +125,7 @@ router.post('/complete-onboarding', requireAuth, uploadAvatar, async (req: AuthR
 
     const avatarUrl = req.file
       ? `/uploads/avatars/${req.file.filename}`
-      : `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=ea580c&color=fff&size=256`;
+      : `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=e8b23a&color=2c1e12&size=256`;
 
     const user = await prisma.user.update({
       where: { id: req.userId! },

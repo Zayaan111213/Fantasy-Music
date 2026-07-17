@@ -81,7 +81,7 @@ export function HowItWorksModal({ onClose }: { onClose: () => void }) {
         <div className="px-6 pb-5 pt-4 border-t border-white/10">
           <button
             onClick={onClose}
-            className="w-full px-4 py-2.5 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-white font-medium transition-colors"
+            className="w-full px-4 py-2.5 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-gray-950 font-medium transition-colors"
           >
             Got it, let's play
           </button>

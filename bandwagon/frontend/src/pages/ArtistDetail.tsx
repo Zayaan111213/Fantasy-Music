@@ -119,7 +119,7 @@ export function ArtistDetail() {
         {/* Artist header */}
         <div className="flex items-start gap-5">
           <img
-            src={artist.imageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(artist.name)}&background=ea580c&color=fff&size=256`}
+            src={artist.imageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(artist.name)}&background=e8b23a&color=2c1e12&size=256`}
             alt={artist.name}
             className="w-24 h-24 rounded-2xl object-cover ring-2 ring-white/10"
           />
