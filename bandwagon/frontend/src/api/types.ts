@@ -304,3 +304,34 @@ export interface LeagueCard {
   opponentScore: number;
   memberCount: number;
 }
+
+export interface ChartRow {
+  rank: number;
+  title: string;
+  artists: { id: string; name: string; imageUrl: string | null }[];
+  lastWeekRank: number | null;
+  delta: number | null;
+  isNew: boolean;
+}
+
+export interface ChartsPayload {
+  weekDate: string | null;
+  songs: ChartRow[];
+  albums: ChartRow[];
+}
+
+export interface MoversPayload {
+  weekDate: string | null;
+  songs: { risers: ChartRow[]; fallers: ChartRow[] };
+  albums: { risers: ChartRow[]; fallers: ChartRow[] };
+}
+
+export interface GlobalActivityItem {
+  id: string;
+  kind: 'league' | 'personal';
+  type: string;
+  message: string;
+  leagueId: string;
+  leagueName: string;
+  createdAt: string;
+}

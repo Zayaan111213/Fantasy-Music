@@ -19,6 +19,7 @@ import artistRoutes from './api/routes/artists';
 import draftRoutes from './api/routes/draft';
 import tradeRoutes from './api/routes/trades';
 import notificationRoutes from './api/routes/notifications';
+import chartRoutes from './api/routes/charts';
 import { errorHandler, notFound } from './api/middleware/errorHandler';
 import { registerDraftSocket, startDraftScheduler } from './sockets/draft';
 import { startPipelineScheduler } from './jobs/scheduler';
@@ -48,6 +49,7 @@ app.use('/api/artists', artistRoutes);
 app.use('/api/leagues', draftRoutes);
 app.use('/api/leagues', tradeRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/charts', chartRoutes);
 
 if (process.env.NODE_ENV === 'test') {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
