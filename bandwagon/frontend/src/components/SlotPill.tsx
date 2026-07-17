@@ -39,8 +39,9 @@ export function SlotPill({ slot }: { slot: string }) {
       className="inline-block text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full border whitespace-nowrap"
       style={tintStyle(rgb)}
     >
-      <span className="sm:hidden">{compact}</span>
+      {/* Desktop label first: e2e and text-locators resolve .first() to the visible span */}
       <span className="hidden sm:inline">{display}</span>
+      <span className="sm:hidden">{compact}</span>
     </span>
   );
 }

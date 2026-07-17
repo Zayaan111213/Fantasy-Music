@@ -263,6 +263,7 @@ function RosterRow({ spot, onSwapSelect, selectedSlot, readOnly = false, leagueI
 
   return (
     <div
+      data-slot={spot.slot}
       className={`flex items-center gap-3 rounded-lg transition-colors p-3 ${
         readOnly
           ? ''

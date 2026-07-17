@@ -44,7 +44,7 @@ test.describe('Lineup management', () => {
     await expect(page.getByText('Tap two slots to swap')).toBeVisible({ timeout: 10_000 });
 
     // Capture the full text of the Flex row before the swap so we can detect a change
-    const flexRow = page.locator('text=Flex').locator('..').locator('..').first();
+    const flexRow = page.locator('[data-slot="Flex"]').first();
     const flexTextBefore = await flexRow.textContent();
 
     // Click Flex slot → should highlight and show the "select second slot" info bar
