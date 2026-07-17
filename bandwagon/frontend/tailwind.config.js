@@ -16,38 +16,39 @@ export default {
           600: '#C08A1E',
           700: '#A17417',
         },
-        // Neutrals: "gray" resolves to the espresso/cream scale.
+        // Neutrals: "gray" resolves to the espresso/cream scale
+        // (values from the bandwagoner-home mockup: bg/panel/panel2/line/muted).
         gray: {
           50: '#FBF5E6',
           100: '#F3E7CE',
-          200: '#E8DCC2',
-          300: '#D9C8A9',
-          400: '#C9B79A',
-          500: '#8A7458',
-          600: '#6B573F',
-          700: '#4E3A27',
+          200: '#E4D6B4',
+          300: '#D3BF9E',
+          400: '#B79E7E',
+          500: '#8F7355',
+          600: '#6B5138',
+          700: '#4A3626',
           800: '#3A2A1C',
-          900: '#2C1E12',
-          950: '#1A1109',
+          900: '#2F2016',
+          950: '#241812',
         },
         // Semantics, tuned vintage: errors/losses = brick red, wins/success =
         // muted teal, warnings/pending = burnt orange (gold is the brand now).
         red: {
           200: '#EFC0B0',
           300: '#E39A82',
-          400: '#D96F51',
-          500: '#B8442D',
-          600: '#A03A26',
-          700: '#86301F',
+          400: '#D5714F',
+          500: '#C24A2E',
+          600: '#A83E25',
+          700: '#8C3420',
         },
         green: {
           300: '#8FBFAD',
-          400: '#6FA893',
+          400: '#6FA595',
           500: '#4A7C6F',
           600: '#3E6A5E',
         },
         emerald: {
-          400: '#6FA893',
+          400: '#6FA595',
           500: '#4A7C6F',
         },
         amber: {
@@ -80,6 +81,7 @@ export default {
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
+        serif: ['Georgia', 'Times New Roman', 'serif'],
       },
     },
   },

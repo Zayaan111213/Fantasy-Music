@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Music2, ChevronLeft, Copy, Check } from 'lucide-react';
+import { ChevronLeft, Copy, Check } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
 import { Avatar } from '../components/ui/Avatar';
+import { WagonMark } from '../components/Logo';
 
 type Step = 'form' | 'success';
 
@@ -145,7 +146,7 @@ export function LeagueCreate() {
             <ChevronLeft className="w-5 h-5" />
           </Link>
           <div className="flex items-center gap-2">
-            <Music2 className="w-5 h-5 text-indigo-400" />
+            <WagonMark size={20} />
             <span className="font-bold text-white">Create a League</span>
           </div>
         </div>

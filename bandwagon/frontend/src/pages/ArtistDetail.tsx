@@ -7,6 +7,7 @@ import { Badge } from '../components/ui/Badge';
 import { Card } from '../components/ui/Card';
 import { Spinner } from '../components/ui/Spinner';
 import type { Artist, WeeklyScore, ChartBreakdown } from '../api/types';
+import { WagonMark } from '../components/Logo';
 
 type ArtistWithScores = Artist & { weeklyScores: WeeklyScore[]; chartBreakdown?: ChartBreakdown | null };
 
@@ -111,7 +112,7 @@ export function ArtistDetail() {
           <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-white transition-colors">
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <Music2 className="w-4 h-4 text-indigo-400" />
+          <WagonMark size={18} />
         </div>
       </header>
 

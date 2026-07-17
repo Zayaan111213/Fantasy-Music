@@ -48,8 +48,8 @@ export function renderEmail({ username, message, cta, footer }: RenderInput): { 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F3E7CE;padding:24px 0;">
   <tr><td align="center">
     <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="background:#FFF8EC;border-radius:12px;overflow:hidden;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
-      <tr><td style="background:#2C1E12;padding:20px 32px;">
-        <span style="color:#E8B23A;font-size:20px;font-weight:700;letter-spacing:-0.5px;">Bandwagoner</span>
+      <tr><td style="background:#241812;padding:20px 32px;">
+        <span style="font-family:Georgia,'Times New Roman',serif;color:#F3E7CE;font-size:20px;font-weight:700;letter-spacing:-0.5px;">band<span style="color:#E07A3E;">wagoner</span></span>
       </td></tr>
       <tr><td style="padding:28px 32px 8px;color:#3A2A1C;font-size:15px;line-height:1.6;">
         <p style="margin:0 0 12px;">${escapeHtml(greeting)}</p>

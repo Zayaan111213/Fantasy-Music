@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Users, Trophy, Music2, ChevronRight, Clock, X, HelpCircle } from 'lucide-react';
+import { Plus, Users, Trophy, ChevronRight, Clock, X, HelpCircle } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
@@ -10,6 +10,7 @@ import { Spinner } from '../components/ui/Spinner';
 import { Avatar } from '../components/ui/Avatar';
 import { HowItWorksModal } from '../components/HowItWorksModal';
 import type { LeagueCard, Notification } from '../api/types';
+import { WagonMark, Wordmark } from '../components/Logo';
 
 const HOW_IT_WORKS_FLAG = 'bw_show_how_it_works';
 
@@ -62,10 +63,8 @@ export function Home() {
       <header className="relative border-b border-white/10">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/home" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
-              <Music2 className="w-4 h-4 text-indigo-400" />
-            </div>
-            <span className="font-bold text-white text-lg">Bandwagoner</span>
+            <WagonMark size={32} />
+            <Wordmark className="text-lg" />
           </Link>
           <div className="flex items-center gap-3">
             <button
