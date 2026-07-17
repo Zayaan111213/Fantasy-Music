@@ -58,9 +58,9 @@ function ScoreBar({ label, value, max, color }: { label: string; value: number; 
   const pct = max > 0 ? (Math.abs(value) / max) * 100 : 0;
   return (
     <div>
-      <div className="flex justify-between text-sm mb-1">
-        <span className="text-gray-400">{label}</span>
-        <span className={`font-semibold ${isNegative ? 'text-red-400' : 'text-white'}`}>{value.toFixed(1)}</span>
+      <div className="flex justify-between gap-3 text-sm mb-1">
+        <span className="text-gray-400 truncate min-w-0">{label}</span>
+        <span className={`font-semibold shrink-0 whitespace-nowrap ${isNegative ? 'text-red-400' : 'text-white'}`}>{value.toFixed(1)}</span>
       </div>
       <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
         <div className={`h-full ${isNegative ? 'bg-red-500' : color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
@@ -124,12 +124,12 @@ export function ArtistDetail() {
             alt={artist.name}
             className="w-24 h-24 rounded-2xl object-cover ring-2 ring-white/10"
           />
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-bold text-white mb-1">{artist.name}</h1>
             <div className="flex flex-wrap gap-1.5 mb-3">
               <Badge genre={artist.primaryGenre}>{artist.primaryGenre}</Badge>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {leagueId && (
                 <Link
                   to={`/leagues/${leagueId}/trade?artistId=${artist.id}`}
