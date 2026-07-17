@@ -246,26 +246,38 @@ function BracketCard({ bracket }: { bracket: Bracket }) {
   );
 }
 
+// Tinted per-slot pill colors from the vintage matchup mockup.
+const SLOT_PILL_COLORS: Record<string, string> = {
+  'R&B/Hip-Hop': '#E8B23A',
+  'Pop': '#E07A3E',
+  'Rock & Alternative': '#C24A2E',
+  'Country': '#B78A3C',
+  'Other': '#6FA595',
+  'Flex': '#C89B6A',
+};
+
 function SlotLabel({ slot }: { slot: string }) {
-  const colors: Record<string, string> = {
-    'R&B/Hip-Hop': 'text-purple-400', 'Pop': 'text-pink-400', 'Rock & Alternative': 'text-orange-400',
-    'Country': 'text-amber-400', 'Other': 'text-teal-400', 'Flex': 'text-indigo-400',
-    'Bench-1': 'text-gray-500', 'Bench-2': 'text-gray-500', 'Bench-3': 'text-gray-500',
-  };
   const short: Record<string, string> = {
     'R&B/Hip-Hop': 'Hip-Hop', 'Rock & Alternative': 'Rock/Alt',
   };
-  const display = slot.startsWith('Bench') ? 'Bench' : (short[slot] ?? slot);
-  return <span className={`text-xs font-semibold uppercase tracking-wider ${colors[slot] || 'text-gray-400'}`}>{display}</span>;
+  const isBench = slot.startsWith('Bench');
+  const display = isBench ? 'Bench' : (short[slot] ?? slot);
+  const c = isBench ? '#7C6650' : (SLOT_PILL_COLORS[slot] ?? '#A88F70');
+  return (
+    <span
+      className="inline-block text-[9.5px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border whitespace-nowrap"
+      style={{ color: c, backgroundColor: `${c}29`, borderColor: `${c}6B` }}
+    >
+      {display}
+    </span>
+  );
 }
 
-function RosterRow({ spot, onSwapSelect, selectedSlot, readOnly = false, compact = false, reverse = false, leagueId, prevScore }: {
+function RosterRow({ spot, onSwapSelect, selectedSlot, readOnly = false, leagueId, prevScore }: {
   spot: RosterSpot;
   onSwapSelect?: (slot: string) => void;
   selectedSlot?: string | null;
   readOnly?: boolean;
-  compact?: boolean;
-  reverse?: boolean;
   leagueId?: string;
   prevScore?: number | null;
 }) {
@@ -275,49 +287,44 @@ function RosterRow({ spot, onSwapSelect, selectedSlot, readOnly = false, compact
 
   return (
     <div
-      className={`flex items-center gap-3 rounded-lg transition-colors ${compact ? 'p-2 gap-2' : 'p-3'} ${reverse ? 'flex-row-reverse' : ''} ${
+      className={`flex items-center gap-3 rounded-lg transition-colors p-3 ${
         readOnly
           ? ''
           : `cursor-pointer ${isSelected ? 'bg-indigo-500/20 border border-indigo-500/50' : 'hover:bg-white/5 border border-transparent'}`
       }`}
       onClick={readOnly ? undefined : () => onSwapSelect?.(spot.slot)}
     >
-      {!compact && (
-        <div className={`shrink-0 w-16 ${reverse ? 'text-right' : ''}`}>
-          <SlotLabel slot={spot.slot} />
-        </div>
-      )}
+      <div className="shrink-0 w-20">
+        <SlotLabel slot={spot.slot} />
+      </div>
       {spot.artist ? (
         <>
           <Avatar src={spot.artist.imageUrl} name={spot.artist.name} size="sm" />
-          <div className={`flex-1 min-w-0 ${reverse ? 'text-right' : ''}`}>
-            {compact && <SlotLabel slot={spot.slot} />}
-            <Link to={`/artists/${spot.artist.id}${leagueId ? `?leagueId=${leagueId}` : ''}`} onClick={(e) => e.stopPropagation()} className={`font-medium text-white hover:text-indigo-400 transition-colors truncate block ${compact ? 'text-xs' : 'text-sm'}`}>
+          <div className="flex-1 min-w-0">
+            <Link to={`/artists/${spot.artist.id}${leagueId ? `?leagueId=${leagueId}` : ''}`} onClick={(e) => e.stopPropagation()} className="font-medium text-white hover:text-indigo-400 transition-colors truncate block text-sm">
               {spot.artist.name}
             </Link>
-            {!compact && (spot.slot === 'Other' || spot.slot === 'Flex' || spot.slot.startsWith('Bench')) && (
+            {(spot.slot === 'Other' || spot.slot === 'Flex' || spot.slot.startsWith('Bench')) && (
               <Badge genre={spot.artist.primaryGenre} className="mt-0.5">{spot.artist.primaryGenre}</Badge>
             )}
           </div>
           <div className="text-right shrink-0">
             {prevScore != null ? (
-              <div className={`font-bold ${compact ? 'text-sm' : 'text-base'} text-gray-500`}>
+              <div className="font-serif font-bold text-base text-gray-500">
                 {prevScore.toFixed(1)}
               </div>
             ) : (
-              <div className={`font-bold ${compact ? 'text-sm' : 'text-base'} ${isBench ? 'text-gray-500' : 'text-white'}`}>
+              <div className={`font-serif font-bold text-base ${isBench ? 'text-gray-500' : 'text-white'}`}>
                 {score ? score.totalPoints.toFixed(1) : '-'}
               </div>
             )}
-            {!compact && <div className="text-xs text-gray-600">{prevScore != null ? 'prev' : 'pts'}</div>}
+            <div className="text-xs text-gray-600">{prevScore != null ? 'prev' : 'pts'}</div>
           </div>
         </>
       ) : (
         <>
-          {compact && <Avatar src={null} name="?" size="sm" />}
-          <div className={`flex-1 min-w-0 ${reverse ? 'text-right' : ''}`}>
-            {compact && <SlotLabel slot={spot.slot} />}
-            <span className={`block text-gray-600 italic ${compact ? 'text-xs' : 'text-sm'}`}>Empty slot</span>
+          <div className="flex-1 min-w-0">
+            <span className="block text-gray-600 italic text-sm">Empty slot</span>
           </div>
           <span className="text-xs text-gray-600 shrink-0">-</span>
         </>
@@ -330,23 +337,138 @@ function getRosterSpot(roster: RosterSpot[], slot: string): RosterSpot {
   return roster.find((s) => s.slot === slot) ?? { id: '', teamId: '', artistId: null, slot, artist: null };
 }
 
-function TeamRosterCard({ title, roster, reverse = false, leagueId, prevScoreMap }: { title: string; roster: RosterSpot[]; reverse?: boolean; leagueId?: string; prevScoreMap?: Record<string, number> }) {
+// One artist cell of the head-to-head table: avatar on the outer edge,
+// name pulled toward the center scores (mirrors for the right team).
+function H2HArtistCell({ spot, right = false, leagueId }: { spot: RosterSpot; right?: boolean; leagueId?: string }) {
+  const empty = (
+    <div className="w-8 h-8 shrink-0 rounded-lg border border-dashed border-gray-700 bg-gray-800 text-gray-500 flex items-center justify-center text-xs">?</div>
+  );
   return (
-    <Card className="p-3">
-      <h3 className={`text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 truncate ${reverse ? 'text-right' : ''}`}>{title}</h3>
-      <div className="space-y-1">
-        {ALL_STARTER_SLOTS.map((slot) => {
-          const spot = getRosterSpot(roster, slot);
-          return <RosterRow key={slot} spot={spot} readOnly compact reverse={reverse} leagueId={leagueId} prevScore={prevScoreMap && spot.artistId ? prevScoreMap[spot.artistId] : undefined} />;
-        })}
+    <div className={`flex items-center gap-2 min-w-0 ${right ? 'flex-row-reverse' : ''}`}>
+      {spot.artist ? <Avatar src={spot.artist.imageUrl} name={spot.artist.name} size="sm" /> : empty}
+      {spot.artist ? (
+        <Link
+          to={`/artists/${spot.artist.id}${leagueId ? `?leagueId=${leagueId}` : ''}`}
+          className={`flex-1 min-w-0 truncate text-[13px] font-semibold text-white hover:text-indigo-400 transition-colors ${right ? '' : 'text-right'}`}
+        >
+          {spot.artist.name}
+        </Link>
+      ) : (
+        <span className={`flex-1 min-w-0 truncate text-[13px] italic text-gray-500 ${right ? '' : 'text-right'}`}>Empty slot</span>
+      )}
+    </div>
+  );
+}
+
+function h2hScoreOf(spot: RosterSpot, prevScoreMap?: Record<string, number>): number | null {
+  if (prevScoreMap) return spot.artistId ? prevScoreMap[spot.artistId] ?? null : null;
+  const s = spot.artist?.weeklyScores?.[0];
+  return s ? s.totalPoints : null;
+}
+
+// Head-to-head roster table (vintage matchup mockup): both teams in one card,
+// slot pill in the middle, higher score per row in gold.
+function H2HRoster({ leftTitle, rightTitle, leftRoster, rightRoster, leagueId, prevScoreMap, dimScores = false }: {
+  leftTitle: string;
+  rightTitle: string;
+  leftRoster: RosterSpot[];
+  rightRoster: RosterSpot[];
+  leagueId?: string;
+  prevScoreMap?: Record<string, number>;
+  dimScores?: boolean;
+}) {
+  const renderRow = (slot: string, last: boolean) => {
+    const l = getRosterSpot(leftRoster, slot);
+    const r = getRosterSpot(rightRoster, slot);
+    const ls = h2hScoreOf(l, prevScoreMap);
+    const rs = h2hScoreOf(r, prevScoreMap);
+    const isBench = slot.startsWith('Bench');
+    const lHi = !dimScores && !isBench && ls != null && (rs == null || ls > rs);
+    const rHi = !dimScores && !isBench && rs != null && (ls == null || rs > ls);
+    const scoreCls = (hi: boolean) =>
+      `font-serif text-center text-base whitespace-nowrap ${hi ? 'text-indigo-400 font-bold' : 'text-gray-500'}`;
+    return (
+      <div key={slot} className={`grid grid-cols-[1fr_40px_88px_40px_1fr] items-center gap-2 py-2.5 ${last ? '' : 'border-b border-gray-900'}`}>
+        <H2HArtistCell spot={l} leagueId={leagueId} />
+        <div className={scoreCls(lHi)}>{ls != null ? ls.toFixed(1) : '–'}</div>
+        <div className="flex justify-center"><SlotLabel slot={slot} /></div>
+        <div className={scoreCls(rHi)}>{rs != null ? rs.toFixed(1) : '–'}</div>
+        <H2HArtistCell spot={r} right leagueId={leagueId} />
       </div>
-      <div className={`text-xs font-semibold text-gray-500 uppercase tracking-wider mt-2 mb-1 ${reverse ? 'text-right' : ''}`}>Bench</div>
-      <div className="space-y-1">
-        {ALL_BENCH_SLOTS.map((slot) => {
-          const spot = getRosterSpot(roster, slot);
-          return <RosterRow key={slot} spot={spot} readOnly compact reverse={reverse} leagueId={leagueId} prevScore={prevScoreMap && spot.artistId ? prevScoreMap[spot.artistId] : undefined} />;
-        })}
+    );
+  };
+  return (
+    <Card className="px-4 py-1.5">
+      <div className="grid grid-cols-[1fr_88px_1fr] items-center py-3 border-b border-gray-700">
+        <div className="text-[11px] font-bold uppercase tracking-widest text-gray-400 truncate">{leftTitle}</div>
+        <div className="text-[11px] font-bold uppercase tracking-widest text-gray-400 text-center">Slot</div>
+        <div className="text-[11px] font-bold uppercase tracking-widest text-gray-400 text-right truncate">{rightTitle}</div>
       </div>
+      {ALL_STARTER_SLOTS.map((slot, i) => renderRow(slot, i === ALL_STARTER_SLOTS.length - 1))}
+      <div className="text-[11px] font-bold uppercase tracking-widest text-gray-500 text-center pt-3 pb-1.5 border-t border-gray-900">Bench</div>
+      {ALL_BENCH_SLOTS.map((slot, i) => renderRow(slot, i === ALL_BENCH_SLOTS.length - 1))}
+    </Card>
+  );
+}
+
+// Matchup score header (vintage mockup): team avatars, big serif scores with
+// the leader in gold, and a lead-share bar once any points exist.
+function MatchupHeader({ my, opp, myScore, oppScore, showScores, dim = false, footerRight, children }: {
+  my?: (Team & { rosterSpots?: RosterSpot[] }) | null;
+  opp?: (Team & { rosterSpots?: RosterSpot[] }) | null;
+  myScore: number;
+  oppScore: number;
+  showScores: boolean;
+  dim?: boolean;
+  footerRight?: string;
+  children: ReactNode;
+}) {
+  const total = myScore + oppScore;
+  const iLead = myScore > oppScore;
+  const oppLead = oppScore > myScore;
+  const myPct = total > 0 ? (myScore / total) * 100 : 50;
+  const scoreCls = (lead: boolean) =>
+    `font-serif text-4xl font-bold leading-none mt-1 ${dim || !showScores ? 'text-gray-500' : lead ? 'text-indigo-400' : 'text-white/75'}`;
+  const myName = my?.name ?? 'Your Team';
+  const oppName = opp?.name ?? 'Opponent';
+  return (
+    <Card className="p-5">
+      <div className="flex items-center justify-center gap-2 text-xs text-gray-400 mb-4">{children}</div>
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <Avatar src={my?.logoUrl} name={myName} size="md" />
+          <div className="min-w-0">
+            <div className="text-sm font-semibold truncate">{myName}</div>
+            <div className={scoreCls(iLead)}>{showScores ? myScore.toFixed(1) : '–'}</div>
+          </div>
+        </div>
+        <div className="text-xs font-bold tracking-[0.1em] text-gray-500">VS</div>
+        <div className="flex items-center gap-3 justify-end min-w-0">
+          <div className="min-w-0 text-right">
+            <div className="text-sm font-semibold truncate">{oppName}</div>
+            <div className={scoreCls(oppLead)}>{showScores ? oppScore.toFixed(1) : '–'}</div>
+          </div>
+          <Avatar src={opp?.logoUrl} name={oppName} size="md" />
+        </div>
+      </div>
+      {showScores && !dim && total > 0 && (
+        <>
+          <div className="mt-4 h-[7px] rounded-md bg-gray-900 overflow-hidden flex">
+            <span className="block h-full bg-indigo-400" style={{ width: `${myPct}%` }} />
+            <span className="block h-full bg-gray-600/60" style={{ width: `${100 - myPct}%` }} />
+          </div>
+          <div className="flex justify-between text-[11px] text-gray-400 mt-1.5">
+            <span>
+              {iLead
+                ? `${myName} leads by ${(myScore - oppScore).toFixed(1)}`
+                : oppLead
+                  ? `${oppName} leads by ${(oppScore - myScore).toFixed(1)}`
+                  : 'All tied up'}
+            </span>
+            <span>{footerRight ?? (iLead ? 'Winning' : oppLead ? 'Losing' : 'Tied')}</span>
+          </div>
+        </>
+      )}
     </Card>
   );
 }
@@ -700,9 +822,14 @@ function MatchupDetailPanel({ leagueId, matchupId }: { leagueId: string; matchup
   if (!data) return null;
 
   return (
-    <div className="grid grid-cols-2 gap-2 pt-2 pb-1">
-      <TeamRosterCard title={data.homeTeam?.name ?? 'Home'} roster={data.homeTeam?.rosterSpots ?? []} leagueId={leagueId} />
-      <TeamRosterCard title={data.awayTeam?.name ?? 'Away'} roster={data.awayTeam?.rosterSpots ?? []} reverse leagueId={leagueId} />
+    <div className="pt-2 pb-1">
+      <H2HRoster
+        leftTitle={data.homeTeam?.name ?? 'Home'}
+        rightTitle={data.awayTeam?.name ?? 'Away'}
+        leftRoster={data.homeTeam?.rosterSpots ?? []}
+        rightRoster={data.awayTeam?.rosterSpots ?? []}
+        leagueId={leagueId}
+      />
     </div>
   );
 }
@@ -729,7 +856,7 @@ function LeagueMatchupsCard({ leagueId, week, myTeamId, upcoming = false }: {
         <Swords className="w-4 h-4" />
         Around the League
       </h3>
-      <div className="divide-y divide-white/5">
+      <div className="space-y-1">
         {data.map((m) => {
           const homeWon = m.isFinalized && m.winnerId === m.homeTeamId;
           const awayWon = m.isFinalized && m.winnerId === m.awayTeamId;
@@ -742,14 +869,14 @@ function LeagueMatchupsCard({ leagueId, week, myTeamId, upcoming = false }: {
                 <span className={`truncate text-sm ${homeWon ? 'text-green-400 font-semibold' : 'text-white'}`}>{m.homeTeam.name}</span>
               </div>
               <div className="col-span-4 flex flex-col items-center gap-0.5">
-                <div className="font-mono text-sm whitespace-nowrap">
+                <div className="font-serif text-[15px] whitespace-nowrap">
                   {upcoming ? (
                     <span className="text-gray-600">vs</span>
                   ) : (
                     <>
-                      <span className={homeWon ? 'text-green-400 font-semibold' : 'text-gray-300'}>{m.homeScore.toFixed(1)}</span>
-                      <span className="text-gray-600 mx-1.5">-</span>
-                      <span className={awayWon ? 'text-green-400 font-semibold' : 'text-gray-300'}>{m.awayScore.toFixed(1)}</span>
+                      <span className={homeWon ? 'text-green-400 font-bold' : m.homeScore >= m.awayScore ? 'text-white font-bold' : 'text-gray-400'}>{m.homeScore.toFixed(1)}</span>
+                      <span className="text-gray-600 mx-1.5">–</span>
+                      <span className={awayWon ? 'text-green-400 font-bold' : m.awayScore > m.homeScore ? 'text-white font-bold' : 'text-gray-400'}>{m.awayScore.toFixed(1)}</span>
                     </>
                   )}
                 </div>
@@ -765,7 +892,7 @@ function LeagueMatchupsCard({ leagueId, week, myTeamId, upcoming = false }: {
             </div>
           );
           return (
-            <div key={m.id} className={`py-2.5 ${mine ? 'bg-indigo-500/5 -mx-2 px-2 rounded' : ''}`}>
+            <div key={m.id} className={`py-2.5 px-3 rounded-xl ${mine ? 'bg-indigo-500/10 border border-indigo-500/30' : ''}`}>
               {upcoming ? (
                 // No scores exist yet for future weeks — nothing to expand.
                 row
@@ -837,7 +964,7 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
 
   function WeekNav() {
     return (
-      <div className="relative flex items-center justify-between bg-white/5 rounded-lg px-3 py-2">
+      <div className="relative flex items-center justify-between bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5">
         <button
           onClick={() => setViewWeek((w) => Math.max(1, w - 1))}
           disabled={viewWeek <= 1}
@@ -848,16 +975,16 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
         <div className="flex items-center gap-2">
           <button
             onClick={() => setWeekMenuOpen((o) => !o)}
-            className="flex items-center gap-1 text-sm font-semibold text-white hover:text-indigo-300 transition-colors"
+            className="flex items-center gap-1 font-serif text-[15px] font-semibold text-white hover:text-indigo-300 transition-colors"
           >
             {weekTitle(viewWeek)}
             <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${weekMenuOpen ? 'rotate-180' : ''}`} />
           </button>
           {isCurrentWeek && (
-            <span className="text-xs bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded px-1.5 py-0.5">Current</span>
+            <span className="text-[11px] font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/40 rounded-full px-2.5 py-0.5">Current</span>
           )}
           {isPastWeek && matchup?.isFinalized && (
-            <span className="text-xs bg-gray-700/50 text-gray-400 rounded px-1.5 py-0.5">Final</span>
+            <span className="text-[11px] font-bold bg-gray-700/50 text-gray-400 rounded-full px-2.5 py-0.5">Final</span>
           )}
         </div>
         <button
@@ -968,32 +1095,20 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
     return (
       <div className="space-y-4">
         <WeekNav />
-        <Card className="p-5">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2 text-xs text-gray-500">
-              <span>Week {viewWeek} · Final</span>
-              <PlayoffTag matchupType={matchup.matchupType} />
-            </div>
-            {iWon && <span className="text-xs font-semibold text-green-400 bg-green-400/10 rounded px-2 py-0.5">Win</span>}
-            {iLost && <span className="text-xs font-semibold text-red-400 bg-red-400/10 rounded px-2 py-0.5">Loss</span>}
-            {!iWon && !iLost && <span className="text-xs text-gray-500">Not finalized</span>}
-          </div>
-          <div className="flex items-center justify-center gap-6">
-            <div className="text-center">
-              <div className="font-semibold text-white mb-1">{myTeamData?.name ?? 'Your Team'}</div>
-              <div className={`text-3xl font-bold ${iWon ? 'text-green-400' : 'text-white'}`}>{myScore.toFixed(1)}</div>
-            </div>
-            <div className="text-gray-600 text-lg font-light">vs</div>
-            <div className="text-center">
-              <div className="font-semibold text-white mb-1">{oppTeamData?.name ?? 'Opponent'}</div>
-              <div className={`text-3xl font-bold ${iLost ? 'text-green-400' : 'text-white'}`}>{oppScore.toFixed(1)}</div>
-            </div>
-          </div>
-        </Card>
-        <div className="grid grid-cols-2 gap-2">
-          <TeamRosterCard title={myTeamData?.name ?? 'Your Team'} roster={myTeamData?.rosterSpots ?? []} leagueId={leagueId} />
-          <TeamRosterCard title={oppTeamData?.name ?? 'Opponent'} roster={oppTeamData?.rosterSpots ?? []} reverse leagueId={leagueId} />
-        </div>
+        <MatchupHeader my={myTeamData} opp={oppTeamData} myScore={myScore} oppScore={oppScore} showScores footerRight="Final">
+          <span>Week {viewWeek} · Final</span>
+          <PlayoffTag matchupType={matchup.matchupType} />
+          {iWon && <span className="text-xs font-semibold text-green-400 bg-green-400/10 rounded px-2 py-0.5">Win</span>}
+          {iLost && <span className="text-xs font-semibold text-red-400 bg-red-400/10 rounded px-2 py-0.5">Loss</span>}
+          {!iWon && !iLost && <span className="text-gray-500">Not finalized</span>}
+        </MatchupHeader>
+        <H2HRoster
+          leftTitle={myTeamData?.name ?? 'Your Team'}
+          rightTitle={oppTeamData?.name ?? 'Opponent'}
+          leftRoster={myTeamData?.rosterSpots ?? []}
+          rightRoster={oppTeamData?.rosterSpots ?? []}
+          leagueId={leagueId}
+        />
         <LeagueMatchupsCard leagueId={leagueId} week={viewWeek} myTeamId={myTeamId} />
       </div>
     );
@@ -1004,23 +1119,10 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
     return (
       <div className="space-y-4">
         <WeekNav />
-        <Card className="p-5">
-          <div className="flex items-center justify-center gap-2 text-xs text-gray-500 mb-3">
-            <span>Week {viewWeek} · Upcoming</span>
-            <PlayoffTag matchupType={matchup.matchupType} />
-          </div>
-          <div className="flex items-center justify-center gap-6">
-            <div className="text-center">
-              <div className="font-semibold text-white mb-1">{myTeamData?.name ?? 'Your Team'}</div>
-              <div className="text-3xl font-bold text-gray-600">-</div>
-            </div>
-            <div className="text-gray-600 text-lg font-light">vs</div>
-            <div className="text-center">
-              <div className="font-semibold text-white mb-1">{oppTeamData?.name ?? 'Opponent'}</div>
-              <div className="text-3xl font-bold text-gray-600">-</div>
-            </div>
-          </div>
-        </Card>
+        <MatchupHeader my={myTeamData} opp={oppTeamData} myScore={0} oppScore={0} showScores={false}>
+          <span>Week {viewWeek} · Upcoming</span>
+          <PlayoffTag matchupType={matchup.matchupType} />
+        </MatchupHeader>
         <LeagueMatchupsCard leagueId={leagueId} week={viewWeek} myTeamId={myTeamId} upcoming />
       </div>
     );
@@ -1080,40 +1182,21 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
         </div>
 
         {/* H2H header — scores are 0, week hasn't started */}
-        <Card className="p-5">
-          <div className="flex items-center justify-center gap-2 text-xs text-gray-500 mb-3">
-            <span>Week {league.currentWeek} · starts Tuesday</span>
-            <PlayoffTag matchupType={matchup.matchupType} />
-          </div>
-          <div className="flex items-center justify-center gap-6">
-            <div className="text-center">
-              <div className="font-semibold text-white mb-1">{myTeamData?.name ?? 'Your Team'}</div>
-              <div className="text-3xl font-bold text-gray-600">{myScore.toFixed(1)}</div>
-            </div>
-            <div className="text-gray-600 text-lg font-light">vs</div>
-            <div className="text-center">
-              <div className="font-semibold text-white mb-1">{oppTeamData?.name ?? 'Opponent'}</div>
-              <div className="text-3xl font-bold text-gray-600">{oppScore.toFixed(1)}</div>
-            </div>
-          </div>
-        </Card>
+        <MatchupHeader my={myTeamData} opp={oppTeamData} myScore={myScore} oppScore={oppScore} showScores dim>
+          <span>Week {league.currentWeek} · starts Tuesday</span>
+          <PlayoffTag matchupType={matchup.matchupType} />
+        </MatchupHeader>
 
         {/* Rosters — show prev week scores in gray */}
-        <div className="grid grid-cols-2 gap-2">
-          <TeamRosterCard
-            title={myTeamData?.name ?? 'Your Team'}
-            roster={myTeamData?.rosterSpots ?? []}
-            leagueId={leagueId}
-            prevScoreMap={hasPrevScores ? prevScoreMap : undefined}
-          />
-          <TeamRosterCard
-            title={oppTeamData?.name ?? 'Opponent'}
-            roster={oppTeamData?.rosterSpots ?? []}
-            reverse
-            leagueId={leagueId}
-            prevScoreMap={hasPrevScores ? prevScoreMap : undefined}
-          />
-        </div>
+        <H2HRoster
+          leftTitle={myTeamData?.name ?? 'Your Team'}
+          rightTitle={oppTeamData?.name ?? 'Opponent'}
+          leftRoster={myTeamData?.rosterSpots ?? []}
+          rightRoster={oppTeamData?.rosterSpots ?? []}
+          leagueId={leagueId}
+          prevScoreMap={hasPrevScores ? prevScoreMap : undefined}
+          dimScores
+        />
         {hasPrevScores && (
           <p className="text-xs text-center text-gray-600">Scores shown are from Week {league.currentWeek - 1}</p>
         )}
@@ -1126,36 +1209,22 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
   return (
     <div className="space-y-4">
       <WeekNav />
-      <Card className="p-5">
-        <div className="flex items-center justify-center gap-2 text-xs text-gray-500 mb-1">
-          <span>Week {league.currentWeek}</span>
-          <PlayoffTag matchupType={matchup.matchupType} />
-        </div>
-        <div className="flex items-center justify-center gap-1.5 mb-3">
-          <Lock className="w-3 h-3 text-amber-500" />
-          <span className="text-xs text-amber-500">Lineup locked · updates daily</span>
-        </div>
-        <div className="flex items-center justify-center gap-6">
-          <div className="text-center">
-            <div className="font-semibold text-white mb-1">{myTeamData?.name ?? 'Your Team'}</div>
-            <div className={`text-3xl font-bold ${myScore >= oppScore ? 'text-green-400' : 'text-white'}`}>
-              {myScore.toFixed(1)}
-            </div>
-          </div>
-          <div className="text-gray-600 text-lg font-light">vs</div>
-          <div className="text-center">
-            <div className="font-semibold text-white mb-1">{oppTeamData?.name ?? 'Opponent'}</div>
-            <div className={`text-3xl font-bold ${oppScore > myScore ? 'text-green-400' : 'text-white'}`}>
-              {oppScore.toFixed(1)}
-            </div>
-          </div>
-        </div>
-      </Card>
+      <MatchupHeader my={myTeamData} opp={oppTeamData} myScore={myScore} oppScore={oppScore} showScores>
+        <span>Week {league.currentWeek}</span>
+        <PlayoffTag matchupType={matchup.matchupType} />
+        <span className="flex items-center gap-1 text-amber-500">
+          <Lock className="w-3 h-3" />
+          Lineup locked · updates daily
+        </span>
+      </MatchupHeader>
 
-      <div className="grid grid-cols-2 gap-2">
-        <TeamRosterCard title={myTeamData?.name ?? 'Your Team'} roster={myTeamData?.rosterSpots ?? []} leagueId={leagueId} />
-        <TeamRosterCard title={oppTeamData?.name ?? 'Opponent'} roster={oppTeamData?.rosterSpots ?? []} reverse leagueId={leagueId} />
-      </div>
+      <H2HRoster
+        leftTitle={myTeamData?.name ?? 'Your Team'}
+        rightTitle={oppTeamData?.name ?? 'Opponent'}
+        leftRoster={myTeamData?.rosterSpots ?? []}
+        rightRoster={oppTeamData?.rosterSpots ?? []}
+        leagueId={leagueId}
+      />
       <LeagueMatchupsCard leagueId={leagueId} week={league.currentWeek} myTeamId={myTeamId} />
     </div>
   );
