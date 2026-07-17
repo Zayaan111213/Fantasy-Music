@@ -27,12 +27,12 @@ function TimerRing({ seconds, total = 60 }: { seconds: number; total?: number })
   const r = 36;
   const circ = 2 * Math.PI * r;
   const dash = pct * circ;
-  const color = seconds > 20 ? '#6366f1' : seconds > 10 ? '#f59e0b' : '#ef4444';
+  const color = seconds > 20 ? '#f97316' : seconds > 10 ? '#facc15' : '#ef4444';
 
   return (
     <div className="relative w-24 h-24 flex items-center justify-center">
       <svg className="absolute inset-0 -rotate-90" viewBox="0 0 88 88">
-        <circle cx="44" cy="44" r={r} fill="none" stroke="#1f2937" strokeWidth="6" />
+        <circle cx="44" cy="44" r={r} fill="none" stroke="#292524" strokeWidth="6" />
         <circle
           cx="44" cy="44" r={r} fill="none"
           stroke={color} strokeWidth="6"
@@ -57,10 +57,10 @@ function CountdownRing({ seconds, total = 600 }: { seconds: number; total?: numb
   return (
     <div className="relative w-24 h-24 flex items-center justify-center">
       <svg className="absolute inset-0 -rotate-90" viewBox="0 0 88 88">
-        <circle cx="44" cy="44" r={r} fill="none" stroke="#1f2937" strokeWidth="6" />
+        <circle cx="44" cy="44" r={r} fill="none" stroke="#292524" strokeWidth="6" />
         <circle
           cx="44" cy="44" r={r} fill="none"
-          stroke="#6366f1" strokeWidth="6"
+          stroke="#f97316" strokeWidth="6"
           strokeDasharray={`${dash} ${circ}`}
           strokeLinecap="round"
           style={{ transition: 'stroke-dasharray 1s linear' }}
@@ -197,7 +197,6 @@ export function DraftRoom() {
 
   return (
     <div className="min-h-screen bg-gray-950">
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/30 via-gray-950 to-purple-950/20 pointer-events-none" />
 
       {/* Toast notifications */}
       <div className="fixed top-4 right-4 z-50 space-y-2 max-w-xs">

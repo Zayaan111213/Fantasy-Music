@@ -105,7 +105,6 @@ export function ArtistDetail() {
 
   return (
     <div className="min-h-screen bg-gray-950">
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/20 via-gray-950 to-purple-950/10 pointer-events-none" />
 
       <header className="relative border-b border-white/10">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
@@ -120,7 +119,7 @@ export function ArtistDetail() {
         {/* Artist header */}
         <div className="flex items-start gap-5">
           <img
-            src={artist.imageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(artist.name)}&background=6366f1&color=fff&size=256`}
+            src={artist.imageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(artist.name)}&background=ea580c&color=fff&size=256`}
             alt={artist.name}
             className="w-24 h-24 rounded-2xl object-cover ring-2 ring-white/10"
           />
@@ -199,7 +198,7 @@ export function ArtistDetail() {
                     label={`Song Position · #${activeBreakdown.song.rank}${activeBreakdown.song.title ? ` · ${activeBreakdown.song.title}` : ''}`}
                     value={activeBreakdown.song.positionPoints}
                     max={25}
-                    color="bg-indigo-500"
+                    color="bg-sky-500"
                   />
                   <ScoreBar
                     label={`Song Movement · ${activeBreakdown.song.isDebut ? 'New Entry' : activeBreakdown.song.movement !== null ? `${activeBreakdown.song.movement > 0 ? '+' : ''}${activeBreakdown.song.movement}` : 'No change'}`}
@@ -275,7 +274,7 @@ export function ArtistDetail() {
                 ) : (
                   <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-indigo-500 rounded-full"
+                      className="h-full bg-sky-500 rounded-full"
                       style={{ width: `${(score.totalPoints / maxTotal) * 100}%` }}
                     />
                   </div>

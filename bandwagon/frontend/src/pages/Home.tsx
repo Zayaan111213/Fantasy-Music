@@ -55,7 +55,6 @@ export function Home() {
 
   return (
     <div className="min-h-screen bg-gray-950">
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/30 via-gray-950 to-purple-950/20 pointer-events-none" />
 
       {showHowItWorks && <HowItWorksModal onClose={() => setShowHowItWorks(false)} />}
 

@@ -43,8 +43,6 @@ export function Auth() {
 
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
-      {/* Background gradient */}
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/50 via-gray-950 to-purple-950/30 pointer-events-none" />
 
       <div className="relative w-full max-w-md">
         {/* Logo */}

@@ -122,7 +122,6 @@ export function LeagueJoin() {
   if (joinedLeagueId) {
     return (
       <div className="min-h-screen bg-gray-950">
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/30 via-gray-950 to-purple-950/20 pointer-events-none" />
         <header className="relative border-b border-white/10">
           <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
             <div className="flex items-center gap-2">
@@ -171,7 +170,6 @@ export function LeagueJoin() {
 
   return (
     <div className="min-h-screen bg-gray-950">
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/30 via-gray-950 to-purple-950/20 pointer-events-none" />
       <header className="relative border-b border-white/10">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
           <Link to="/home" className="text-gray-400 hover:text-white transition-colors">
