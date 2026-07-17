@@ -47,7 +47,7 @@ function MoversCard({ label, icon: Icon, tab, data }: {
   tab: 'songs' | 'albums';
   data?: { risers: ChartRow[]; fallers: ChartRow[] };
 }) {
-  const rows = [...(data?.risers.slice(0, 4) ?? []), ...(data?.fallers.slice(0, 3) ?? [])];
+  const rows = [...(data?.risers.slice(0, 3) ?? []), ...(data?.fallers.slice(0, 2) ?? [])];
   return (
     <Card className="p-5">
       <h3 className="flex items-center justify-between mb-2">
@@ -68,6 +68,26 @@ function MoversCard({ label, icon: Icon, tab, data }: {
   );
 }
 
+// The raw feed messages are full sentences with artist lists and details —
+// on Home each item is compressed to one short line: fixed phrasing for the
+// verbose types, otherwise the first clause of the message, truncated.
+const FIXED_SUMMARIES: Record<string, string> = {
+  lineup_reminder: 'Set your lineup before Tuesday',
+  waiver_result: 'Your waiver claim results are in',
+  playoffs_set: 'Playoff bracket is set',
+  season_complete: 'Season complete',
+  draft_complete: 'Draft complete',
+  league_renewed: 'Renewed for a new season',
+  artist_split: 'An artist group was split up',
+};
+
+function summarize(item: GlobalActivityItem): string {
+  const fixed = FIXED_SUMMARIES[item.type];
+  if (fixed) return fixed;
+  const clause = item.message.split(/(?::| — | - )/)[0].trim().replace(/\.$/, '');
+  return clause.length > 64 ? `${clause.slice(0, 61)}…` : clause;
+}
+
 function activityGlyph(type: string): { glyph: string; color: string } {
   if (type.startsWith('trade')) return { glyph: '⇄', color: '#E8B23A' };
   if (type.startsWith('waiver') || type === 'claim') return { glyph: '＋', color: '#E07A3E' };
@@ -81,7 +101,7 @@ function ActivityCard({ items }: { items?: GlobalActivityItem[] }) {
     <Card className="p-5">
       <h3 className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">Around Your Leagues</h3>
       {items && items.length > 0 ? (
-        items.slice(0, 10).map((item) => {
+        items.slice(0, 5).map((item) => {
           const { glyph, color } = activityGlyph(item.type);
           return (
             <Link
@@ -93,7 +113,7 @@ function ActivityCard({ items }: { items?: GlobalActivityItem[] }) {
                 {glyph}
               </div>
               <div className="min-w-0">
-                <p className="text-[13px] text-gray-300 leading-snug">{item.message}</p>
+                <p className="text-[13px] text-gray-300 leading-snug truncate">{summarize(item)}</p>
                 <p className="text-[11px] text-gray-500 mt-0.5">{item.leagueName} · {timeAgo(item.createdAt)}</p>
               </div>
             </Link>
@@ -150,7 +170,7 @@ export function Home() {
 
   const { data: movers } = useQuery({
     queryKey: ['chartMovers'],
-    queryFn: () => api.get<MoversPayload>('/charts/movers?limit=4'),
+    queryFn: () => api.get<MoversPayload>('/charts/movers?limit=3'),
   });
 
   const { data: allActivity } = useQuery({
@@ -326,15 +346,13 @@ export function Home() {
           </div>
         )}
 
-        {/* Charts movers + cross-league activity */}
-        <div className="grid gap-5 lg:grid-cols-3 mt-8">
-          <div className="lg:col-span-2 space-y-5">
+        {/* Charts movers side by side, cross-league activity beneath */}
+        <div className="mt-8 space-y-5">
+          <div className="grid gap-5 md:grid-cols-2">
             <MoversCard label="Songs" icon={Music} tab="songs" data={movers?.songs} />
             <MoversCard label="Albums" icon={Disc3} tab="albums" data={movers?.albums} />
           </div>
-          <div>
-            <ActivityCard items={allActivity?.items} />
-          </div>
+          <ActivityCard items={allActivity?.items} />
         </div>
       </main>
     </div>
