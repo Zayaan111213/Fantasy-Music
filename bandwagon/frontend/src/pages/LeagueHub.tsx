@@ -12,6 +12,7 @@ import { Spinner } from '../components/ui/Spinner';
 import { TradesSection } from '../components/TradesSection';
 import type { ActivityFeed, ActivityItem, Bracket, BracketMatchup, League, LeagueMatchup, Matchup, StandingsEntry, PlayerEntry, RosterSpot, Team, TeamWithRoster, WaiversResponse } from '../api/types';
 import { WagonMark } from '../components/Logo';
+import { SlotPill } from '../components/SlotPill';
 
 type Tab = 'myteam' | 'matchup' | 'standings' | 'players' | 'notifications' | 'settings';
 
@@ -246,32 +247,6 @@ function BracketCard({ bracket }: { bracket: Bracket }) {
   );
 }
 
-// Tinted per-slot pill colors from the vintage matchup mockup.
-const SLOT_PILL_COLORS: Record<string, string> = {
-  'R&B/Hip-Hop': '#E8B23A',
-  'Pop': '#E07A3E',
-  'Rock & Alternative': '#C24A2E',
-  'Country': '#B78A3C',
-  'Other': '#6FA595',
-  'Flex': '#C89B6A',
-};
-
-function SlotLabel({ slot }: { slot: string }) {
-  const short: Record<string, string> = {
-    'R&B/Hip-Hop': 'Hip-Hop', 'Rock & Alternative': 'Rock/Alt',
-  };
-  const isBench = slot.startsWith('Bench');
-  const display = isBench ? 'Bench' : (short[slot] ?? slot);
-  const c = isBench ? '#7C6650' : (SLOT_PILL_COLORS[slot] ?? '#A88F70');
-  return (
-    <span
-      className="inline-block text-[9.5px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border whitespace-nowrap"
-      style={{ color: c, backgroundColor: `${c}29`, borderColor: `${c}6B` }}
-    >
-      {display}
-    </span>
-  );
-}
 
 function RosterRow({ spot, onSwapSelect, selectedSlot, readOnly = false, leagueId, prevScore }: {
   spot: RosterSpot;
@@ -294,8 +269,8 @@ function RosterRow({ spot, onSwapSelect, selectedSlot, readOnly = false, leagueI
       }`}
       onClick={readOnly ? undefined : () => onSwapSelect?.(spot.slot)}
     >
-      <div className="shrink-0 w-20">
-        <SlotLabel slot={spot.slot} />
+      <div className="shrink-0 w-24">
+        <SlotPill slot={spot.slot} />
       </div>
       {spot.artist ? (
         <>
@@ -388,10 +363,10 @@ function H2HRoster({ leftTitle, rightTitle, leftRoster, rightRoster, leagueId, p
     const scoreCls = (hi: boolean) =>
       `font-serif text-center text-base whitespace-nowrap ${hi ? 'text-indigo-400 font-bold' : 'text-gray-500'}`;
     return (
-      <div key={slot} className={`grid grid-cols-[1fr_40px_88px_40px_1fr] items-center gap-2 py-2.5 ${last ? '' : 'border-b border-gray-900'}`}>
+      <div key={slot} className={`grid grid-cols-[1fr_40px_100px_40px_1fr] items-center gap-2 py-2.5 ${last ? '' : 'border-b border-gray-900'}`}>
         <H2HArtistCell spot={l} leagueId={leagueId} />
         <div className={scoreCls(lHi)}>{ls != null ? ls.toFixed(1) : '–'}</div>
-        <div className="flex justify-center"><SlotLabel slot={slot} /></div>
+        <div className="flex justify-center"><SlotPill slot={slot} /></div>
         <div className={scoreCls(rHi)}>{rs != null ? rs.toFixed(1) : '–'}</div>
         <H2HArtistCell spot={r} right leagueId={leagueId} />
       </div>
@@ -399,7 +374,7 @@ function H2HRoster({ leftTitle, rightTitle, leftRoster, rightRoster, leagueId, p
   };
   return (
     <Card className="px-4 py-1.5">
-      <div className="grid grid-cols-[1fr_88px_1fr] items-center py-3 border-b border-gray-700">
+      <div className="grid grid-cols-[1fr_100px_1fr] items-center py-3 border-b border-gray-700">
         <div className="text-[11px] font-bold uppercase tracking-widest text-gray-400 truncate">{leftTitle}</div>
         <div className="text-[11px] font-bold uppercase tracking-widest text-gray-400 text-center">Slot</div>
         <div className="text-[11px] font-bold uppercase tracking-widest text-gray-400 text-right truncate">{rightTitle}</div>
@@ -1525,7 +1500,7 @@ function PlayersTab({ leagueId, league, onProposeTrade }: {
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium text-white truncate">{spot.artist?.name}</div>
                       <div className="flex items-center gap-1.5 mt-0.5">
-                        <SlotLabel slot={spot.slot} />
+                        <SlotPill slot={spot.slot} />
                         {spot.artist && <Badge genre={spot.artist.primaryGenre}>{spot.artist.primaryGenre}</Badge>}
                       </div>
                     </div>
