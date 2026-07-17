@@ -27,15 +27,21 @@ export function genreRgb(genre: string): string {
 
 export function SlotPill({ slot }: { slot: string }) {
   const short: Record<string, string> = { 'Rock & Alternative': 'Rock/Alt' };
+  // Extra-compact labels for phone widths, where the pill sits in narrow
+  // fixed grid tracks (H2H roster center column).
+  const compactMap: Record<string, string> = { 'R&B/Hip-Hop': 'R&B', 'Rock & Alternative': 'Rock' };
   const isBench = slot.startsWith('Bench');
   const display = isBench ? 'Bench' : (short[slot] ?? slot);
+  const compact = isBench ? 'Bench' : (compactMap[slot] ?? slot);
   const rgb = isBench ? SLOT_RGB['Bench'] : (SLOT_RGB[slot] ?? SLOT_RGB['Other']);
   return (
     <span
-      className="inline-block text-[9.5px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border whitespace-nowrap"
+      className="inline-block text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full border whitespace-nowrap"
       style={tintStyle(rgb)}
     >
-      {display}
+      {/* Desktop label first: e2e and text-locators resolve .first() to the visible span */}
+      <span className="hidden sm:inline">{display}</span>
+      <span className="sm:hidden">{compact}</span>
     </span>
   );
 }

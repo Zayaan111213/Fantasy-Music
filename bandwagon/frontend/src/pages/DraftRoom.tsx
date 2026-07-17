@@ -302,7 +302,7 @@ export function DraftRoom() {
             <Card>
               {/* Sort header */}
               <div className="px-3 py-2 border-b border-gray-700 grid grid-cols-12 gap-1 text-xs uppercase tracking-wider font-medium">
-                <div className="col-span-5">
+                <div className="col-span-6 sm:col-span-5">
                   <button
                     onClick={() => setSort((p) => p.field === 'name' ? { field: 'name', dir: p.dir === 'desc' ? 'asc' : 'desc' } : { field: 'name', dir: 'desc' })}
                     className={`flex items-center gap-1 hover:text-white transition-colors ${sort.field === 'name' ? 'text-indigo-400' : 'text-gray-500'}`}
@@ -318,7 +318,7 @@ export function DraftRoom() {
                     Last {sort.field === 'last' ? (sort.dir === 'desc' ? '↓' : '↑') : '↕'}
                   </button>
                 </div>
-                <div className="col-span-2 text-right">
+                <div className="hidden sm:block sm:col-span-2 text-right">
                   <button
                     onClick={() => setSort((p) => p.field === 'avg' ? { field: 'avg', dir: p.dir === 'desc' ? 'asc' : 'desc' } : { field: 'avg', dir: 'desc' })}
                     className={`flex items-center justify-end gap-1 w-full hover:text-white transition-colors ${sort.field === 'avg' ? 'text-indigo-400' : 'text-gray-500'}`}
@@ -326,7 +326,7 @@ export function DraftRoom() {
                     5W Avg {sort.field === 'avg' ? (sort.dir === 'desc' ? '↓' : '↑') : '↕'}
                   </button>
                 </div>
-                <div className="col-span-2" />
+                <div className="col-span-3 sm:col-span-2" />
               </div>
               {loadingArtists ? (
                 <div className="flex justify-center py-8"><Spinner className="w-6 h-6" /></div>
@@ -348,7 +348,7 @@ export function DraftRoom() {
                             href={`/artists/${artist.id}?leagueId=${leagueId}`}
                             target="_blank"
                             rel="noreferrer"
-                            className="col-span-5 flex items-center gap-2 min-w-0 group"
+                            className="col-span-6 sm:col-span-5 flex items-center gap-2 min-w-0 group"
                           >
                             <Avatar src={artist.imageUrl} name={artist.name} size="sm" />
                             <div className="min-w-0">
@@ -359,10 +359,10 @@ export function DraftRoom() {
                           <div className="col-span-3 text-right font-serif text-[15px] text-gray-300">
                             {(artist.lastWeekPoints ?? 0).toFixed(1)}
                           </div>
-                          <div className="col-span-2 text-right font-serif text-[15px] text-gray-400">
+                          <div className="hidden sm:block sm:col-span-2 text-right font-serif text-[15px] text-gray-400">
                             {(artist.avgLast5Points ?? 0).toFixed(1)}
                           </div>
-                          <div className="col-span-2 flex justify-end">
+                          <div className="col-span-3 sm:col-span-2 flex justify-end">
                             {isMyTurn && (
                               <Button
                                 size="sm"

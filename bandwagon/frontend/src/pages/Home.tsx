@@ -199,9 +199,9 @@ export function Home() {
             >
               <HelpCircle className="w-5 h-5" />
             </button>
-            <Link to="/account" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+            <Link to="/account" aria-label="Account" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
               <Avatar src={user?.avatarUrl} name={user?.username ?? '?'} size="sm" />
-              <span className="text-gray-400 text-sm">{user?.username}</span>
+              <span className="hidden sm:inline text-gray-400 text-sm">{user?.username}</span>
             </Link>
             <Button variant="ghost" size="sm" onClick={logout}>Sign out</Button>
           </div>
@@ -265,8 +265,8 @@ export function Home() {
               <Link key={league.id} to={`/leagues/${league.id}`}>
                 <Card className="p-5 hover:bg-white/10 transition-colors cursor-pointer group">
                   <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
                         <h2 className="font-semibold text-white">{league.name}</h2>
                         <StatusBadge status={league.status} />
                         {league.isCommissioner && (
@@ -279,7 +279,7 @@ export function Home() {
                         {league.myTeam.name} · {league.memberCount}/{league.teamCount} teams
                       </p>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-gray-600 group-hover:text-gray-400 transition-colors" />
+                    <ChevronRight className="w-5 h-5 shrink-0 text-gray-600 group-hover:text-gray-400 transition-colors" />
                   </div>
 
                   <div className="flex items-center justify-between">
