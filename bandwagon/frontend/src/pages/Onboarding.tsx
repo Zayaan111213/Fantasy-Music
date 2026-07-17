@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { Music2, Check, X } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Avatar } from '../components/ui/Avatar';
 import type { User } from '../api/types';
+import { WagonMark } from '../components/Logo';
 
 const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,20}$/;
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -103,9 +104,7 @@ export function Onboarding() {
 
       <div className="relative w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 mb-4">
-            <Music2 className="w-7 h-7 text-indigo-400" />
-          </div>
+          <div className="inline-flex mb-4"><WagonMark size={56} /></div>
           <h1 className="text-3xl font-bold text-white">Set up your profile</h1>
           <p className="text-gray-400 mt-1">Pick a username so friends can find you</p>
         </div>

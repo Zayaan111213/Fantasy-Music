@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronLeft, Music2, Check, X } from 'lucide-react';
+import { ChevronLeft, Check, X } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
@@ -8,6 +8,7 @@ import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
 import { Avatar } from '../components/ui/Avatar';
 import type { User } from '../api/types';
+import { WagonMark } from '../components/Logo';
 
 const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,20}$/;
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -116,7 +117,7 @@ export function AccountSettings() {
             <ChevronLeft className="w-5 h-5" />
           </Link>
           <div className="flex items-center gap-2">
-            <Music2 className="w-5 h-5 text-indigo-400" />
+            <WagonMark size={20} />
             <span className="font-bold text-white">Account Settings</span>
           </div>
         </div>

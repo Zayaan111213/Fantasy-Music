@@ -1,4 +1,5 @@
-import { X, Music2, TrendingUp, CalendarDays, Users, Trophy } from 'lucide-react';
+import { X, TrendingUp, CalendarDays, Users, Trophy } from 'lucide-react';
+import { WagonMark } from './Logo';
 
 export function HowItWorksModal({ onClose }: { onClose: () => void }) {
   return (
@@ -9,9 +10,7 @@ export function HowItWorksModal({ onClose }: { onClose: () => void }) {
       >
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/10">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
-              <Music2 className="w-4 h-4 text-indigo-400" />
-            </div>
+            <WagonMark size={32} />
             <h2 className="text-lg font-bold text-white">How Bandwagoner Works</h2>
           </div>
           <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors" aria-label="Close">

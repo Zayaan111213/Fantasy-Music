@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Music2, ChevronLeft, Trophy, Users, Settings, Swords, Search, ArrowUpDown, User, Pencil, X, Check, Lock, ChevronRight, ChevronDown, ChevronUp, ArrowLeftRight, Bell, UserPlus, AlarmClock, Mail, Sparkles } from 'lucide-react';
+import { ChevronLeft, Trophy, Users, Settings, Swords, Search, ArrowUpDown, User, Pencil, X, Check, Lock, ChevronRight, ChevronDown, ChevronUp, ArrowLeftRight, Bell, UserPlus, AlarmClock, Mail, Sparkles } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/ui/Card';
@@ -11,6 +11,7 @@ import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
 import { TradesSection } from '../components/TradesSection';
 import type { ActivityFeed, ActivityItem, Bracket, BracketMatchup, League, LeagueMatchup, Matchup, StandingsEntry, PlayerEntry, RosterSpot, Team, TeamWithRoster, WaiversResponse } from '../api/types';
+import { WagonMark } from '../components/Logo';
 
 type Tab = 'myteam' | 'matchup' | 'standings' | 'players' | 'notifications' | 'settings';
 
@@ -2255,7 +2256,7 @@ export function LeagueHub() {
             <ChevronLeft className="w-5 h-5" />
           </Link>
           <div className="flex-1 flex items-center gap-2">
-            <Music2 className="w-4 h-4 text-indigo-400" />
+            <WagonMark size={18} />
             <span className="font-semibold text-white text-sm">{league.name}</span>
           </div>
           {league.status === 'pre_draft' && (
