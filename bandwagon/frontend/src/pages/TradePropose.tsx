@@ -183,7 +183,6 @@ export function TradePropose() {
 
   return (
     <div className="min-h-screen bg-gray-950">
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/20 via-gray-950 to-purple-950/10 pointer-events-none" />
 
       <header className="relative border-b border-white/10">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">

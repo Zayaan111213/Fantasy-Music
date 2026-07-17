@@ -107,7 +107,6 @@ export function LeagueCreate() {
   if (step === 'success') {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/30 via-gray-950 to-purple-950/20 pointer-events-none" />
         <div className="relative w-full max-w-md text-center">
           <div className="w-16 h-16 rounded-2xl bg-green-500/20 border border-green-500/30 flex items-center justify-center mx-auto mb-4">
             <Check className="w-8 h-8 text-green-400" />
@@ -140,7 +139,6 @@ export function LeagueCreate() {
 
   return (
     <div className="min-h-screen bg-gray-950">
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/30 via-gray-950 to-purple-950/20 pointer-events-none" />
       <header className="relative border-b border-white/10">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
           <Link to="/home" className="text-gray-400 hover:text-white transition-colors">

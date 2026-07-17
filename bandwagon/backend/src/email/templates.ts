@@ -45,20 +45,20 @@ export function renderEmail({ username, message, cta, footer }: RenderInput): { 
   const greeting = `Hi ${username ?? 'there'},`;
   // message/username include user-controlled team and league names — escape them.
   const html = `
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:24px 0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f4f2;padding:24px 0;">
   <tr><td align="center">
     <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
-      <tr><td style="background:#18181b;padding:20px 32px;">
+      <tr><td style="background:#1c1917;padding:20px 32px;">
         <span style="color:#fafafa;font-size:20px;font-weight:700;letter-spacing:-0.5px;">Bandwagoner</span>
       </td></tr>
-      <tr><td style="padding:28px 32px 8px;color:#18181b;font-size:15px;line-height:1.6;">
+      <tr><td style="padding:28px 32px 8px;color:#1c1917;font-size:15px;line-height:1.6;">
         <p style="margin:0 0 12px;">${escapeHtml(greeting)}</p>
         <p style="margin:0;">${escapeHtml(message)}</p>
       </td></tr>
       <tr><td style="padding:20px 32px 28px;">
-        <a href="${button.url}" style="display:inline-block;background:#18181b;color:#fafafa;text-decoration:none;font-size:14px;font-weight:600;padding:10px 20px;border-radius:8px;">${escapeHtml(button.label)}</a>
+        <a href="${button.url}" style="display:inline-block;background:#ea580c;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 20px;border-radius:8px;">${escapeHtml(button.label)}</a>
       </td></tr>
-      <tr><td style="padding:16px 32px;background:#f4f4f7;color:#71717a;font-size:12px;line-height:1.5;">
+      <tr><td style="padding:16px 32px;background:#f5f4f2;color:#78716c;font-size:12px;line-height:1.5;">
         ${escapeHtml(footerText)}
       </td></tr>
     </table>
