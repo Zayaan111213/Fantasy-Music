@@ -192,7 +192,7 @@ export function LeagueCreate() {
                     key={n}
                     type="button"
                     onClick={() => setTeamCount(n)}
-                    className={`w-12 h-10 rounded-lg text-sm font-medium transition-colors ${teamCount === n ? 'bg-indigo-500 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}
+                    className={`w-12 h-10 rounded-lg text-sm font-medium transition-colors ${teamCount === n ? 'bg-indigo-500 text-gray-950' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}
                   >
                     {n}
                   </button>
@@ -208,7 +208,7 @@ export function LeagueCreate() {
                     key={String(p)}
                     type="button"
                     onClick={() => setIsPrivate(p)}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${isPrivate === p ? 'bg-indigo-500 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${isPrivate === p ? 'bg-indigo-500 text-gray-950' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}
                   >
                     {p ? '🔒 Private' : '🌐 Public'}
                   </button>

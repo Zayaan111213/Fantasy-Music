@@ -27,12 +27,12 @@ function TimerRing({ seconds, total = 60 }: { seconds: number; total?: number })
   const r = 36;
   const circ = 2 * Math.PI * r;
   const dash = pct * circ;
-  const color = seconds > 20 ? '#f97316' : seconds > 10 ? '#facc15' : '#ef4444';
+  const color = seconds > 20 ? '#E8B23A' : seconds > 10 ? '#E07A3E' : '#B8442D';
 
   return (
     <div className="relative w-24 h-24 flex items-center justify-center">
       <svg className="absolute inset-0 -rotate-90" viewBox="0 0 88 88">
-        <circle cx="44" cy="44" r={r} fill="none" stroke="#292524" strokeWidth="6" />
+        <circle cx="44" cy="44" r={r} fill="none" stroke="#3A2A1C" strokeWidth="6" />
         <circle
           cx="44" cy="44" r={r} fill="none"
           stroke={color} strokeWidth="6"
@@ -57,10 +57,10 @@ function CountdownRing({ seconds, total = 600 }: { seconds: number; total?: numb
   return (
     <div className="relative w-24 h-24 flex items-center justify-center">
       <svg className="absolute inset-0 -rotate-90" viewBox="0 0 88 88">
-        <circle cx="44" cy="44" r={r} fill="none" stroke="#292524" strokeWidth="6" />
+        <circle cx="44" cy="44" r={r} fill="none" stroke="#3A2A1C" strokeWidth="6" />
         <circle
           cx="44" cy="44" r={r} fill="none"
-          stroke="#f97316" strokeWidth="6"
+          stroke="#E8B23A" strokeWidth="6"
           strokeDasharray={`${dash} ${circ}`}
           strokeLinecap="round"
           style={{ transition: 'stroke-dasharray 1s linear' }}

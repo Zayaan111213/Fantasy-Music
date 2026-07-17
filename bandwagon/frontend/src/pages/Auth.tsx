@@ -60,13 +60,13 @@ export function Auth() {
           <div className="flex bg-white/5 rounded-lg p-1 mb-6">
             <button
               onClick={() => setMode('login')}
-              className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${mode === 'login' ? 'bg-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}
+              className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${mode === 'login' ? 'bg-indigo-500 text-gray-950' : 'text-gray-400 hover:text-white'}`}
             >
               Log In
             </button>
             <button
               onClick={() => setMode('signup')}
-              className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${mode === 'signup' ? 'bg-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}
+              className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${mode === 'signup' ? 'bg-indigo-500 text-gray-950' : 'text-gray-400 hover:text-white'}`}
             >
               Sign Up
             </button>

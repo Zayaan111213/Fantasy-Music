@@ -4,28 +4,78 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Brand accent: "indigo" is aliased to the Ticket Stub tangerine palette.
-        // All indigo-* classes in components resolve to these oranges.
+        // Vintage colorway (old record-sleeve palette): harvest gold accent on
+        // espresso browns, antique cream text, brick red / muted teal semantics.
+        // Families are aliased so component classes stay untouched.
+        white: '#F3E7CE', // antique cream — text + the white/N glass surfaces
+        // Brand accent: "indigo" resolves to harvest gold.
         indigo: {
-          300: '#fdba74',
-          400: '#fb923c',
-          500: '#f97316',
-          600: '#ea580c',
-          700: '#c2410c',
+          300: '#F0C766',
+          400: '#E8B23A',
+          500: '#D9A02C',
+          600: '#C08A1E',
+          700: '#A17417',
         },
-        // Neutrals: "gray" is aliased to Tailwind's warm stone scale.
+        // Neutrals: "gray" resolves to the espresso/cream scale.
         gray: {
-          50: '#fafaf9',
-          100: '#f5f5f4',
-          200: '#e7e5e4',
-          300: '#d6d3d1',
-          400: '#a8a29e',
-          500: '#78716c',
-          600: '#57534e',
-          700: '#44403c',
-          800: '#292524',
-          900: '#1c1917',
-          950: '#0c0a09',
+          50: '#FBF5E6',
+          100: '#F3E7CE',
+          200: '#E8DCC2',
+          300: '#D9C8A9',
+          400: '#C9B79A',
+          500: '#8A7458',
+          600: '#6B573F',
+          700: '#4E3A27',
+          800: '#3A2A1C',
+          900: '#2C1E12',
+          950: '#1A1109',
+        },
+        // Semantics, tuned vintage: errors/losses = brick red, wins/success =
+        // muted teal, warnings/pending = burnt orange (gold is the brand now).
+        red: {
+          200: '#EFC0B0',
+          300: '#E39A82',
+          400: '#D96F51',
+          500: '#B8442D',
+          600: '#A03A26',
+          700: '#86301F',
+        },
+        green: {
+          300: '#8FBFAD',
+          400: '#6FA893',
+          500: '#4A7C6F',
+          600: '#3E6A5E',
+        },
+        emerald: {
+          400: '#6FA893',
+          500: '#4A7C6F',
+        },
+        amber: {
+          300: '#EFA36B',
+          400: '#E07A3E',
+          500: '#D06A30',
+        },
+        yellow: {
+          300: '#EFA36B',
+          400: '#E07A3E',
+          500: '#D06A30',
+          600: '#C25E28',
+        },
+        // Categorical hues (score bars, genre badges) dusted down to match.
+        sky: {
+          400: '#7FA0BF',
+          500: '#5C82A6',
+        },
+        pink: {
+          300: '#DFA9B8',
+          400: '#D08CA0',
+          500: '#C97B8E',
+        },
+        violet: {
+          500: '#8E6FA8',
+        },
+        fuchsia: {
+          500: '#C05B75',
         },
       },
       fontFamily: {

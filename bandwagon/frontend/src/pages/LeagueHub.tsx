@@ -589,7 +589,7 @@ function MyTeamTab({ leagueId, league, phase }: { leagueId: string; league: Leag
               <button
                 onClick={handleSaveIdentity}
                 disabled={editSaving || !editName.trim()}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white text-sm font-medium transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-gray-950 text-sm font-medium transition-colors"
               >
                 <Check className="w-3.5 h-3.5" />
                 {editSaving ? 'Saving…' : 'Save'}
@@ -1062,7 +1062,7 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
               )}
               <button
                 onClick={dismissPopup}
-                className="w-full px-4 py-2.5 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-white font-medium transition-colors"
+                className="w-full px-4 py-2.5 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-gray-950 font-medium transition-colors"
               >
                 Set Lineup for Week {league.currentWeek}
               </button>
@@ -2286,7 +2286,7 @@ export function LeagueHub() {
                 {t.icon}
                 {t.label}
                 {t.id === 'notifications' && unseenCount > 0 && (
-                  <span className="ml-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-500 text-white text-[11px] font-semibold flex items-center justify-center">
+                  <span className="ml-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-500 text-gray-950 text-[11px] font-semibold flex items-center justify-center">
                     {unseenCount}
                   </span>
                 )}

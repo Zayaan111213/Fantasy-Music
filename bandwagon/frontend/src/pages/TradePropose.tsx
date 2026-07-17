@@ -278,7 +278,7 @@ export function TradePropose() {
           <button
             disabled={!canSubmit}
             onClick={() => proposeMutation.mutate()}
-            className="flex-1 px-3 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-sm font-medium transition-colors"
+            className="flex-1 px-3 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-gray-950 text-sm font-medium transition-colors"
           >
             {proposeMutation.isPending ? 'Proposing…' : 'Propose Trade'}
           </button>

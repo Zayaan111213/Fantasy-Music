@@ -299,7 +299,7 @@ async function main() {
         data: {
           name: a.name,
           primaryGenre: a.primaryGenre,
-          imageUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(a.name)}&background=ea580c&color=fff&size=256`,
+          imageUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(a.name)}&background=e8b23a&color=2c1e12&size=256`,
         },
       })
     )
@@ -318,7 +318,7 @@ async function main() {
       email: 'demo1@bandwagon.app',
       passwordHash,
       username: 'MusicMaven',
-      avatarUrl: 'https://ui-avatars.com/api/?name=Music+Maven&background=ea580c&color=fff&size=256',
+      avatarUrl: 'https://ui-avatars.com/api/?name=Music+Maven&background=e8b23a&color=2c1e12&size=256',
     },
   });
 
@@ -327,7 +327,7 @@ async function main() {
       email: 'demo2@bandwagon.app',
       passwordHash,
       username: 'ChartWatcher',
-      avatarUrl: 'https://ui-avatars.com/api/?name=Chart+Watcher&background=c2410c&color=fff&size=256',
+      avatarUrl: 'https://ui-avatars.com/api/?name=Chart+Watcher&background=e07a3e&color=2c1e12&size=256',
     },
   });
 
