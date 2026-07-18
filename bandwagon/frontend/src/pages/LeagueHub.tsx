@@ -264,14 +264,14 @@ function RosterRow({ spot, onSwapSelect, selectedSlot, readOnly = false, leagueI
   return (
     <div
       data-slot={spot.slot}
-      className={`flex items-center gap-3 rounded-lg transition-colors p-3 ${
+      className={`flex items-center gap-2 sm:gap-3 rounded-lg transition-colors p-2.5 sm:p-3 ${
         readOnly
           ? ''
           : `cursor-pointer ${isSelected ? 'bg-indigo-500/20 border border-indigo-500/50' : 'hover:bg-white/5 border border-transparent'}`
       }`}
       onClick={readOnly ? undefined : () => onSwapSelect?.(spot.slot)}
     >
-      <div className="shrink-0 w-24">
+      <div className="shrink-0 w-[70px] sm:w-24">
         <SlotPill slot={spot.slot} />
       </div>
       {spot.artist ? (
@@ -328,12 +328,12 @@ function H2HArtistCell({ spot, right = false, leagueId }: { spot: RosterSpot; ri
       {spot.artist ? (
         <Link
           to={`/artists/${spot.artist.id}${leagueId ? `?leagueId=${leagueId}` : ''}`}
-          className={`flex-1 min-w-0 truncate text-[13px] font-semibold text-white hover:text-indigo-400 transition-colors ${right ? '' : 'text-right'}`}
+          className={`flex-1 min-w-0 truncate font-condensed text-[14px] sm:font-sans sm:text-[13px] font-semibold text-white hover:text-indigo-400 transition-colors ${right ? '' : 'text-right'}`}
         >
           {spot.artist.name}
         </Link>
       ) : (
-        <span className={`flex-1 min-w-0 truncate text-[13px] italic text-gray-500 ${right ? '' : 'text-right'}`}>Empty slot</span>
+        <span className={`flex-1 min-w-0 truncate font-condensed text-[14px] sm:font-sans sm:text-[13px] italic text-gray-500 ${right ? '' : 'text-right'}`}>Empty slot</span>
       )}
     </div>
   );
@@ -845,7 +845,7 @@ function LeagueMatchupsCard({ leagueId, week, myTeamId, upcoming = false }: {
             <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:grid-cols-12 items-center gap-2">
               <div className="sm:col-span-4 flex items-center gap-2 min-w-0">
                 <Avatar src={m.homeTeam.logoUrl} name={m.homeTeam.name} size="sm" />
-                <span className={`truncate text-sm ${homeWon ? 'text-green-400 font-semibold' : 'text-white'}`}>{m.homeTeam.name}</span>
+                <span className={`truncate font-condensed sm:font-sans text-sm ${homeWon ? 'text-green-400 font-semibold' : 'text-white'}`}>{m.homeTeam.name}</span>
               </div>
               <div className="sm:col-span-4 flex flex-col items-center gap-0.5">
                 <div className="font-serif text-[13px] sm:text-[15px] whitespace-nowrap">
@@ -862,7 +862,7 @@ function LeagueMatchupsCard({ leagueId, week, myTeamId, upcoming = false }: {
                 <PlayoffTag matchupType={m.matchupType} />
               </div>
               <div className="sm:col-span-4 flex items-center gap-2 justify-end min-w-0">
-                <span className={`truncate text-sm text-right ${awayWon ? 'text-green-400 font-semibold' : 'text-white'}`}>{m.awayTeam.name}</span>
+                <span className={`truncate font-condensed sm:font-sans text-sm text-right ${awayWon ? 'text-green-400 font-semibold' : 'text-white'}`}>{m.awayTeam.name}</span>
                 <Avatar src={m.awayTeam.logoUrl} name={m.awayTeam.name} size="sm" />
                 {!upcoming && (
                   <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -1594,7 +1594,7 @@ function PlayersTab({ leagueId, league, onProposeTrade }: {
                   <div className="col-span-5 flex items-center gap-2 min-w-0">
                     <Avatar src={artist.imageUrl} name={artist.name} size="sm" />
                     <div className="min-w-0">
-                      <Link to={`/artists/${artist.id}?leagueId=${leagueId}`} className="text-sm font-medium text-white hover:text-indigo-400 transition-colors block truncate">
+                      <Link to={`/artists/${artist.id}?leagueId=${leagueId}`} className="font-condensed sm:font-sans text-sm font-medium text-white hover:text-indigo-400 transition-colors block truncate">
                         {artist.name}
                       </Link>
                       <Badge genre={artist.primaryGenre} className="mt-0.5">{artist.primaryGenre}</Badge>

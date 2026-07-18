@@ -352,7 +352,7 @@ export function DraftRoom() {
                           >
                             <Avatar src={artist.imageUrl} name={artist.name} size="sm" />
                             <div className="min-w-0">
-                              <div className="text-sm font-medium text-white truncate group-hover:text-indigo-300 transition-colors">{artist.name}</div>
+                              <div className="font-condensed sm:font-sans text-sm font-medium text-white truncate group-hover:text-indigo-300 transition-colors">{artist.name}</div>
                               <Badge genre={artist.primaryGenre}>{artist.primaryGenre}</Badge>
                             </div>
                           </a>
