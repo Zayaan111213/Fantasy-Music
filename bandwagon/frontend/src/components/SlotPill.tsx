@@ -25,6 +25,20 @@ export function genreRgb(genre: string): string {
   return SLOT_RGB[genre] ?? SLOT_RGB['Other'];
 }
 
+// Genre text for badges: full label on desktop, short form on phone so pills
+// like "Rock & Alternative" never wrap inside narrow list cells.
+const GENRE_SHORT: Record<string, string> = { 'Rock & Alternative': 'Rock/Alt' };
+export function GenreLabel({ genre }: { genre: string }) {
+  const short = GENRE_SHORT[genre];
+  if (!short) return <>{genre}</>;
+  return (
+    <>
+      <span className="sm:hidden">{short}</span>
+      <span className="hidden sm:inline">{genre}</span>
+    </>
+  );
+}
+
 export function SlotPill({ slot }: { slot: string }) {
   const short: Record<string, string> = { 'Rock & Alternative': 'Rock/Alt' };
   // Extra-compact labels for phone widths, where the pill sits in narrow

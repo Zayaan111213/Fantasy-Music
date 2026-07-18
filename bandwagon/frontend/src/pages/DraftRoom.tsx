@@ -10,7 +10,7 @@ import { Card } from '../components/ui/Card';
 import { Spinner } from '../components/ui/Spinner';
 import type { DraftState, DraftPick, Artist } from '../api/types';
 import { api } from '../api/client';
-import { SlotPill } from '../components/SlotPill';
+import { SlotPill, GenreLabel } from '../components/SlotPill';
 
 const ALL_SLOTS = ['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country', 'Other', 'Flex', 'Bench-1', 'Bench-2', 'Bench-3'];
 
@@ -307,7 +307,7 @@ export function DraftRoom() {
                     onClick={() => setSort((p) => p.field === 'name' ? { field: 'name', dir: p.dir === 'desc' ? 'asc' : 'desc' } : { field: 'name', dir: 'desc' })}
                     className={`flex items-center gap-1 hover:text-white transition-colors ${sort.field === 'name' ? 'text-indigo-400' : 'text-gray-500'}`}
                   >
-                    Artist {sort.field === 'name' ? (sort.dir === 'desc' ? '↓' : '↑') : '↕'}
+                    Artist {sort.field === 'name' ? (sort.dir === 'desc' ? '↓︎' : '↑︎') : '↕︎'}
                   </button>
                 </div>
                 <div className="col-span-3 text-right">
@@ -315,7 +315,7 @@ export function DraftRoom() {
                     onClick={() => setSort((p) => p.field === 'last' ? { field: 'last', dir: p.dir === 'desc' ? 'asc' : 'desc' } : { field: 'last', dir: 'desc' })}
                     className={`flex items-center justify-end gap-1 w-full hover:text-white transition-colors ${sort.field === 'last' ? 'text-indigo-400' : 'text-gray-500'}`}
                   >
-                    Last {sort.field === 'last' ? (sort.dir === 'desc' ? '↓' : '↑') : '↕'}
+                    Last {sort.field === 'last' ? (sort.dir === 'desc' ? '↓︎' : '↑︎') : '↕︎'}
                   </button>
                 </div>
                 <div className="hidden sm:block sm:col-span-2 text-right">
@@ -323,7 +323,7 @@ export function DraftRoom() {
                     onClick={() => setSort((p) => p.field === 'avg' ? { field: 'avg', dir: p.dir === 'desc' ? 'asc' : 'desc' } : { field: 'avg', dir: 'desc' })}
                     className={`flex items-center justify-end gap-1 w-full hover:text-white transition-colors ${sort.field === 'avg' ? 'text-indigo-400' : 'text-gray-500'}`}
                   >
-                    5W Avg {sort.field === 'avg' ? (sort.dir === 'desc' ? '↓' : '↑') : '↕'}
+                    5W Avg {sort.field === 'avg' ? (sort.dir === 'desc' ? '↓︎' : '↑︎') : '↕︎'}
                   </button>
                 </div>
                 <div className="col-span-3 sm:col-span-2" />
@@ -353,7 +353,7 @@ export function DraftRoom() {
                             <Avatar src={artist.imageUrl} name={artist.name} size="sm" />
                             <div className="min-w-0">
                               <div className="font-condensed sm:font-sans text-sm font-medium text-white truncate group-hover:text-indigo-300 transition-colors">{artist.name}</div>
-                              <Badge genre={artist.primaryGenre}>{artist.primaryGenre}</Badge>
+                              <Badge genre={artist.primaryGenre}><GenreLabel genre={artist.primaryGenre} /></Badge>
                             </div>
                           </a>
                           <div className="col-span-3 text-right font-serif text-[15px] text-gray-300">

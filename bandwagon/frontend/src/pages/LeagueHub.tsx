@@ -12,7 +12,7 @@ import { Spinner } from '../components/ui/Spinner';
 import { TradesSection } from '../components/TradesSection';
 import type { ActivityFeed, ActivityItem, Bracket, BracketMatchup, League, LeagueMatchup, Matchup, StandingsEntry, PlayerEntry, RosterSpot, Team, TeamWithRoster, WaiversResponse } from '../api/types';
 import { WagonMark } from '../components/Logo';
-import { SlotPill } from '../components/SlotPill';
+import { SlotPill, GenreLabel } from '../components/SlotPill';
 import { timeAgo } from '../utils/timeAgo';
 
 type Tab = 'myteam' | 'matchup' | 'standings' | 'players' | 'notifications' | 'settings';
@@ -282,7 +282,7 @@ function RosterRow({ spot, onSwapSelect, selectedSlot, readOnly = false, leagueI
               {spot.artist.name}
             </Link>
             {(spot.slot === 'Other' || spot.slot === 'Flex' || spot.slot.startsWith('Bench')) && (
-              <Badge genre={spot.artist.primaryGenre} className="mt-0.5">{spot.artist.primaryGenre}</Badge>
+              <Badge genre={spot.artist.primaryGenre} className="mt-0.5"><GenreLabel genre={spot.artist.primaryGenre} /></Badge>
             )}
           </div>
           <div className="text-right shrink-0">
@@ -1282,8 +1282,9 @@ function StandingsTab({ leagueId, league }: { leagueId: string; league: League }
 type SortField = 'name' | 'last' | 'avg';
 type SortDir = 'desc' | 'asc';
 
-function SortHeader({ label, field, sort, onSort }: {
+function SortHeader({ label, short, field, sort, onSort }: {
   label: string;
+  short?: string; // phone-width label (e.g. "5W" for "5W Avg")
   field: SortField;
   sort: { field: SortField; dir: SortDir };
   onSort: (f: SortField) => void;
@@ -1292,10 +1293,18 @@ function SortHeader({ label, field, sort, onSort }: {
   return (
     <button
       onClick={() => onSort(field)}
-      className={`flex items-center gap-1 hover:text-white transition-colors ${active ? 'text-indigo-400' : 'text-gray-500'}`}
+      className={`flex items-center gap-1 whitespace-nowrap hover:text-white transition-colors ${active ? 'text-indigo-400' : 'text-gray-500'}`}
     >
-      {label}
-      <span className="text-xs">{active ? (sort.dir === 'desc' ? '↓' : '↑') : '↕'}</span>
+      {short ? (
+        <>
+          <span className="sm:hidden">{short}</span>
+          <span className="hidden sm:inline">{label}</span>
+        </>
+      ) : (
+        label
+      )}
+      {/* ︎ forces text presentation — iOS otherwise renders the arrows as emoji */}
+      <span className="text-xs">{active ? (sort.dir === 'desc' ? '↓︎' : '↑︎') : '↕︎'}</span>
     </button>
   );
 }
@@ -1505,7 +1514,7 @@ function PlayersTab({ leagueId, league, onProposeTrade }: {
                       <div className="text-sm font-medium text-white truncate">{spot.artist?.name}</div>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <SlotPill slot={spot.slot} />
-                        {spot.artist && <Badge genre={spot.artist.primaryGenre}>{spot.artist.primaryGenre}</Badge>}
+                        {spot.artist && <Badge genre={spot.artist.primaryGenre}><GenreLabel genre={spot.artist.primaryGenre} /></Badge>}
                       </div>
                     </div>
                     {dropSlot === spot.slot && <Check className="w-4 h-4 text-red-400 shrink-0" />}
@@ -1582,7 +1591,7 @@ function PlayersTab({ leagueId, league, onProposeTrade }: {
                 <SortHeader label="Last" field="last" sort={sort} onSort={handleSort} />
               </div>
               <div className="col-span-2 flex justify-end">
-                <SortHeader label="5W Avg" field="avg" sort={sort} onSort={handleSort} />
+                <SortHeader label="5W Avg" short="5W" field="avg" sort={sort} onSort={handleSort} />
               </div>
               <div className="col-span-3 flex justify-end text-gray-500">Status</div>
             </div>
@@ -1597,7 +1606,7 @@ function PlayersTab({ leagueId, league, onProposeTrade }: {
                       <Link to={`/artists/${artist.id}?leagueId=${leagueId}`} className="font-condensed sm:font-sans text-sm font-medium text-white hover:text-indigo-400 transition-colors block truncate">
                         {artist.name}
                       </Link>
-                      <Badge genre={artist.primaryGenre} className="mt-0.5">{artist.primaryGenre}</Badge>
+                      <Badge genre={artist.primaryGenre} className="mt-0.5"><GenreLabel genre={artist.primaryGenre} /></Badge>
                     </div>
                   </div>
                   <div className="col-span-2 text-right font-mono text-sm font-semibold text-white">
@@ -1609,7 +1618,7 @@ function PlayersTab({ leagueId, league, onProposeTrade }: {
                   <div className="col-span-3 flex justify-end items-center gap-1.5 min-w-0">
                     {artist.rosteredBy ? (
                       <>
-                        <span className="text-xs text-gray-500 truncate">@{artist.rosteredBy.name}</span>
+                        <span className="font-condensed sm:font-sans text-xs text-gray-500 truncate">@{artist.rosteredBy.name}</span>
                         {league.status === 'active' && artist.rosteredBy.id !== myTeam?.id && onProposeTrade && (
                           <button
                             onClick={() => onProposeTrade(artist.rosteredBy!.id, artist.id)}
