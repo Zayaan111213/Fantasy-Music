@@ -82,6 +82,9 @@ export default {
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
         serif: ['Georgia', 'Times New Roman', 'serif'],
+        // Narrow face for tight phone cells (H2H artist names): fits ~30% more
+        // characters than Inter at the same size.
+        condensed: ['Archivo Narrow', 'Inter', 'system-ui', 'sans-serif'],
       },
     },
   },
