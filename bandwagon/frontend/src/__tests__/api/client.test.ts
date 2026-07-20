@@ -107,5 +107,15 @@ describe('api.del', () => {
     await api.del('/leagues/123');
     const [, options] = mockFetch.mock.calls[0];
     expect(options.method).toBe('DELETE');
+    expect(options.body).toBeUndefined();
+  });
+
+  it('sends a JSON body when one is provided', async () => {
+    mockOkResponse({});
+    await api.del('/auth/me', { password: 'hunter22!' });
+    const [, options] = mockFetch.mock.calls[0];
+    expect(options.method).toBe('DELETE');
+    expect(options.headers['Content-Type']).toBe('application/json');
+    expect(options.body).toBe(JSON.stringify({ password: 'hunter22!' }));
   });
 });

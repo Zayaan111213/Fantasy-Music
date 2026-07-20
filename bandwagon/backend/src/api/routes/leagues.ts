@@ -17,6 +17,7 @@ import { getCurrentWeekDate } from '../../jobs/ingestCharts';
 // exports at call time.
 import { submitWaiverClaim, cancelWaiverClaim, reorderWaiverClaims } from '../../waivers/engine';
 import { renewLeague } from '../../season/rollover';
+import { transferCommissioner } from '../../leagues/transfer';
 
 const router = Router();
 
@@ -307,6 +308,40 @@ router.post('/:id/renew', requireAuth, async (req: AuthRequest, res, next) => {
       return;
     }
     res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Transfer commissionership to another member (commissioner only). Unlike
+// other settings this is allowed in any league status.
+router.post('/:id/transfer-commissioner', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const { newCommissionerId } = z.object({ newCommissionerId: z.string().min(1) }).parse(req.body);
+
+    const league = await prisma.league.findUnique({
+      where: { id: req.params.id },
+      include: { teams: { include: { user: { select: { id: true, username: true, deletedAt: true } } } } },
+    });
+    if (!league) { res.status(404).json({ error: 'League not found' }); return; }
+    if (league.commissionerId !== req.userId) {
+      res.status(403).json({ error: 'Only the commissioner can transfer commissionership' });
+      return;
+    }
+    if (newCommissionerId === req.userId) {
+      res.status(400).json({ error: 'You are already the commissioner' });
+      return;
+    }
+    const team = league.teams.find((t) => t.userId === newCommissionerId);
+    if (!team || team.user.deletedAt) {
+      res.status(400).json({ error: 'That user is not a member of this league' });
+      return;
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await transferCommissioner(tx, league, team.user);
+    });
+    res.json({ message: 'Commissioner transferred' });
   } catch (err) {
     next(err);
   }

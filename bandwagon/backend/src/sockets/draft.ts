@@ -54,6 +54,11 @@ async function startPickTimer(io: Server, leagueId: string) {
 }
 
 async function transitionToLiveDraft(io: Server, leagueId: string) {
+  // The league may have been deleted while the pre-draft countdown was
+  // running (commissioner delete, account deletion).
+  const exists = await prisma.league.findUnique({ where: { id: leagueId }, select: { id: true } });
+  if (!exists) return;
+
   const timerEndsAt = new Date(Date.now() + 60_000);
 
   await prisma.$transaction([
@@ -216,7 +221,7 @@ async function scheduledDraftStart(io: Server, leagueId: string) {
   if (!countdownTimers.has(leagueId)) {
     const timeout = setTimeout(() => {
       countdownTimers.delete(leagueId);
-      transitionToLiveDraft(io, leagueId);
+      transitionToLiveDraft(io, leagueId).catch((err) => console.error('[draft] countdown transition failed:', err));
     }, 10 * 60_000);
     countdownTimers.set(leagueId, timeout);
   }
@@ -285,7 +290,7 @@ export function registerDraftSocket(io: Server) {
             const msRemaining = Math.max(0, countdownEndsAt.getTime() - Date.now());
             const timeout = setTimeout(() => {
               countdownTimers.delete(leagueId);
-              transitionToLiveDraft(io, leagueId);
+              transitionToLiveDraft(io, leagueId).catch((err) => console.error('[draft] countdown transition failed:', err));
             }, msRemaining);
             countdownTimers.set(leagueId, timeout);
           }

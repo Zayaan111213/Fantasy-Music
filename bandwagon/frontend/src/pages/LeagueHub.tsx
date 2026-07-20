@@ -1683,7 +1683,7 @@ const STREAMING_TIER_LABELS: Record<string, string[]> = {
   'Other':              ['15M+', '7-14M',  '3-6M',   '1-2M', '250K-999K', '1K-249K', '0'],
 };
 
-function SettingsTab({ leagueId, league }: { leagueId: string; league: League }) {
+function SettingsTab({ leagueId, league }: { leagueId: string; league: League & { teams?: Team[] } }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const isCommissioner = league.commissionerId === user?.id;
@@ -1704,6 +1704,9 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League })
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [leaveError, setLeaveError] = useState('');
+  const [transferTarget, setTransferTarget] = useState('');
+  const [transferring, setTransferring] = useState(false);
+  const [transferError, setTransferError] = useState('');
 
   const [chartPosition, setChartPosition] = useState<[number, number, number, number, number]>(
     league.scoringConfig?.chartPosition ?? DEFAULT_CHART_POSITION
@@ -1731,6 +1734,21 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League })
     } catch (err) {
       setLeaveError(err instanceof Error ? err.message : 'Failed to leave league');
       setLeaving(false);
+    }
+  }
+
+  async function handleTransfer() {
+    if (!transferTarget) return;
+    setTransferring(true);
+    setTransferError('');
+    try {
+      await api.post(`/leagues/${leagueId}/transfer-commissioner`, { newCommissionerId: transferTarget });
+      setTransferTarget('');
+      queryClient.invalidateQueries({ queryKey: ['league', leagueId] });
+    } catch (err) {
+      setTransferError(err instanceof Error ? err.message : 'Transfer failed');
+    } finally {
+      setTransferring(false);
     }
   }
 
@@ -2027,6 +2045,37 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League })
         </Card>
       )}
 
+      {isCommissioner && (league.teams ?? []).some((t) => t.userId !== user?.id) && (
+        <Card className="p-5">
+          <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Transfer Commissionership</h3>
+          <p className="text-sm text-gray-400 mb-4">
+            Hand control of the league to another member. You will keep your team but lose commissioner powers. This works at any point in the season.
+          </p>
+          <div className="flex gap-2">
+            <select
+              value={transferTarget}
+              onChange={(e) => setTransferTarget(e.target.value)}
+              className="flex-1 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">Choose a member…</option>
+              {(league.teams ?? [])
+                .filter((t) => t.userId !== user?.id)
+                .map((t) => (
+                  <option key={t.userId} value={t.userId}>
+                    {t.user?.username ?? t.name}
+                  </option>
+                ))}
+            </select>
+            <Button variant="secondary" onClick={handleTransfer} disabled={!transferTarget || transferring}>
+              {transferring ? 'Transferring…' : 'Transfer'}
+            </Button>
+          </div>
+          {transferError && (
+            <div className="mt-3 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg p-2">{transferError}</div>
+          )}
+        </Card>
+      )}
+
       {isCommissioner && (
         <Card className="p-5 border-red-500/20">
           <h3 className="text-sm font-semibold text-red-400/70 uppercase tracking-wider mb-4">Danger Zone</h3>
@@ -2112,6 +2161,9 @@ const ACTIVITY_ICONS: Record<string, ReactNode> = {
   league_renewed: <Sparkles className="w-4 h-4 text-indigo-400" />,
   lineup_reminder: <AlarmClock className="w-4 h-4 text-indigo-400" />,
   draft_complete: <Sparkles className="w-4 h-4 text-indigo-400" />,
+  member_left: <UserPlus className="w-4 h-4 text-gray-400" />,
+  commissioner_transfer: <Users className="w-4 h-4 text-indigo-400" />,
+  commissioner_transferred: <Users className="w-4 h-4 text-indigo-400" />,
 };
 
 function NotificationsTab({ leagueId }: { leagueId: string }) {

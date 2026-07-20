@@ -14,6 +14,7 @@ const SUBJECTS: Record<string, string> = {
   lineup_reminder: 'New week: set your lineup before Tuesday',
   league_deleted: 'One of your leagues was deleted',
   league_renewed: 'Your league is back for a new season',
+  commissioner_transfer: 'You are now a league commissioner',
 };
 
 const FALLBACK_SUBJECT = 'Bandwagoner update';

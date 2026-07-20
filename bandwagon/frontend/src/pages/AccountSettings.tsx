@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Check, X } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -17,7 +17,8 @@ const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 type UsernameStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid';
 
 export function AccountSettings() {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, logout } = useAuth();
+  const navigate = useNavigate();
   const initialUsername = user?.username ?? '';
   const initialEmail = user?.email ?? '';
 
@@ -30,6 +31,10 @@ export function AccountSettings() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -104,6 +109,21 @@ export function AccountSettings() {
     }
   }
 
+  async function handleDeleteAccount(e: React.FormEvent) {
+    e.preventDefault();
+    if (!deletePassword || deleting) return;
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      await api.del('/auth/me', { password: deletePassword });
+      logout();
+      navigate('/', { replace: true });
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Delete failed');
+      setDeleting(false);
+    }
+  }
+
   const usernameError =
     usernameStatus === 'invalid' ? '3-20 characters: letters, numbers, underscores only' :
     usernameStatus === 'taken' ? 'Username already taken' :
@@ -175,6 +195,53 @@ export function AccountSettings() {
               {saving ? 'Saving…' : saved ? 'Saved!' : 'Save Changes'}
             </Button>
           </form>
+        </Card>
+
+        <Card className="p-6 mt-4 border-red-500/20">
+          <h3 className="text-sm font-semibold text-red-400/70 uppercase tracking-wider mb-4">Danger Zone</h3>
+          {!confirmDelete ? (
+            <div>
+              <p className="text-sm text-gray-400 mb-4">
+                Permanently delete your account. This cannot be undone.
+              </p>
+              <Button variant="danger" className="w-full" onClick={() => setConfirmDelete(true)}>
+                Delete Account
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={handleDeleteAccount} className="space-y-3">
+              <ul className="text-sm text-red-300 space-y-1 list-disc list-inside">
+                <li>Leagues you run are handed to the next member who joined. If you are the only member, the league is deleted.</li>
+                <li>Your teams in leagues that have already drafted stay behind, unmanaged.</li>
+                <li>This cannot be undone.</li>
+              </ul>
+              <Input
+                label="Confirm your password"
+                type="password"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                autoComplete="current-password"
+                required
+              />
+              {deleteError && (
+                <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg p-2">{deleteError}</div>
+              )}
+              <div className="flex gap-2">
+                <Button type="submit" variant="danger" className="flex-1" disabled={!deletePassword || deleting}>
+                  {deleting ? 'Deleting…' : 'Permanently delete'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={() => { setConfirmDelete(false); setDeletePassword(''); setDeleteError(''); }}
+                  disabled={deleting}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          )}
         </Card>
       </main>
     </div>
