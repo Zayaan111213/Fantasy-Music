@@ -130,6 +130,12 @@ export function Landing() {
           </Card>
         </div>
 
+        {/* Top movers */}
+        <div className="grid gap-5 md:grid-cols-2 pb-16">
+          <MoversCard label="Songs" icon={Music} data={movers?.songs} />
+          <MoversCard label="Albums" icon={Disc3} data={movers?.albums} />
+        </div>
+
         <div className="pb-16 flex items-center justify-center gap-2 text-sm text-gray-500">
           <CalendarDays className="w-4 h-4" />
           Already have an account?
