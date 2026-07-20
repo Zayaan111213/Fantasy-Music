@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { ZodError } from 'zod';
 import multer from 'multer';
-import { errorHandler, notFound } from '../../../api/middleware/errorHandler';
+import { errorHandler, notFound, shouldReportToSentry } from '../../../api/middleware/errorHandler';
 import type { Request, Response, NextFunction } from 'express';
 
 function mockRes() {
@@ -56,6 +56,23 @@ describe('errorHandler', () => {
     errorHandler('string error', req, res, next);
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({ error: 'Internal server error' });
+  });
+});
+
+describe('shouldReportToSentry', () => {
+  it('excludes ZodError', () => {
+    const zodErr = new ZodError([
+      { code: 'invalid_type', expected: 'string', received: 'number', path: ['name'], message: 'Expected string' },
+    ]);
+    expect(shouldReportToSentry(zodErr)).toBe(false);
+  });
+
+  it('excludes MulterError', () => {
+    expect(shouldReportToSentry(new multer.MulterError('LIMIT_FILE_SIZE'))).toBe(false);
+  });
+
+  it('includes a plain Error', () => {
+    expect(shouldReportToSentry(new Error('Something broke'))).toBe(true);
   });
 });
 

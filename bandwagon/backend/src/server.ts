@@ -1,4 +1,6 @@
 import 'dotenv/config';
+import * as Sentry from '@sentry/node';
+import { sentryEnabled } from './instrument';
 
 // BigInt → string for JSON serialization
 (BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function () {
@@ -20,7 +22,7 @@ import draftRoutes from './api/routes/draft';
 import tradeRoutes from './api/routes/trades';
 import notificationRoutes from './api/routes/notifications';
 import chartRoutes from './api/routes/charts';
-import { errorHandler, notFound } from './api/middleware/errorHandler';
+import { errorHandler, notFound, shouldReportToSentry } from './api/middleware/errorHandler';
 import { registerDraftSocket, startDraftScheduler } from './sockets/draft';
 import { startPipelineScheduler } from './jobs/scheduler';
 import { startEmailDispatcher } from './email/dispatcher';
@@ -66,6 +68,9 @@ if (fs.existsSync(frontendDist)) {
 }
 
 app.use(notFound);
+if (sentryEnabled) {
+  Sentry.setupExpressErrorHandler(app, { shouldHandleError: shouldReportToSentry });
+}
 app.use(errorHandler);
 
 registerDraftSocket(io);
