@@ -10,14 +10,14 @@ import { passwordPolicyError } from '../utils/passwordPolicy';
 import { WagonMark, Wordmark } from '../components/Logo';
 
 export function Auth() {
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [params] = useSearchParams();
+  const [mode, setMode] = useState<'login' | 'signup'>(params.get('mode') === 'signup' ? 'signup' : 'login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [params] = useSearchParams();
   const redirect = params.get('redirect') || '/home';
 
   async function handleSubmit(e: React.FormEvent) {
