@@ -114,7 +114,8 @@ function movers(rows: ChartRowOut[], limit: number) {
   };
 }
 
-router.get('/movers', requireAuth, async (req, res, next) => {
+// Public: powers the top-movers preview on the logged-out landing page.
+router.get('/movers', async (req, res, next) => {
   try {
     const limit = Math.min(parseInt(String(req.query.limit ?? '4'), 10) || 4, 10);
     const weekDate = await latestChartWeek();
