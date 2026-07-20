@@ -223,7 +223,7 @@ export interface WaiverClaimEntry {
   dropSlot: string;
   createdAt: string;
   artist: { id: string; name: string; imageUrl: string | null; primaryGenre: string };
-  dropArtist: { id: string; name: string };
+  dropArtist: { id: string; name: string } | null;
 }
 
 export interface WaiversResponse {

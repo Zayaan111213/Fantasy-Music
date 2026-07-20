@@ -1078,7 +1078,7 @@ router.get('/:id/waivers', requireAuth, async (req: AuthRequest, res, next) => {
     ]);
 
     const dropArtists = await prisma.artist.findMany({
-      where: { id: { in: [...new Set(claims.map((c) => c.dropArtistId))] } },
+      where: { id: { in: [...new Set(claims.map((c) => c.dropArtistId).filter((id): id is string => id != null))] } },
       select: { id: true, name: true },
     });
     const dropName = new Map(dropArtists.map((a) => [a.id, a.name]));
@@ -1091,7 +1091,7 @@ router.get('/:id/waivers', requireAuth, async (req: AuthRequest, res, next) => {
         dropSlot: c.dropSlot,
         createdAt: c.createdAt,
         artist: c.artist,
-        dropArtist: { id: c.dropArtistId, name: dropName.get(c.dropArtistId) ?? 'Unknown' },
+        dropArtist: c.dropArtistId ? { id: c.dropArtistId, name: dropName.get(c.dropArtistId) ?? 'Unknown' } : null,
       })),
     });
   } catch (err) {

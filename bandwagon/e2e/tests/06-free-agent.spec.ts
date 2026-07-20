@@ -51,7 +51,7 @@ test.describe('Waiver claims', () => {
 
     // Click Claim — modal opens; waiver copy is shown
     await firstClaimButton.click();
-    await expect(page.getByText('Select a player to drop · claims process Sunday night')).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('Select a slot · claims process Sunday night')).toBeVisible({ timeout: 5_000 });
 
     // Click the first eligible drop slot in the modal's scrollable section
     const dropScrollArea = page.locator('.fixed .overflow-y-auto').first();
@@ -73,7 +73,7 @@ test.describe('Waiver claims', () => {
     expect(claimResponse.status()).toBe(200);
 
     // Modal closes; NOTHING moves yet — the claim is queued:
-    await expect(page.getByText('Select a player to drop · claims process Sunday night')).not.toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('Select a slot · claims process Sunday night')).not.toBeVisible({ timeout: 5_000 });
     // Pending-claims card lists the artist with the user's waiver position
     await expect(page.getByText('Pending waiver claims')).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText(/Waiver position #1/)).toBeVisible();

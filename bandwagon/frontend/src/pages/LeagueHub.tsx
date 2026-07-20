@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, Trophy, Users, Settings, Swords, Search, ArrowUpDown, User, Pencil, X, Check, Lock, ChevronRight, ChevronDown, ChevronUp, ArrowLeftRight, Bell, UserPlus, AlarmClock, Mail, Sparkles } from 'lucide-react';
+import { ChevronLeft, Trophy, Users, Settings, Swords, Search, ArrowUpDown, User, Pencil, X, Check, Lock, ChevronRight, ChevronDown, ChevronUp, ArrowLeftRight, Bell, UserPlus, AlarmClock, Mail, Sparkles, Plus } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/ui/Card';
@@ -1381,7 +1381,7 @@ function WaiverClaimsCard({ leagueId }: { leagueId: string }) {
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium text-white truncate">{claim.artist.name}</div>
               <div className="text-xs text-gray-500 truncate">
-                Drop: {claim.dropArtist.name} ({claim.dropSlot})
+                {claim.dropArtist ? `Drop: ${claim.dropArtist.name} (${claim.dropSlot})` : `Fill empty slot (${claim.dropSlot})`}
               </div>
             </div>
             <button
@@ -1470,10 +1470,8 @@ function PlayersTab({ leagueId, league, onProposeTrade }: {
     return sort.dir === 'desc' ? -cmp : cmp;
   });
 
-  const filledEligibleSlots = claimArtist
-    ? (myTeam?.rosterSpots ?? []).filter(
-        (s) => s.artistId && canFillSlot(claimArtist.primaryGenre, s.slot)
-      )
+  const eligibleSlots = claimArtist
+    ? (myTeam?.rosterSpots ?? []).filter((s) => canFillSlot(claimArtist.primaryGenre, s.slot))
     : [];
 
   return (
@@ -1487,8 +1485,8 @@ function PlayersTab({ leagueId, league, onProposeTrade }: {
                 <h2 className="font-semibold text-white">Claim {claimArtist.name}</h2>
                 <p className="text-xs text-gray-400 mt-0.5">
                   {freeAgency
-                    ? 'Select a player to drop · free agency is open, adds are instant'
-                    : 'Select a player to drop · claims process Sunday night'}
+                    ? 'Select a slot · free agency is open, adds are instant'
+                    : 'Select a slot · claims process Sunday night'}
                 </p>
               </div>
               <button onClick={() => { setClaimArtist(null); setDropSlot(null); setClaimError(''); }} className="text-gray-500 hover:text-white transition-colors">
@@ -1496,30 +1494,44 @@ function PlayersTab({ leagueId, league, onProposeTrade }: {
               </button>
             </div>
             <div className="p-2 max-h-80 overflow-y-auto">
-              {filledEligibleSlots.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-6">No eligible slots to drop from</p>
+              {eligibleSlots.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-6">No eligible slots on your roster</p>
               ) : (
-                filledEligibleSlots.map((spot) => (
-                  <button
-                    key={spot.slot}
-                    onClick={() => setDropSlot(spot.slot)}
-                    className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors text-left ${
-                      dropSlot === spot.slot
-                        ? 'bg-red-500/20 border border-red-500/40'
-                        : 'hover:bg-white/5 border border-transparent'
-                    }`}
-                  >
-                    <Avatar src={spot.artist?.imageUrl ?? null} name={spot.artist?.name ?? '?'} size="sm" />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-white truncate">{spot.artist?.name}</div>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <SlotPill slot={spot.slot} />
-                        {spot.artist && <Badge genre={spot.artist.primaryGenre}><GenreLabel genre={spot.artist.primaryGenre} /></Badge>}
+                eligibleSlots.map((spot) => {
+                  const empty = !spot.artistId;
+                  const selected = dropSlot === spot.slot;
+                  return (
+                    <button
+                      key={spot.slot}
+                      onClick={() => setDropSlot(spot.slot)}
+                      className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors text-left ${
+                        selected
+                          ? empty
+                            ? 'bg-green-500/20 border border-green-500/40'
+                            : 'bg-red-500/20 border border-red-500/40'
+                          : empty
+                            ? 'hover:bg-white/5 border border-dashed border-white/10'
+                            : 'hover:bg-white/5 border border-transparent'
+                      }`}
+                    >
+                      {empty ? (
+                        <div className="w-8 h-8 shrink-0 rounded-full bg-white/5 border border-dashed border-white/20 flex items-center justify-center text-gray-500">
+                          <Plus className="w-4 h-4" />
+                        </div>
+                      ) : (
+                        <Avatar src={spot.artist?.imageUrl ?? null} name={spot.artist?.name ?? '?'} size="sm" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-white truncate">{empty ? 'Empty slot' : spot.artist?.name}</div>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <SlotPill slot={spot.slot} />
+                          {spot.artist && <Badge genre={spot.artist.primaryGenre}><GenreLabel genre={spot.artist.primaryGenre} /></Badge>}
+                        </div>
                       </div>
-                    </div>
-                    {dropSlot === spot.slot && <Check className="w-4 h-4 text-red-400 shrink-0" />}
-                  </button>
-                ))
+                      {selected && <Check className={`w-4 h-4 shrink-0 ${empty ? 'text-green-400' : 'text-red-400'}`} />}
+                    </button>
+                  );
+                })
               )}
             </div>
             {claimError && <p className="text-xs text-red-400 px-4 pb-2">{claimError}</p>}
