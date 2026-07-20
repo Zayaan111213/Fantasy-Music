@@ -96,12 +96,6 @@ export function Landing() {
           </div>
         </div>
 
-        {/* Top movers */}
-        <div className="grid gap-5 md:grid-cols-2 pb-16">
-          <MoversCard label="Songs" icon={Music} data={movers?.songs} />
-          <MoversCard label="Albums" icon={Disc3} data={movers?.albums} />
-        </div>
-
         {/* How it works */}
         <div className="grid gap-4 md:grid-cols-3 pb-16">
           <Card className="p-5">
@@ -128,6 +122,12 @@ export function Landing() {
               4 teams battle in the playoffs for the league title.
             </p>
           </Card>
+        </div>
+
+        {/* Top movers */}
+        <div className="grid gap-5 md:grid-cols-2 pb-16">
+          <MoversCard label="Songs" icon={Music} data={movers?.songs} />
+          <MoversCard label="Albums" icon={Disc3} data={movers?.albums} />
         </div>
 
         <div className="pb-16 flex items-center justify-center gap-2 text-sm text-gray-500">
