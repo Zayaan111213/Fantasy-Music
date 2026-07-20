@@ -7,6 +7,7 @@ import { Badge } from '../components/ui/Badge';
 import { Card } from '../components/ui/Card';
 import { Spinner } from '../components/ui/Spinner';
 import type { Artist, WeeklyScore, ChartBreakdown } from '../api/types';
+import { WagonMark } from '../components/Logo';
 
 type ArtistWithScores = Artist & { weeklyScores: WeeklyScore[]; chartBreakdown?: ChartBreakdown | null };
 
@@ -35,8 +36,10 @@ function breakdownFromScore(ws: WeeklyScore): ChartBreakdown {
 }
 
 function isLegacyRow(ws: WeeklyScore): boolean {
+  // Negative movement with no ranks is a fell-off-chart penalty week (a real,
+  // fully-tracked score), not a legacy pre-per-signal row.
   return ws.songRank === null && ws.albumRank === null
-    && (ws.chartPositionPoints > 0 || ws.chartMovementPoints !== 0);
+    && (ws.chartPositionPoints > 0 || ws.chartMovementPoints > 0);
 }
 
 // weekDate is a plain "YYYY-MM-DD" calendar date (Tuesday, the start of the
@@ -55,9 +58,9 @@ function ScoreBar({ label, value, max, color }: { label: string; value: number; 
   const pct = max > 0 ? (Math.abs(value) / max) * 100 : 0;
   return (
     <div>
-      <div className="flex justify-between text-sm mb-1">
-        <span className="text-gray-400">{label}</span>
-        <span className={`font-semibold ${isNegative ? 'text-red-400' : 'text-white'}`}>{value.toFixed(1)}</span>
+      <div className="flex justify-between gap-3 text-sm mb-1">
+        <span className="text-gray-400 truncate min-w-0">{label}</span>
+        <span className={`font-semibold shrink-0 whitespace-nowrap ${isNegative ? 'text-red-400' : 'text-white'}`}>{value.toFixed(1)}</span>
       </div>
       <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
         <div className={`h-full ${isNegative ? 'bg-red-500' : color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
@@ -103,14 +106,13 @@ export function ArtistDetail() {
 
   return (
     <div className="min-h-screen bg-gray-950">
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/20 via-gray-950 to-purple-950/10 pointer-events-none" />
 
       <header className="relative border-b border-white/10">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
           <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-white transition-colors">
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <Music2 className="w-4 h-4 text-indigo-400" />
+          <WagonMark size={18} />
         </div>
       </header>
 
@@ -118,16 +120,16 @@ export function ArtistDetail() {
         {/* Artist header */}
         <div className="flex items-start gap-5">
           <img
-            src={artist.imageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(artist.name)}&background=6366f1&color=fff&size=256`}
+            src={artist.imageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(artist.name)}&background=e8b23a&color=2c1e12&size=256`}
             alt={artist.name}
             className="w-24 h-24 rounded-2xl object-cover ring-2 ring-white/10"
           />
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-bold text-white mb-1">{artist.name}</h1>
             <div className="flex flex-wrap gap-1.5 mb-3">
               <Badge genre={artist.primaryGenre}>{artist.primaryGenre}</Badge>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {leagueId && (
                 <Link
                   to={`/leagues/${leagueId}/trade?artistId=${artist.id}`}
@@ -137,6 +139,18 @@ export function ArtistDetail() {
                   Trade
                 </Link>
               )}
+              <a
+                href={artist.appleArtistId
+                  ? `https://music.apple.com/us/artist/${artist.appleArtistId}`
+                  : `https://music.apple.com/us/search?term=${encodeURIComponent(artist.name)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/20 border border-rose-500/30 rounded-lg text-rose-400 text-xs font-medium hover:bg-rose-500/30 transition-colors"
+              >
+                <Music2 className="w-3.5 h-3.5" />
+                Apple Music
+                <ExternalLink className="w-3 h-3" />
+              </a>
               {artist.spotifyId && (
                 <a
                   href={`https://open.spotify.com/artist/${artist.spotifyId}`}
@@ -163,12 +177,20 @@ export function ArtistDetail() {
             </h2>
             {activeIsLegacy ? (
               <p className="text-xs text-gray-500 italic">
-                Detailed breakdown isn't available for this week — it was scored before per-signal tracking was added. Total: {activeScore.totalPoints.toFixed(1)}
+                Detailed breakdown isn't available for this week. It was scored before per-signal tracking was added. Total: {activeScore.totalPoints.toFixed(1)}
               </p>
             ) : (
             <div className="space-y-4">
               {activeIsOffChart ? (
-                <p className="text-xs text-gray-500 italic">Not on the Most Played songs or albums charts this week</p>
+                <div className="space-y-4">
+                  <p className="text-xs text-gray-500 italic">Not on the Most Played songs or albums charts this week</p>
+                  {(activeScore.songMovementPoints ?? 0) < 0 && (
+                    <ScoreBar label="Song Movement · Fell Off Chart" value={activeScore.songMovementPoints} max={15} color="bg-pink-500" />
+                  )}
+                  {(activeScore.albumMovementPoints ?? 0) < 0 && (
+                    <ScoreBar label="Album Movement · Fell Off Chart" value={activeScore.albumMovementPoints} max={15} color="bg-fuchsia-500" />
+                  )}
+                </div>
               ) : (
               <>
               {activeBreakdown?.song ? (
@@ -177,7 +199,7 @@ export function ArtistDetail() {
                     label={`Song Position · #${activeBreakdown.song.rank}${activeBreakdown.song.title ? ` · ${activeBreakdown.song.title}` : ''}`}
                     value={activeBreakdown.song.positionPoints}
                     max={25}
-                    color="bg-indigo-500"
+                    color="bg-sky-500"
                   />
                   <ScoreBar
                     label={`Song Movement · ${activeBreakdown.song.isDebut ? 'New Entry' : activeBreakdown.song.movement !== null ? `${activeBreakdown.song.movement > 0 ? '+' : ''}${activeBreakdown.song.movement}` : 'No change'}`}
@@ -186,6 +208,8 @@ export function ArtistDetail() {
                     color="bg-pink-500"
                   />
                 </>
+              ) : (activeScore.songMovementPoints ?? 0) < 0 ? (
+                <ScoreBar label="Song Movement · Fell Off Chart" value={activeScore.songMovementPoints} max={15} color="bg-pink-500" />
               ) : (
                 <p className="text-xs text-gray-500 italic">No song chart entry this week</p>
               )}
@@ -204,6 +228,8 @@ export function ArtistDetail() {
                     color="bg-fuchsia-500"
                   />
                 </>
+              ) : (activeScore.albumMovementPoints ?? 0) < 0 ? (
+                <ScoreBar label="Album Movement · Fell Off Chart" value={activeScore.albumMovementPoints} max={15} color="bg-fuchsia-500" />
               ) : (
                 <p className="text-xs text-gray-500 italic">No album chart entry this week</p>
               )}
@@ -238,7 +264,7 @@ export function ArtistDetail() {
             {artist.weeklyScores.map((score) => (
               <button
                 key={score.id}
-                onClick={() => setSelectedWeek(score.week === activeScore?.week ? null : score.week)}
+                onClick={() => setSelectedWeek(score.week === activeScore?.week ? null : score.week ?? null)}
                 className={`w-full flex items-center gap-3 -mx-2 px-2 py-1 rounded-lg transition-colors ${
                   score.week === activeScore?.week ? 'bg-white/10' : 'hover:bg-white/5'
                 }`}
@@ -249,7 +275,7 @@ export function ArtistDetail() {
                 ) : (
                   <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-indigo-500 rounded-full"
+                      className="h-full bg-sky-500 rounded-full"
                       style={{ width: `${(score.totalPoints / maxTotal) * 100}%` }}
                     />
                   </div>

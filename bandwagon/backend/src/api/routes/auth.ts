@@ -14,8 +14,17 @@ const router = Router();
 
 const SignupSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(6),
+  password: z.string(),
 });
+
+// New-password policy (signup + reset). Login is deliberately not policed —
+// accounts created under the old rules must keep working.
+export function passwordPolicyError(password: string): string | null {
+  if (password.length < 8) return 'Password must be at least 8 characters';
+  if (!/[0-9]/.test(password)) return 'Password must include at least one number';
+  if (!/[^A-Za-z0-9]/.test(password)) return 'Password must include at least one special character';
+  return null;
+}
 
 const LoginSchema = z.object({
   email: z.string().email(),
@@ -39,6 +48,9 @@ function userResponse(user: { id: string; email: string; username: string | null
 router.post('/signup', async (req, res, next) => {
   try {
     const { email, password } = SignupSchema.parse(req.body);
+
+    const policyError = passwordPolicyError(password);
+    if (policyError) { res.status(400).json({ error: policyError }); return; }
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
@@ -113,7 +125,7 @@ router.post('/complete-onboarding', requireAuth, uploadAvatar, async (req: AuthR
 
     const avatarUrl = req.file
       ? `/uploads/avatars/${req.file.filename}`
-      : `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=6366f1&color=fff&size=256`;
+      : `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=e8b23a&color=2c1e12&size=256`;
 
     const user = await prisma.user.update({
       where: { id: req.userId! },
@@ -208,22 +220,22 @@ router.post('/forgot-password', async (req, res, next) => {
     }
 
     const raw = await createPasswordResetToken(user.id);
-    const appUrl = process.env.FRONTEND_URL || 'https://bandwagon.up.railway.app';
+    const appUrl = process.env.FRONTEND_URL || 'https://bandwagoner.com';
     const resetUrl = `${appUrl}/reset-password?token=${raw}`;
 
     const { html, text } = renderEmail({
       username: user.username,
       message:
-        'We received a request to reset your Bandwagon password. Click the button below to choose a new one. This link expires in 1 hour and can be used once.',
+        'We received a request to reset your Bandwagoner password. Click the button below to choose a new one. This link expires in 1 hour and can be used once.',
       cta: { url: resetUrl, label: 'Reset Password' },
       footer:
-        "You're receiving this because a password reset was requested for your Bandwagon account. If this wasn't you, you can safely ignore this email — your password won't change.",
+        "You're receiving this because a password reset was requested for your Bandwagoner account. If this wasn't you, you can safely ignore this email. Your password won't change.",
     });
-    const result = await sendEmail({ to: user.email, subject: 'Reset your Bandwagon password', html, text });
+    const result = await sendEmail({ to: user.email, subject: 'Reset your Bandwagoner password', html, text });
 
     if (result.status === 'failed') {
       console.error(`[auth] password reset email to ${user.email} failed: ${result.detail}`);
-      res.status(502).json({ error: 'Could not send the reset email — try again later' });
+      res.status(502).json({ error: 'Could not send the reset email. Try again later' });
       return;
     }
     if (result.status === 'skipped') {
@@ -238,12 +250,15 @@ router.post('/forgot-password', async (req, res, next) => {
 
 const ResetPasswordSchema = z.object({
   token: z.string().min(1),
-  password: z.string().min(6),
+  password: z.string(),
 });
 
 router.post('/reset-password', async (req, res, next) => {
   try {
     const { token, password } = ResetPasswordSchema.parse(req.body);
+
+    const policyError = passwordPolicyError(password);
+    if (policyError) { res.status(400).json({ error: policyError }); return; }
 
     const row = await prisma.passwordResetToken.findFirst({
       where: { tokenHash: hashResetToken(token), usedAt: null, expiresAt: { gt: new Date() } },

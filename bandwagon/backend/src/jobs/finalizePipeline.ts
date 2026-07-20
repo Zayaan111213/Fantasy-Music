@@ -10,7 +10,7 @@ import { runTradeFinalizeSteps } from '../trades/engine';
 import { resolveWaivers } from '../waivers/engine';
 import { logLeagueEvent } from '../events/leagueEvents';
 
-export async function bestArtistScore(teamId: string, week: number, year: number): Promise<number> {
+export async function bestArtistScore(teamId: string, weekDate: Date): Promise<number> {
   const spots = await prisma.rosterSpot.findMany({
     where: { teamId, slot: { not: { startsWith: 'Bench' } }, artistId: { not: null } },
     select: { artistId: true },
@@ -18,7 +18,7 @@ export async function bestArtistScore(teamId: string, week: number, year: number
   const scores = await Promise.all(
     spots.map(({ artistId }) =>
       prisma.weeklyScore.findUnique({
-        where: { artistId_week_seasonYear: { artistId: artistId!, week, seasonYear: year } },
+        where: { artistId_weekDate: { artistId: artistId!, weekDate } },
         select: { totalPoints: true },
       }),
     ),
@@ -31,22 +31,28 @@ export async function resolveWinner(
   awayTeamId: string,
   homeScore: number,
   awayScore: number,
-  week: number,
-  year: number,
+  weekDate: Date,
 ): Promise<string | null> {
   if (homeScore !== awayScore) {
     return homeScore > awayScore ? homeTeamId : awayTeamId;
   }
   // Tiebreaker: highest single artist score among starters
   const [homeBest, awayBest] = await Promise.all([
-    bestArtistScore(homeTeamId, week, year),
-    bestArtistScore(awayTeamId, week, year),
+    bestArtistScore(homeTeamId, weekDate),
+    bestArtistScore(awayTeamId, weekDate),
   ]);
   if (homeBest !== awayBest) return homeBest > awayBest ? homeTeamId : awayTeamId;
   return null; // true tie
 }
 
-export async function finalizeLeagueWeek(leagueId: string, week: number, year: number): Promise<void> {
+// weekDate = the calendar chart week whose scores settle this league week.
+// Defaults to the week that just ended (finalize runs Monday); test helpers
+// simulating multi-week seasons rely on the default too.
+export async function finalizeLeagueWeek(
+  leagueId: string,
+  week: number,
+  weekDate: Date = getCurrentWeekDate(),
+): Promise<void> {
   // Atomic gate: Postgres serializes concurrent UPDATEs, so a second concurrent run
   // gets count=0 here and skips everything below entirely.
   const { count } = await prisma.matchup.updateMany({
@@ -75,7 +81,7 @@ export async function finalizeLeagueWeek(leagueId: string, week: number, year: n
   const matchups = await prisma.matchup.findMany({ where: { leagueId, week } });
   for (const m of matchups) {
     let winnerId = await resolveWinner(
-      m.homeTeamId, m.awayTeamId, m.homeScore, m.awayScore, week, year,
+      m.homeTeamId, m.awayTeamId, m.homeScore, m.awayScore, weekDate,
     );
     // Playoff games can't end in a tie: the better (lower-number) seed advances.
     if (winnerId === null && m.matchupType !== 'regular' && m.homeSeed != null && m.awaySeed != null) {
@@ -93,7 +99,7 @@ export async function finalizeLeagueWeek(leagueId: string, week: number, year: n
       prisma,
       leagueId,
       'week_result',
-      `Week ${week} final: ${home} ${m.homeScore} — ${away} ${m.awayScore} · ${outcome}`,
+      `Week ${week} final: ${home} ${m.homeScore} - ${away} ${m.awayScore} · ${outcome}`,
     );
 
     // Update team stats: both teams accumulate pointsFor; winner/loser get wins/losses.
@@ -179,7 +185,7 @@ async function advanceSeason(leagueId: string, week: number): Promise<void> {
             userId: t.userId,
             leagueId,
             type: 'lineup_reminder',
-            message: `Week ${week + 1} is here — set your lineup before it locks on Tuesday!`,
+            message: `Week ${week + 1} is here. Set your lineup before it locks on Tuesday!`,
           })),
         });
       }
@@ -201,7 +207,7 @@ export function firstScoringTuesdayPT(draftTime: Date): string {
   return firstTuesday.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
 }
 
-export async function runFinalizePipeline(): Promise<void> {
+export async function runFinalizePipeline(options: { force?: boolean } = {}): Promise<void> {
   // Single-source week boundary: same Pacific Tue function used by dailyPipeline.
   // At Mon 0:01 AM Pacific (finalize cron time), this returns last Tuesday = week just ended.
   const weekDate = getCurrentWeekDate();
@@ -210,10 +216,18 @@ export async function runFinalizePipeline(): Promise<void> {
 
   const leagues = await prisma.league.findMany({
     where: { status: 'active' },
-    select: { id: true, currentWeek: true, seasonYear: true, draftTime: true },
+    select: { id: true, currentWeek: true, draftTime: true, lastFinalizedDatePT: true },
   });
 
-  for (const { id: leagueId, currentWeek: week, seasonYear: year, draftTime } of leagues) {
+  for (const { id: leagueId, currentWeek: week, draftTime, lastFinalizedDatePT } of leagues) {
+    // DB-persisted once-per-PT-date guard. The scheduler's in-memory dedupe
+    // resets on every restart, so each deploy on a Monday used to re-run
+    // finalize against the freshly advanced currentWeek and skip whole weeks.
+    // Set only after a successful run so the 15-min failure retry still works.
+    if (!options.force && lastFinalizedDatePT === todayPT) {
+      console.log(`[finalize] league ${leagueId} — already finalized on ${todayPT}, skipping`);
+      continue;
+    }
     // Week 1 exception: there is no game in the gap between draft completion and the
     // first scoring Tuesday. Only finalize once the Monday AFTER the first full scoring
     // week (Tue–Sun) has been reached — i.e. firstScoringTuesday + 6 days.
@@ -232,14 +246,16 @@ export async function runFinalizePipeline(): Promise<void> {
       }
     }
 
-    await finalizeLeagueWeek(leagueId, week, year);
+    await finalizeLeagueWeek(leagueId, week, weekDate);
+    await prisma.league.update({ where: { id: leagueId }, data: { lastFinalizedDatePT: todayPT } });
   }
 
   console.log('[finalize] done');
 }
 
 if (require.main === module) {
-  runFinalizePipeline()
+  // --force bypasses the once-per-PT-date guard for deliberate manual re-runs.
+  runFinalizePipeline({ force: process.argv.includes('--force') })
     .catch((err) => { console.error('[finalize] fatal:', err); process.exit(1); })
     .finally(() => prisma.$disconnect());
 }

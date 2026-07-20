@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Music2, MailCheck } from 'lucide-react';
+import { MailCheck } from 'lucide-react';
 import { api } from '../api/client';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { WagonMark } from '../components/Logo';
 
 export function ForgotPassword() {
   const [email, setEmail] = useState('');
@@ -27,13 +28,10 @@ export function ForgotPassword() {
 
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/50 via-gray-950 to-purple-950/30 pointer-events-none" />
 
       <div className="relative w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 mb-4">
-            <Music2 className="w-7 h-7 text-indigo-400" />
-          </div>
+          <div className="inline-flex mb-4"><WagonMark size={56} /></div>
           <h1 className="text-3xl font-bold text-white">Reset your password</h1>
           <p className="text-gray-400 mt-1">We'll email you a link to set a new one</p>
         </div>

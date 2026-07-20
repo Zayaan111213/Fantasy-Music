@@ -10,7 +10,7 @@ vi.mock('../../db/prisma', () => ({
 }));
 
 import { prisma } from '../../db/prisma';
-import { scoreArtistWeekFromCharts, scoreAllArtistsForWeek } from '../../scoring/engine';
+import { scoreArtistWeekFromCharts, scoreAllArtistsForWeek, weekDateForLeagueWeek } from '../../scoring/engine';
 
 const pm = prisma as unknown as {
   chartEntry: {
@@ -54,9 +54,27 @@ beforeEach(() => {
   pm.albumChartEntry.count.mockResolvedValue(0);
 });
 
+describe('weekDateForLeagueWeek', () => {
+  const CURRENT = new Date('2026-07-14T00:00:00Z'); // a Tuesday
+
+  it('maps the current league week to the current chart week', () => {
+    expect(weekDateForLeagueWeek(6, 6, CURRENT).toISOString().slice(0, 10)).toBe('2026-07-14');
+  });
+
+  it('counts back 7 days per league week', () => {
+    expect(weekDateForLeagueWeek(6, 5, CURRENT).toISOString().slice(0, 10)).toBe('2026-07-07');
+    expect(weekDateForLeagueWeek(6, 1, CURRENT).toISOString().slice(0, 10)).toBe('2026-06-09');
+  });
+
+  it('two leagues at different weeks resolve the same calendar week from different numbers', () => {
+    // demo league week 3 and user league week 1 are the same real week
+    expect(weekDateForLeagueWeek(4, 3, CURRENT).getTime()).toBe(weekDateForLeagueWeek(2, 1, CURRENT).getTime());
+  });
+});
+
 describe('scoreArtistWeekFromCharts', () => {
   it('scores 0 and sets dataMissing when not on any chart', async () => {
-    await scoreArtistWeekFromCharts(ARTIST, WEEK, YEAR, WEEK_DATE);
+    await scoreArtistWeekFromCharts(ARTIST, WEEK_DATE);
 
     const c = capturedCreate();
     expect(c.totalPoints).toBe(0);
@@ -70,7 +88,7 @@ describe('scoreArtistWeekFromCharts', () => {
     pm.chartEntry.findMany.mockResolvedValue([song(5)]);
     pm.chartEntry.findFirst.mockResolvedValue(null); // debut — no prior week entry
 
-    await scoreArtistWeekFromCharts(ARTIST, WEEK, YEAR, WEEK_DATE);
+    await scoreArtistWeekFromCharts(ARTIST, WEEK_DATE);
 
     const c = capturedCreate();
     expect(c.chartPositionPoints).toBe(18);
@@ -86,7 +104,7 @@ describe('scoreArtistWeekFromCharts', () => {
     pm.chartEntry.findMany.mockResolvedValue([song(5)]);
     pm.chartEntry.findFirst.mockResolvedValue({ rank: 15 });
 
-    await scoreArtistWeekFromCharts(ARTIST, WEEK, YEAR, WEEK_DATE);
+    await scoreArtistWeekFromCharts(ARTIST, WEEK_DATE);
 
     const c = capturedCreate();
     expect(c.chartMovement).toBe(10); // 15 - 5 = +10
@@ -99,7 +117,7 @@ describe('scoreArtistWeekFromCharts', () => {
     pm.chartEntry.findMany.mockResolvedValue([song(1)]);
     pm.chartEntry.findFirst.mockResolvedValue({ rank: 50 });
 
-    await scoreArtistWeekFromCharts(ARTIST, WEEK, YEAR, WEEK_DATE);
+    await scoreArtistWeekFromCharts(ARTIST, WEEK_DATE);
 
     const c = capturedCreate();
     expect(c.chartMovementPoints).toBe(15); // capped
@@ -111,7 +129,7 @@ describe('scoreArtistWeekFromCharts', () => {
     pm.chartEntry.findMany.mockResolvedValue([song(20)]);
     pm.chartEntry.findFirst.mockResolvedValue({ rank: 5 });
 
-    await scoreArtistWeekFromCharts(ARTIST, WEEK, YEAR, WEEK_DATE);
+    await scoreArtistWeekFromCharts(ARTIST, WEEK_DATE);
 
     const c = capturedCreate();
     expect(c.chartMovementPoints).toBe(-10); // capped at maxDrop
@@ -123,7 +141,7 @@ describe('scoreArtistWeekFromCharts', () => {
     pm.albumChartEntry.findMany.mockResolvedValue([album(8)]);
     pm.albumChartEntry.findFirst.mockResolvedValue(null); // album debut
 
-    await scoreArtistWeekFromCharts(ARTIST, WEEK, YEAR, WEEK_DATE);
+    await scoreArtistWeekFromCharts(ARTIST, WEEK_DATE);
 
     const c = capturedCreate();
     expect(c.chartPositionPoints).toBe(18); // album rank 8, tier 2-10 = 18
@@ -139,7 +157,7 @@ describe('scoreArtistWeekFromCharts', () => {
     pm.albumChartEntry.findMany.mockResolvedValue([album(5)]);
     pm.albumChartEntry.findFirst.mockResolvedValue(null);
 
-    await scoreArtistWeekFromCharts(ARTIST, WEEK, YEAR, WEEK_DATE);
+    await scoreArtistWeekFromCharts(ARTIST, WEEK_DATE);
 
     const c = capturedCreate();
     expect(c.chartPositionPoints).toBe(36); // 18 + 18
@@ -153,7 +171,7 @@ describe('scoreArtistWeekFromCharts', () => {
     pm.albumChartEntry.findMany.mockResolvedValue([album(8)]);
     pm.albumChartEntry.findFirst.mockResolvedValue(null); // album debut
 
-    await scoreArtistWeekFromCharts(ARTIST, WEEK, YEAR, WEEK_DATE);
+    await scoreArtistWeekFromCharts(ARTIST, WEEK_DATE);
 
     const c = capturedCreate();
     expect(c.songRank).toBe(5);
@@ -176,7 +194,7 @@ describe('scoreArtistWeekFromCharts', () => {
     // All 5 prior-week count queries return 1 → consecutiveWeeks = 1 + 5 = 6
     pm.chartEntry.count.mockResolvedValue(1);
 
-    await scoreArtistWeekFromCharts(ARTIST, WEEK, YEAR, WEEK_DATE);
+    await scoreArtistWeekFromCharts(ARTIST, WEEK_DATE);
 
     const c = capturedCreate();
     // scoreLongevity(6) = min((6-1)*2, 10) = 10
@@ -193,7 +211,7 @@ describe('scoreArtistWeekFromCharts', () => {
       .mockResolvedValueOnce(1)
       .mockResolvedValueOnce(0); // gap — loop breaks here
 
-    await scoreArtistWeekFromCharts(ARTIST, WEEK, YEAR, WEEK_DATE);
+    await scoreArtistWeekFromCharts(ARTIST, WEEK_DATE);
 
     const c = capturedCreate();
     // consecutiveWeeks = 1 + 2 = 3 → scoreLongevity(3) = (3-1)*2 = 4
@@ -205,12 +223,56 @@ describe('scoreArtistWeekFromCharts', () => {
     pm.chartEntry.findMany.mockResolvedValue([song(5, BigInt(100)), song(20, BigInt(101))]);
     pm.chartEntry.findFirst.mockResolvedValue(null); // debut
 
-    await scoreArtistWeekFromCharts(ARTIST, WEEK, YEAR, WEEK_DATE);
+    await scoreArtistWeekFromCharts(ARTIST, WEEK_DATE);
 
     const c = capturedCreate();
     // Should use rank 5 (18 pts), not rank 20 (12 pts)
     expect(c.chartPositionPoints).toBe(18);
     expect(c.bestChartPosition).toBe(5);
+  });
+});
+
+describe('fell-off-chart penalty', () => {
+  it('charts last week, gone this week: -10 per fallen chart', async () => {
+    // No entries this week; prior week had song + album entries
+    pm.chartEntry.findMany.mockResolvedValue([]);
+    pm.albumChartEntry.findMany.mockResolvedValue([]);
+    pm.chartEntry.count.mockResolvedValue(1);
+    pm.albumChartEntry.count.mockResolvedValue(1);
+
+    await scoreArtistWeekFromCharts(ARTIST, WEEK_DATE);
+    const c = capturedCreate();
+    expect(c.songMovementPoints).toBe(-10);
+    expect(c.albumMovementPoints).toBe(-10);
+    expect(c.longevityPoints).toBe(0); // longevity resets when off the charts
+    expect(c.totalPoints).toBe(-20);
+  });
+
+  it('never charted: no penalty, plain 0', async () => {
+    pm.chartEntry.count.mockResolvedValue(0);
+    pm.albumChartEntry.count.mockResolvedValue(0);
+    await scoreArtistWeekFromCharts(ARTIST, WEEK_DATE);
+    expect(capturedCreate().totalPoints).toBe(0);
+  });
+
+  it('fell off songs but debuts on albums: penalty and bonus both apply', async () => {
+    const prior = new Date(WEEK_DATE.getTime() - 7 * 24 * 60 * 60 * 1000).getTime();
+    pm.chartEntry.findMany.mockResolvedValue([]);
+    pm.albumChartEntry.findMany.mockResolvedValue([album(8)]);
+    pm.albumChartEntry.findFirst.mockResolvedValue(null); // album debut
+    // Song chart: on it last week only (for the penalty); nothing older.
+    pm.chartEntry.count.mockImplementation(async ({ where }: any) =>
+      where.weekDate.getTime() === prior ? 1 : 0,
+    );
+    pm.albumChartEntry.count.mockResolvedValue(0);
+
+    await scoreArtistWeekFromCharts(ARTIST, WEEK_DATE);
+    const c = capturedCreate();
+    expect(c.songMovementPoints).toBe(-10); // fell off songs
+    expect(c.albumPositionPoints).toBe(18); // rank 8
+    expect(c.albumMovementPoints).toBe(10); // debut
+    expect(c.longevityPoints).toBe(2); // on a chart this week + last week
+    expect(c.totalPoints).toBe(20);
   });
 });
 
@@ -220,7 +282,7 @@ describe('split credits: shared songs score each artist independently', () => {
     pm.chartEntry.findFirst.mockResolvedValue({ rank: 20 });
     pm.chartEntry.count.mockResolvedValue(0);
 
-    await scoreArtistWeekFromCharts(ARTIST, WEEK, YEAR, WEEK_DATE);
+    await scoreArtistWeekFromCharts(ARTIST, WEEK_DATE);
 
     // Joint credits duplicate rows per artist, so the same appleSongId exists
     // for several artists — the lookup must be scoped to this one.
@@ -237,8 +299,8 @@ describe('split credits: shared songs score each artist independently', () => {
     );
     pm.chartEntry.count.mockResolvedValue(0);
 
-    await scoreArtistWeekFromCharts('artist-1', WEEK, YEAR, WEEK_DATE);
-    await scoreArtistWeekFromCharts('artist-2', WEEK, YEAR, WEEK_DATE);
+    await scoreArtistWeekFromCharts('artist-1', WEEK_DATE);
+    await scoreArtistWeekFromCharts('artist-2', WEEK_DATE);
 
     const [first, second] = pm.weeklyScore.upsert.mock.calls.map((c) => c[0].create);
     expect(first.songPositionPoints).toBe(25); // full points, not shared
@@ -253,7 +315,7 @@ describe('split credits: shared songs score each artist independently', () => {
 describe('scoreAllArtistsForWeek', () => {
   it('excludes hidden (retired combined-credit) artists', async () => {
     pm.artist.findMany.mockResolvedValue([]);
-    await scoreAllArtistsForWeek(WEEK, YEAR, WEEK_DATE);
+    await scoreAllArtistsForWeek(WEEK_DATE);
     expect(pm.artist.findMany).toHaveBeenCalledWith({ where: { hiddenAt: null }, select: { id: true } });
   });
 
@@ -268,7 +330,7 @@ describe('scoreAllArtistsForWeek', () => {
       where.artistId === 'artist-2' ? [song(10)] : [],
     );
 
-    await scoreAllArtistsForWeek(WEEK, YEAR, WEEK_DATE);
+    await scoreAllArtistsForWeek(WEEK_DATE);
 
     expect(pm.artist.findMany).toHaveBeenCalled();
     expect(pm.weeklyScore.upsert).toHaveBeenCalledTimes(3);

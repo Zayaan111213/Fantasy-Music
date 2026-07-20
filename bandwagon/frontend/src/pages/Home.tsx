@@ -1,13 +1,132 @@
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Users, Trophy, Music2, ChevronRight, Clock, X } from 'lucide-react';
+import { Plus, Users, Trophy, ChevronRight, Clock, X, HelpCircle, Music, Disc3 } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Spinner } from '../components/ui/Spinner';
 import { Avatar } from '../components/ui/Avatar';
-import type { LeagueCard, Notification } from '../api/types';
+import { HowItWorksModal } from '../components/HowItWorksModal';
+import type { ChartRow, GlobalActivityItem, LeagueCard, MoversPayload, Notification } from '../api/types';
+import { WagonMark, Wordmark } from '../components/Logo';
+import { timeAgo } from '../utils/timeAgo';
+
+function MoverRow({ row }: { row: ChartRow }) {
+  const up = (row.delta ?? 0) > 0;
+  const a = row.artists[0];
+  const inner = (
+    <>
+      <div className="w-6 font-serif text-base text-gray-500 text-center shrink-0">{row.rank}</div>
+      {a ? (
+        <Avatar src={a.imageUrl} name={a.name} size="sm" />
+      ) : (
+        <div className="w-8 h-8 shrink-0 rounded-lg bg-gray-800 border border-gray-700 flex items-center justify-center text-gray-500 text-xs">♪</div>
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-semibold text-white truncate">{row.title}</div>
+        <div className="text-xs text-gray-400 truncate">{row.artists.map((x) => x.name).join(', ') || '—'}</div>
+      </div>
+      <div className={`text-[13px] font-bold shrink-0 ${up ? 'text-green-400' : 'text-red-400'}`}>
+        {up ? '▲' : '▼'} {Math.abs(row.delta ?? 0)}
+      </div>
+    </>
+  );
+  const cls = 'flex items-center gap-3 py-2 border-b border-gray-900 last:border-0';
+  return a ? (
+    <Link to={`/artists/${a.id}`} className={`${cls} hover:bg-white/5 -mx-2 px-2 rounded-lg transition-colors`}>{inner}</Link>
+  ) : (
+    <div className={cls}>{inner}</div>
+  );
+}
+
+function MoversCard({ label, icon: Icon, tab, data }: {
+  label: string;
+  icon: typeof Music;
+  tab: 'songs' | 'albums';
+  data?: { risers: ChartRow[]; fallers: ChartRow[] };
+}) {
+  const rows = [...(data?.risers.slice(0, 3) ?? []), ...(data?.fallers.slice(0, 2) ?? [])];
+  return (
+    <Card className="p-5">
+      <h3 className="flex items-center justify-between mb-2">
+        <span className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-gray-400">
+          <Icon className="w-4 h-4" />
+          {label} · This Week's Movers
+        </span>
+        <Link to={`/charts?tab=${tab}`} className="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 transition-colors">
+          Full chart →
+        </Link>
+      </h3>
+      {rows.length > 0 ? (
+        rows.map((row) => <MoverRow key={row.rank} row={row} />)
+      ) : (
+        <p className="text-sm text-gray-500 py-4 text-center">No chart movement yet this week.</p>
+      )}
+    </Card>
+  );
+}
+
+// The raw feed messages are full sentences with artist lists and details —
+// on Home each item is compressed to one short line: fixed phrasing for the
+// verbose types, otherwise the first clause of the message, truncated.
+const FIXED_SUMMARIES: Record<string, string> = {
+  lineup_reminder: 'Set your lineup before Tuesday',
+  waiver_result: 'Your waiver claim results are in',
+  playoffs_set: 'Playoff bracket is set',
+  season_complete: 'Season complete',
+  draft_complete: 'Draft complete',
+  league_renewed: 'Renewed for a new season',
+  artist_split: 'An artist group was split up',
+};
+
+function summarize(item: GlobalActivityItem): string {
+  const fixed = FIXED_SUMMARIES[item.type];
+  if (fixed) return fixed;
+  const clause = item.message.split(/(?::| — | - )/)[0].trim().replace(/\.$/, '');
+  return clause.length > 64 ? `${clause.slice(0, 61)}…` : clause;
+}
+
+function activityGlyph(type: string): { glyph: string; color: string } {
+  if (type.startsWith('trade')) return { glyph: '⇄', color: '#E8B23A' };
+  if (type.startsWith('waiver') || type === 'claim') return { glyph: '＋', color: '#E07A3E' };
+  if (type === 'member_joined') return { glyph: '＋', color: '#6FA595' };
+  if (type === 'week_result' || type === 'season_complete' || type === 'playoffs_set') return { glyph: '♪', color: '#E8B23A' };
+  return { glyph: '♪', color: '#A88F70' };
+}
+
+function ActivityCard({ items }: { items?: GlobalActivityItem[] }) {
+  return (
+    <Card className="p-5">
+      <h3 className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">Around Your Leagues</h3>
+      {items && items.length > 0 ? (
+        items.slice(0, 5).map((item) => {
+          const { glyph, color } = activityGlyph(item.type);
+          return (
+            <Link
+              key={item.id}
+              to={`/leagues/${item.leagueId}`}
+              className="flex gap-3 py-2.5 border-b border-gray-900 last:border-0 hover:bg-white/5 -mx-2 px-2 rounded-lg transition-colors"
+            >
+              <div className="w-7 h-7 rounded-lg bg-gray-800 border border-gray-700 flex items-center justify-center text-[13px] shrink-0" style={{ color }}>
+                {glyph}
+              </div>
+              <div className="min-w-0">
+                <p className="text-[13px] text-gray-300 leading-snug truncate">{summarize(item)}</p>
+                <p className="text-[11px] text-gray-500 mt-0.5">{item.leagueName} · {timeAgo(item.createdAt)}</p>
+              </div>
+            </Link>
+          );
+        })
+      ) : (
+        <p className="text-sm text-gray-500 py-4 text-center">League activity will show up here.</p>
+      )}
+    </Card>
+  );
+}
+
+const HOW_IT_WORKS_FLAG = 'bw_show_how_it_works';
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; cls: string }> = {
@@ -24,6 +143,15 @@ export function Home() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
+
+  // Auto-open once after account creation (flag set at signup)
+  useEffect(() => {
+    if (localStorage.getItem(HOW_IT_WORKS_FLAG)) {
+      localStorage.removeItem(HOW_IT_WORKS_FLAG);
+      setShowHowItWorks(true);
+    }
+  }, []);
 
   const { data: leagues, isLoading } = useQuery({
     queryKey: ['leagues'],
@@ -40,23 +168,40 @@ export function Home() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
   });
 
+  const { data: movers } = useQuery({
+    queryKey: ['chartMovers'],
+    queryFn: () => api.get<MoversPayload>('/charts/movers?limit=3'),
+  });
+
+  const { data: allActivity } = useQuery({
+    queryKey: ['globalActivity'],
+    queryFn: () => api.get<{ items: GlobalActivityItem[] }>('/notifications/activity'),
+  });
+
   return (
     <div className="min-h-screen bg-gray-950">
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/30 via-gray-950 to-purple-950/20 pointer-events-none" />
+
+      {showHowItWorks && <HowItWorksModal onClose={() => setShowHowItWorks(false)} />}
 
       {/* Nav */}
       <header className="relative border-b border-white/10">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/home" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
-              <Music2 className="w-4 h-4 text-indigo-400" />
-            </div>
-            <span className="font-bold text-white text-lg">Bandwagon</span>
+            <WagonMark size={32} />
+            <Wordmark className="text-lg" />
           </Link>
           <div className="flex items-center gap-3">
-            <Link to="/account" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+            <button
+              onClick={() => setShowHowItWorks(true)}
+              className="text-gray-400 hover:text-white transition-colors"
+              aria-label="How Bandwagoner works"
+              title="How Bandwagoner works"
+            >
+              <HelpCircle className="w-5 h-5" />
+            </button>
+            <Link to="/account" aria-label="Account" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
               <Avatar src={user?.avatarUrl} name={user?.username ?? '?'} size="sm" />
-              <span className="text-gray-400 text-sm">{user?.username}</span>
+              <span className="hidden sm:inline text-gray-400 text-sm">{user?.username}</span>
             </Link>
             <Button variant="ghost" size="sm" onClick={logout}>Sign out</Button>
           </div>
@@ -65,18 +210,30 @@ export function Home() {
 
       {notifications && notifications.length > 0 && (
         <div className="relative max-w-5xl mx-auto px-4 pt-4 space-y-2">
-          {notifications.map((n) => (
-            <div key={n.id} className="flex items-start gap-3 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 text-sm text-red-300">
-              <span className="flex-1">{n.message}</span>
-              <button
-                onClick={() => dismissMutation.mutate(n.id)}
-                className="shrink-0 text-red-400 hover:text-red-200 transition-colors mt-0.5"
-                aria-label="Dismiss"
+          {notifications.map((n) => {
+            const isDeletion = n.type === 'league_deleted';
+            return (
+              <div
+                key={n.id}
+                className={`flex items-start gap-3 rounded-lg px-4 py-3 text-sm ${
+                  isDeletion
+                    ? 'bg-red-500/10 border border-red-500/20 text-red-300'
+                    : 'bg-white/5 border border-white/10 text-gray-300 backdrop-blur-sm'
+                }`}
               >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
+                <span className="flex-1">{n.message}</span>
+                <button
+                  onClick={() => dismissMutation.mutate(n.id)}
+                  className={`shrink-0 transition-colors mt-0.5 ${
+                    isDeletion ? 'text-red-400 hover:text-red-200' : 'text-gray-500 hover:text-white'
+                  }`}
+                  aria-label="Dismiss"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -108,8 +265,8 @@ export function Home() {
               <Link key={league.id} to={`/leagues/${league.id}`}>
                 <Card className="p-5 hover:bg-white/10 transition-colors cursor-pointer group">
                   <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
                         <h2 className="font-semibold text-white">{league.name}</h2>
                         <StatusBadge status={league.status} />
                         {league.isCommissioner && (
@@ -122,7 +279,7 @@ export function Home() {
                         {league.myTeam.name} · {league.memberCount}/{league.teamCount} teams
                       </p>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-gray-600 group-hover:text-gray-400 transition-colors" />
+                    <ChevronRight className="w-5 h-5 shrink-0 text-gray-600 group-hover:text-gray-400 transition-colors" />
                   </div>
 
                   <div className="flex items-center justify-between">
@@ -188,6 +345,15 @@ export function Home() {
             </div>
           </div>
         )}
+
+        {/* Charts movers side by side, cross-league activity beneath */}
+        <div className="mt-8 space-y-5">
+          <div className="grid gap-5 md:grid-cols-2">
+            <MoversCard label="Songs" icon={Music} tab="songs" data={movers?.songs} />
+            <MoversCard label="Albums" icon={Disc3} tab="albums" data={movers?.albums} />
+          </div>
+          <ActivityCard items={allActivity?.items} />
+        </div>
       </main>
     </div>
   );

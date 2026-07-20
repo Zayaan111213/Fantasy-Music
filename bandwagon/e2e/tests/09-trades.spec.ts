@@ -52,7 +52,10 @@ test.describe('Trades', () => {
     await expect(page.getByRole('heading', { name: 'Propose Trade' })).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText('You receive (1)')).toBeVisible({ timeout: 10_000 });
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
-    await expect(page.getByText('Free Agents Only')).not.toBeVisible();
+    // Cancel goes back through history, and the hub tab lives in the URL —
+    // so we land back on the Players tab we came from, not My Team.
+    await expect(page).toHaveURL(/tab=players/);
+    await expect(page.getByText('Free Agents Only')).toBeVisible({ timeout: 10_000 });
 
     // Artist-profile entry point: Trade button pre-includes that artist
     const theirs = await rosterArtists(fx.user1.token, fx.leagueId, fx.team2Id);
@@ -226,5 +229,54 @@ test.describe('Trades', () => {
 
     const list = await apiGet<{ trades: { id: string; status: string }[] }>(fx.user1.token, `/api/leagues/${fx.leagueId}/trades`);
     expect(list.trades.find((t) => t.id === proposed.id)!.status).toBe('vetoed');
+  });
+});
+
+// The acceptor-side drop flow through the real UI: when a trade nets the
+// receiver more players than they send, the accept modal must show the drop
+// selector and only enable Accept once the required drops are picked.
+test.describe('Trades — acceptor designates drops in the UI', () => {
+  let fx: ActiveLeagueFixture;
+
+  test.beforeAll(async () => {
+    fx = await setupActiveLeague();
+  });
+
+  test.afterAll(async () => {
+    await teardownLeague(fx.leagueId, [fx.user1.id, fx.user2.id, fx.user3.id, fx.user4.id]);
+  });
+
+  test('accept modal requires selecting a drop, then accepts', async ({ browser }) => {
+    const mine = await rosterArtists(fx.user1.token, fx.leagueId, fx.team1Id);
+    const theirs = await rosterArtists(fx.user1.token, fx.leagueId, fx.team2Id);
+    // Proposer gives 2 Pop for 1 Pop → the acceptor nets +1 and must drop 1.
+    const give = byGenre(mine, 'Pop').slice(0, 2);
+    const receive = [byGenre(theirs, 'Pop')[0]];
+    const dropPick = byGenre(theirs, 'Pop')[1];
+
+    await apiPost(fx.user1.token, `/api/leagues/${fx.leagueId}/trades`, {
+      toTeamId: fx.team2Id, give: give.map((g) => g.id), receive: receive.map((r) => r.id), drops: [],
+    });
+
+    const ctx = await browser.newContext();
+    await injectAuth(ctx, fx.user2.token);
+    const page = await ctx.newPage();
+    await page.goto(`/leagues/${fx.leagueId}`);
+
+    await page.getByRole('button', { name: 'Accept', exact: true }).click();
+    await expect(page.getByText(/Accept trade from/)).toBeVisible();
+
+    // Drop selector appears with the exact count, and Accept stays disabled
+    await expect(page.getByText(/select 1 player to drop \(0\/1\)/i)).toBeVisible();
+    const acceptBtn = page.getByRole('button', { name: 'Accept Trade' });
+    await expect(acceptBtn).toBeDisabled();
+
+    // Pick a same-genre drop → Accept enables → trade is accepted
+    await page.getByRole('button', { name: new RegExp(dropPick.name) }).click();
+    await expect(acceptBtn).toBeEnabled();
+    await acceptBtn.click();
+    await expect(page.getByText('Accepted · executes Sunday night').first()).toBeVisible();
+
+    await ctx.close();
   });
 });

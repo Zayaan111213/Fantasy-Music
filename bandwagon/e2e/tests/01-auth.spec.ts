@@ -8,7 +8,7 @@ function uniqueEmail() {
 test.describe('Authentication', () => {
   test('signup flow — new user reaches onboarding then home', async ({ page }) => {
     const email = uniqueEmail();
-    const password = 'testpass123';
+    const password = 'testpass123!';
 
     await page.goto('/auth');
     await page.getByRole('button', { name: 'Sign Up' }).click();
@@ -27,7 +27,13 @@ test.describe('Authentication', () => {
     await page.getByRole('button', { name: 'Continue' }).click();
 
     await page.waitForURL('**/home', { timeout: 10_000 });
-    await expect(page.getByText('Bandwagon')).toBeVisible();
+
+    // New accounts get the how-it-works modal on their first Home visit
+    await expect(page.getByText('How Bandwagoner Works')).toBeVisible();
+    await page.getByRole('button', { name: /Got it/ }).click();
+    await expect(page.getByText('How Bandwagoner Works')).not.toBeVisible();
+
+    await expect(page.getByText('Bandwagoner')).toBeVisible();
   });
 
   test('demo account buttons fill the login form', async ({ page }) => {
@@ -41,20 +47,20 @@ test.describe('Authentication', () => {
 
   test('login flow — existing user lands on home', async ({ page }) => {
     const email = uniqueEmail();
-    const user = await createUser(email, 'testpass123', `lt${Date.now()}${Math.random().toString(36).slice(2, 5)}`.slice(0, 20));
+    const user = await createUser(email, 'testpass123!', `lt${Date.now()}${Math.random().toString(36).slice(2, 5)}`.slice(0, 20));
 
     await page.goto('/auth');
     await page.getByLabel('Email').fill(user.email);
-    await page.getByLabel('Password').fill('testpass123');
+    await page.getByLabel('Password').fill('testpass123!');
     await page.locator('form').getByRole('button', { name: 'Log In' }).click();
 
     await page.waitForURL('**/home', { timeout: 10_000 });
-    await expect(page.getByText('Bandwagon')).toBeVisible();
+    await expect(page.getByText('Bandwagoner')).toBeVisible();
   });
 
   test('wrong password — shows error banner', async ({ page }) => {
     const email = uniqueEmail();
-    await createUser(email, 'rightpass123', `et${Date.now()}${Math.random().toString(36).slice(2, 5)}`.slice(0, 20));
+    await createUser(email, 'rightpass123!', `et${Date.now()}${Math.random().toString(36).slice(2, 5)}`.slice(0, 20));
 
     await page.goto('/auth');
     await page.getByLabel('Email').fill(email);

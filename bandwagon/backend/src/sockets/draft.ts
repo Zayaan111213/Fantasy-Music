@@ -119,7 +119,7 @@ async function fireAutoDraft(io: Server, leagueId: string) {
   for (const slot of openSlots) {
     const bestArtist = await prisma.artist.findFirst({
       where: { id: { notIn: draftedIds }, hiddenAt: null },
-      include: { weeklyScores: { orderBy: { week: 'desc' }, take: 1 } },
+      include: { weeklyScores: { orderBy: { weekDate: 'desc' }, take: 1 } },
       orderBy: { name: 'asc' },
     });
 
@@ -128,7 +128,7 @@ async function fireAutoDraft(io: Server, leagueId: string) {
     // Find best eligible undrafted artist for this slot
     const eligibleArtists = await prisma.artist.findMany({
       where: { id: { notIn: draftedIds }, hiddenAt: null },
-      include: { weeklyScores: { orderBy: { week: 'desc' }, take: 1 } },
+      include: { weeklyScores: { orderBy: { weekDate: 'desc' }, take: 1 } },
     });
 
     const eligible = eligibleArtists

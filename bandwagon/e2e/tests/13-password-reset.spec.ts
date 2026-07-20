@@ -18,8 +18,8 @@ async function mintResetToken(email: string): Promise<string> {
 
 test.describe('Password reset', () => {
   let user: TestUser;
-  const OLD_PASSWORD = 'origpass123';
-  const NEW_PASSWORD = 'newpass456';
+  const OLD_PASSWORD = 'origpass123!';
+  const NEW_PASSWORD = 'newpass456!';
 
   test.beforeAll(async () => {
     user = await createUser(
@@ -82,8 +82,8 @@ test.describe('Password reset', () => {
     // The link is single-use: reusing the same token fails.
     await page.evaluate(() => localStorage.removeItem('bw_token'));
     await page.goto(`/reset-password?token=${token}`);
-    await page.getByLabel('New Password').fill('anotherpass789');
-    await page.getByLabel('Confirm Password').fill('anotherpass789');
+    await page.getByLabel('New Password').fill('anotherpass789!');
+    await page.getByLabel('Confirm Password').fill('anotherpass789!');
     await page.getByRole('button', { name: 'Set New Password' }).click();
     await expect(page.getByText('Invalid or expired reset link')).toBeVisible({ timeout: 5_000 });
   });

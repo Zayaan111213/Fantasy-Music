@@ -35,7 +35,7 @@ router.get('/', requireAuth, async (req, res, next) => {
         ...(genre && genreFilterToWhere(genre)),
       },
       include: {
-        weeklyScores: { orderBy: { week: 'desc' }, take: 5 },
+        weeklyScores: { orderBy: { weekDate: 'desc' }, take: 5 },
       },
       orderBy: { name: 'asc' },
       skip: (page - 1) * limit,
@@ -68,67 +68,6 @@ router.get('/:id', requireAuth, async (req, res, next) => {
 
     const artist = await prisma.artist.findUnique({ where: { id: req.params.id } });
     if (!artist) { res.status(404).json({ error: 'Artist not found' }); return; }
-
-    // Build chart breakdown for the latest scored week (song + album, position + movement)
-    let chartBreakdown: {
-      song: { rank: number; title: string; movement: number | null; isDebut: boolean; positionPoints: number; movementPoints: number } | null;
-      album: { rank: number; title: string; movement: number | null; isDebut: boolean; positionPoints: number; movementPoints: number } | null;
-    } | null = null;
-
-    const [bestSong, bestAlbum] = await Promise.all([
-      prisma.chartEntry.findFirst({
-        where: { artistId: artist.id },
-        orderBy: [{ weekDate: 'desc' }, { rank: 'asc' }],
-      }),
-      prisma.albumChartEntry.findFirst({
-        where: { artistId: artist.id },
-        orderBy: [{ weekDate: 'desc' }, { rank: 'asc' }],
-      }),
-    ]);
-
-    if (bestSong || bestAlbum) {
-      const weekDate = (bestSong?.weekDate ?? bestAlbum!.weekDate) as Date;
-      const priorDate = new Date(weekDate.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-      let songMovement: number | null = null;
-      let songIsDebut = false;
-      if (bestSong) {
-        const priorSong = bestSong.appleSongId
-          ? await prisma.chartEntry.findFirst({ where: { weekDate: priorDate, chart: bestSong.chart, artistId: artist.id, appleSongId: bestSong.appleSongId } })
-          : await prisma.chartEntry.findFirst({ where: { weekDate: priorDate, chart: bestSong.chart, artistId: artist.id, songTitle: bestSong.songTitle } });
-        songIsDebut = priorSong === null;
-        songMovement = priorSong !== null ? priorSong.rank - bestSong.rank : null;
-      }
-
-      let albumMovement: number | null = null;
-      let albumIsDebut = false;
-      if (bestAlbum) {
-        const priorAlbum = bestAlbum.appleAlbumId
-          ? await prisma.albumChartEntry.findFirst({ where: { weekDate: priorDate, chart: bestAlbum.chart, artistId: artist.id, appleAlbumId: bestAlbum.appleAlbumId } })
-          : await prisma.albumChartEntry.findFirst({ where: { weekDate: priorDate, chart: bestAlbum.chart, artistId: artist.id, albumTitle: bestAlbum.albumTitle } });
-        albumIsDebut = priorAlbum === null;
-        albumMovement = priorAlbum !== null ? priorAlbum.rank - bestAlbum.rank : null;
-      }
-
-      chartBreakdown = {
-        song: bestSong ? {
-          rank: bestSong.rank,
-          title: bestSong.songTitle,
-          movement: songMovement,
-          isDebut: songIsDebut,
-          positionPoints: scoreChartPosition(bestSong.rank),
-          movementPoints: scoreChartMovement(songMovement, songIsDebut, DEFAULT_SONG_MOVEMENT),
-        } : null,
-        album: bestAlbum ? {
-          rank: bestAlbum.rank,
-          title: bestAlbum.albumTitle,
-          movement: albumMovement,
-          isDebut: albumIsDebut,
-          positionPoints: scoreChartPosition(bestAlbum.rank, ALBUM_CHART_POSITION_TIERS),
-          movementPoints: scoreChartMovement(albumMovement, albumIsDebut, DEFAULT_ALBUM_MOVEMENT),
-        } : null,
-      };
-    }
 
     // Season history: the app's last HISTORY_WEEKS real calendar chart weeks,
     // computed straight from ChartEntry/AlbumChartEntry — not read off the
@@ -164,7 +103,7 @@ router.get('/:id', requireAuth, async (req, res, next) => {
     );
     const currentWeekDate = getCurrentWeekDate();
     const n = weekDatesDesc.length;
-    let weeklyScores = weekDatesDesc.map((weekDate, i) => ({
+    const weeklyScores = weekDatesDesc.map((weekDate, i) => ({
       id: `${artist.id}-${weekDate.toISOString().slice(0, 10)}`,
       artistId: artist.id,
       week: n - i,
@@ -176,23 +115,34 @@ router.get('/:id', requireAuth, async (req, res, next) => {
       ...breakdowns[i],
     }));
 
-    // Recompute totalPoints from the live chartBreakdown so the total always
-    // matches the displayed breakdown bars, even between daily pipeline runs.
-    // If the artist isn't on either chart right now, longevity/total must be 0 too —
-    // otherwise a stale WeeklyScore row (from before it fell off the charts) gets
-    // shown next to "no chart entry this week" messaging.
-    if (weeklyScores.length > 0) {
-      const longevityPoints = chartBreakdown ? (weeklyScores[0].longevityPoints ?? 0) : 0;
-      // Movement points are signed (a rank drop is a real penalty per the scoring
-      // spec) — don't floor at 0, or the total silently under-counts the drop.
-      const computedTotal =
-        (chartBreakdown?.song?.positionPoints ?? 0) +
-        (chartBreakdown?.song?.movementPoints ?? 0) +
-        (chartBreakdown?.album?.positionPoints ?? 0) +
-        (chartBreakdown?.album?.movementPoints ?? 0) +
-        longevityPoints;
-      weeklyScores = [{ ...weeklyScores[0], longevityPoints, totalPoints: computedTotal }, ...weeklyScores.slice(1)];
-    }
+    // Chart breakdown for the newest ingested chart week, derived from the
+    // same live computation as the history row above — never from the
+    // artist's own latest entry in some older week. An artist that fell off
+    // this week's charts shows empty song/album sections and a 0 total,
+    // matching the player lists (which read the stored current-week row).
+    const current = breakdowns.length > 0 ? breakdowns[0] : null;
+    // null (not { song: null, album: null }) when off both charts — the
+    // frontend keys its "not on the charts this week" state off that.
+    const chartBreakdown = current && (current.songRank !== null || current.albumRank !== null)
+      ? {
+          song: current.songRank !== null ? {
+            rank: current.songRank,
+            title: current.songTitle!,
+            movement: current.songMovement,
+            isDebut: current.songIsDebut,
+            positionPoints: current.songPositionPoints,
+            movementPoints: current.songMovementPoints,
+          } : null,
+          album: current.albumRank !== null ? {
+            rank: current.albumRank,
+            title: current.albumTitle!,
+            movement: current.albumMovement,
+            isDebut: current.albumIsDebut,
+            positionPoints: current.albumPositionPoints,
+            movementPoints: current.albumMovementPoints,
+          } : null,
+        }
+      : null;
 
     const cfg = leagueRow ? ScoringConfigSchema.safeParse(leagueRow.scoringConfig).data ?? null : null;
 

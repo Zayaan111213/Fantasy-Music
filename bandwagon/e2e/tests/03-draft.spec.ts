@@ -11,10 +11,10 @@ test.describe('Live draft', () => {
   test.beforeAll(async () => {
     const ts = Date.now();
     const [u1, u2, u3, u4] = await Promise.all([
-      createUser(`e2e-draft-comm-${ts}@test.internal`,  'testpass123', `draftcomm${ts}`.slice(0, 20)),
-      createUser(`e2e-draft-p2-${ts}@test.internal`,    'testpass123', `draftp2${ts}`.slice(0, 20)),
-      createUser(`e2e-draft-p3-${ts}@test.internal`,    'testpass123', `draftp3${ts}`.slice(0, 20)),
-      createUser(`e2e-draft-p4-${ts}@test.internal`,    'testpass123', `draftp4${ts}`.slice(0, 20)),
+      createUser(`e2e-draft-comm-${ts}@test.internal`,  'testpass123!', `draftcomm${ts}`.slice(0, 20)),
+      createUser(`e2e-draft-p2-${ts}@test.internal`,    'testpass123!', `draftp2${ts}`.slice(0, 20)),
+      createUser(`e2e-draft-p3-${ts}@test.internal`,    'testpass123!', `draftp3${ts}`.slice(0, 20)),
+      createUser(`e2e-draft-p4-${ts}@test.internal`,    'testpass123!', `draftp4${ts}`.slice(0, 20)),
     ]);
     commissioner = { id: u1.id, token: u1.token };
     players = [

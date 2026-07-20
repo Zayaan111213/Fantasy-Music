@@ -10,10 +10,54 @@ import {
   TRADE_DEADLINE_WEEK,
 } from '../../trades/engine';
 import { logLeagueEvent } from '../../events/leagueEvents';
+import { getPTParts } from '../../jobs/scheduler';
+import { getCurrentWeekDate } from '../../jobs/ingestCharts';
 
 const router = Router();
 
-const artistSelect = { select: { id: true, name: true, primaryGenre: true, imageUrl: true } };
+const artistSelect = {
+  select: {
+    id: true,
+    name: true,
+    primaryGenre: true,
+    imageUrl: true,
+    // Last 5 chart weeks for the Last/5W-avg stats shown when a trade row is
+    // expanded (same figures as the player lists).
+    weeklyScores: {
+      where: { weekDate: { lte: getCurrentWeekDate() } },
+      orderBy: { weekDate: 'desc' as const },
+      take: 5,
+      select: { totalPoints: true },
+    },
+  },
+};
+
+function artistWithStats(artist: { id: string; name: string; primaryGenre: string; imageUrl: string | null; weeklyScores: { totalPoints: number }[] }) {
+  return {
+    id: artist.id,
+    name: artist.name,
+    primaryGenre: artist.primaryGenre,
+    imageUrl: artist.imageUrl,
+    lastWeekPoints: artist.weeklyScores[0]?.totalPoints ?? 0,
+    avgLast5Points: artist.weeklyScores.length > 0
+      ? artist.weeklyScores.reduce((sum, w) => sum + w.totalPoints, 0) / artist.weeklyScores.length
+      : 0,
+  };
+}
+
+// Resolved trades stay in the Trades section for the rest of the Pacific day
+// they resolved (so both sides see the outcome), then drop out. The activity
+// feed keeps the permanent record.
+const TERMINAL_TRADE_STATUSES = new Set(['rejected', 'cancelled', 'vetoed', 'executed', 'failed']);
+
+export function tradeVisibleToday(
+  trade: { status: string; resolvedAt: Date | null },
+  now: Date = new Date(),
+): boolean {
+  if (!TERMINAL_TRADE_STATUSES.has(trade.status)) return true;
+  if (!trade.resolvedAt) return false; // terminal without a timestamp = stale
+  return getPTParts(trade.resolvedAt).dateStr === getPTParts(now).dateStr;
+}
 
 type LeagueCtx = NonNullable<Awaited<ReturnType<typeof loadLeagueWithTeams>>>;
 type CtxResult =
@@ -66,7 +110,7 @@ router.get('/:id/teams-with-rosters', requireAuth, async (req: AuthRequest, res,
                 name: true,
                 primaryGenre: true,
                 imageUrl: true,
-                weeklyScores: { where: { week: league.currentWeek, seasonYear: league.seasonYear } },
+                weeklyScores: { where: { weekDate: getCurrentWeekDate() } },
               },
             },
           },
@@ -102,7 +146,7 @@ router.get('/:id/trades', requireAuth, async (req: AuthRequest, res, next) => {
       myTeamId: myTeam.id,
       vetoesNeeded: Math.max(league.teams.length - 2, 0),
       tradingClosed: tradingClosed(league),
-      trades: trades.map((t) => ({
+      trades: trades.filter((t) => tradeVisibleToday(t)).map((t) => ({
         id: t.id,
         status: t.status,
         createdAt: t.createdAt,
@@ -115,7 +159,7 @@ router.get('/:id/trades', requireAuth, async (req: AuthRequest, res, next) => {
           artistId: i.artistId,
           fromTeamId: i.fromTeamId,
           toTeamId: i.toTeamId,
-          artist: i.artist,
+          artist: artistWithStats(i.artist),
         })),
         vetoCount: t.vetoes.length,
         myVetoed: t.vetoes.some((v) => v.teamId === myTeam.id),
@@ -272,7 +316,7 @@ router.post('/:id/trades/:tradeId/accept', requireAuth, async (req: AuthRequest,
           userId: trade.proposerTeam.userId,
           leagueId: req.params.id,
           type: 'trade_cancelled',
-          message: `Your trade proposal to ${myTeam.name} was cancelled — a player in it is no longer on the expected roster.`,
+          message: `Your trade proposal to ${myTeam.name} was cancelled. A player in it is no longer on the expected roster.`,
         }],
       });
       res.status(409).json({ error: 'A player in this trade is no longer available; the trade was cancelled' });
@@ -344,7 +388,7 @@ router.post('/:id/trades/:tradeId/accept', requireAuth, async (req: AuthRequest,
         tx,
         req.params.id,
         'trade_accepted',
-        `Trade accepted: ${trade.proposerTeam.name} ↔ ${myTeam.name} — executes Sunday night unless vetoed`,
+        `Trade accepted: ${trade.proposerTeam.name} ↔ ${myTeam.name}. Executes Sunday night unless vetoed`,
       );
       return true;
     });

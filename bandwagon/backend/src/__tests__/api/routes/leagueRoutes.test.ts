@@ -30,6 +30,7 @@ vi.mock('../../../api/middleware/upload', () => ({
 
 import { prisma } from '../../../db/prisma';
 import leagueRouter from '../../../api/routes/leagues';
+import { weekDateForLeagueWeek } from '../../../scoring/engine';
 
 const pm = prisma as unknown as {
   league: { findUnique: ReturnType<typeof vi.fn> };
@@ -228,7 +229,7 @@ describe('GET /leagues/:id/matchups/:matchupId', () => {
   });
 
   it('returns both rosters with scores filtered to the matchup week', async () => {
-    pm.league.findUnique.mockResolvedValue({ id: 'l1', seasonYear: 2026 });
+    pm.league.findUnique.mockResolvedValue({ id: 'l1', seasonYear: 2026, currentWeek: 6 });
     pm.team.findFirst.mockResolvedValue({ id: 'my-team' });
     pm.matchup.findFirst.mockResolvedValue({ id: 'm9', week: 4, leagueId: 'l1' });
     pm.matchup.findUnique.mockResolvedValue({
@@ -243,10 +244,11 @@ describe('GET /leagues/:id/matchups/:matchupId', () => {
     expect(res.body.homeTeam.name).toBe('Alpha');
     expect(res.body.awayTeam.name).toBe('Beta');
 
-    // weeklyScores must be filtered to the matchup's own week, not currentWeek
+    // weeklyScores must resolve the matchup's own week to its calendar chart
+    // week (2 weeks before the league's current one here)
     const include = pm.matchup.findUnique.mock.calls[0][0].include;
     const wsWhere = include.homeTeam.include.rosterSpots.include.artist.include.weeklyScores.where;
-    expect(wsWhere).toEqual({ week: 4, seasonYear: 2026 });
+    expect(wsWhere).toEqual({ weekDate: weekDateForLeagueWeek(6, 4) });
   });
 
   it('does not swallow the literal /matchups/current route (registration order)', async () => {
@@ -457,5 +459,53 @@ describe('PUT /leagues/:id/roster/lineup', () => {
     expect(pm.$transaction).toHaveBeenCalledTimes(1);
     // rosterSpot.update called 3 times: null out slotA, set slotB→artistA, set slotA→artistB
     expect(pm.rosterSpot.update).toHaveBeenCalledTimes(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /leagues — home-page league cards
+// ---------------------------------------------------------------------------
+
+describe('GET /leagues (league cards)', () => {
+  const myTeam = {
+    id: 't-cw', leagueId: 'l1', name: 'ChartWatcher', logoUrl: null, wins: 3, losses: 0,
+    league: {
+      id: 'l1', name: 'Chart Toppers 2026', status: 'active', currentWeek: 4,
+      isPrivate: true, teamCount: 4, commissionerId: 'user-other',
+      teams: [{ user: { username: 'cw', avatarUrl: null } }],
+    },
+  };
+
+  it('fetches only the matchup involving the user\'s team', async () => {
+    pm.team.findMany.mockResolvedValue([myTeam]);
+    pm.matchup.findFirst.mockResolvedValue(null);
+
+    const res = await request(app).get('/leagues');
+    expect(res.status).toBe(200);
+    expect(pm.matchup.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          leagueId: 'l1',
+          week: 4,
+          OR: [{ homeTeamId: 't-cw' }, { awayTeamId: 't-cw' }],
+        }),
+      })
+    );
+  });
+
+  it('maps opponent and scores from the user\'s side of the matchup', async () => {
+    pm.team.findMany.mockResolvedValue([myTeam]);
+    // User's team is the away side of its own game
+    pm.matchup.findFirst.mockResolvedValue({
+      homeTeamId: 't-bb', awayTeamId: 't-cw', homeScore: 108, awayScore: 230,
+      homeTeam: { id: 't-bb', name: 'BeatBroker', logoUrl: null },
+      awayTeam: { id: 't-cw', name: 'ChartWatcher', logoUrl: null },
+    });
+
+    const res = await request(app).get('/leagues');
+    expect(res.status).toBe(200);
+    expect(res.body[0].opponent.name).toBe('BeatBroker');
+    expect(res.body[0].myScore).toBe(230);
+    expect(res.body[0].opponentScore).toBe(108);
   });
 });

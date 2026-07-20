@@ -91,7 +91,7 @@ describe('POST /auth/forgot-password', () => {
 
     const email = sendEmailMock.mock.calls[0][0];
     expect(email.to).toBe(USER.email);
-    expect(email.subject).toBe('Reset your Bandwagon password');
+    expect(email.subject).toBe('Reset your Bandwagoner password');
     const match = /\/reset-password\?token=([0-9a-f]{64})/.exec(email.text ?? '');
     expect(match).not.toBeNull();
     const raw = match![1];
@@ -105,7 +105,7 @@ describe('POST /auth/forgot-password', () => {
     sendEmailMock.mockResolvedValue({ status: 'failed', permanent: true, detail: 'Resend 403' });
     const res = await request(app).post('/auth/forgot-password').send({ email: USER.email });
     expect(res.status).toBe(502);
-    expect(res.body.error).toBe('Could not send the reset email — try again later');
+    expect(res.body.error).toBe('Could not send the reset email. Try again later');
   });
 
   it('200 when sending is skipped (no API key in dev/test)', async () => {
@@ -123,7 +123,7 @@ describe('POST /auth/reset-password', () => {
 
   it('sets the new password, burns the token, and returns a login response', async () => {
     pm.passwordResetToken.findFirst.mockResolvedValue(ROW);
-    const res = await request(app).post('/auth/reset-password').send({ token: RAW, password: 'newpass456' });
+    const res = await request(app).post('/auth/reset-password').send({ token: RAW, password: 'newpass456!' });
     expect(res.status).toBe(200);
 
     expect(pm.passwordResetToken.findFirst).toHaveBeenCalledWith({
@@ -132,7 +132,7 @@ describe('POST /auth/reset-password', () => {
     });
 
     const updatedHash = pm.user.update.mock.calls[0][0].data.passwordHash;
-    expect(await bcrypt.compare('newpass456', updatedHash)).toBe(true);
+    expect(await bcrypt.compare('newpass456!', updatedHash)).toBe(true);
     expect(pm.passwordResetToken.update).toHaveBeenCalledWith({
       where: { id: ROW.id },
       data: { usedAt: expect.any(Date) },
@@ -146,15 +146,50 @@ describe('POST /auth/reset-password', () => {
 
   it('400 for an unknown, expired, or already-used token', async () => {
     pm.passwordResetToken.findFirst.mockResolvedValue(null);
-    const res = await request(app).post('/auth/reset-password').send({ token: RAW, password: 'newpass456' });
+    const res = await request(app).post('/auth/reset-password').send({ token: RAW, password: 'newpass456!' });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Invalid or expired reset link');
     expect(pm.user.update).not.toHaveBeenCalled();
   });
 
   it('400 for a too-short password without touching the DB', async () => {
-    const res = await request(app).post('/auth/reset-password').send({ token: RAW, password: 'short' });
+    const res = await request(app).post('/auth/reset-password').send({ token: RAW, password: 'sh0rt!' });
     expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Password must be at least 8 characters');
     expect(pm.passwordResetToken.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('400 when the new password misses a number or special character', async () => {
+    const noNumber = await request(app).post('/auth/reset-password').send({ token: RAW, password: 'longenough!' });
+    expect(noNumber.status).toBe(400);
+    expect(noNumber.body.error).toBe('Password must include at least one number');
+
+    const noSpecial = await request(app).post('/auth/reset-password').send({ token: RAW, password: 'longenough1' });
+    expect(noSpecial.status).toBe(400);
+    expect(noSpecial.body.error).toBe('Password must include at least one special character');
+    expect(pm.passwordResetToken.findFirst).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /auth/signup password policy', () => {
+  it('rejects non-compliant passwords with specific messages', async () => {
+    for (const [password, message] of [
+      ['sh0rt!', 'Password must be at least 8 characters'],
+      ['longenough!', 'Password must include at least one number'],
+      ['longenough1', 'Password must include at least one special character'],
+    ] as const) {
+      const res = await request(app).post('/auth/signup').send({ email: 'new@example.com', password });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe(message);
+    }
+    expect(pm.user.create).not.toHaveBeenCalled();
+  });
+
+  it('accepts a compliant password', async () => {
+    pm.user.findUnique.mockResolvedValue(null);
+    pm.user.create.mockResolvedValue({ id: 'u1', email: 'new@example.com', username: null, avatarUrl: null });
+    const res = await request(app).post('/auth/signup').send({ email: 'new@example.com', password: 'longenough1!' });
+    expect(res.status).toBe(200);
+    expect(typeof res.body.token).toBe('string');
   });
 });

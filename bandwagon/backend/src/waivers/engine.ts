@@ -17,7 +17,7 @@ import { logLeagueEvent } from '../events/leagueEvents';
 
 export type WaiverClaimResult =
   | { claim: { id: string; artistId: string; dropSlot: string; status: string } }
-  | { success: true; instant: true; slot: string; droppedArtistId: string; addedArtistId: string }
+  | { success: true; instant: true; slot: string; droppedArtistId: string | null; addedArtistId: string }
   | { error: string; status: number };
 
 export async function submitWaiverClaim(
@@ -54,10 +54,11 @@ export async function submitWaiverClaim(
     include: { artist: true },
   });
   if (!dropSpot) return { error: 'Invalid slot', status: 400 };
-  if (!dropSpot.artistId) return { error: 'That slot is already empty', status: 400 };
-  const locked = await lockedArtistIds(leagueId);
-  if (locked.has(dropSpot.artistId)) {
-    return { error: `${dropSpot.artist?.name ?? 'That player'} is locked in an accepted trade`, status: 400 };
+  if (dropSpot.artistId) {
+    const locked = await lockedArtistIds(leagueId);
+    if (locked.has(dropSpot.artistId)) {
+      return { error: `${dropSpot.artist?.name ?? 'That player'} is locked in an accepted trade`, status: 400 };
+    }
   }
 
   if (!artistEligibleForSlot(artist.primaryGenre, dropSlot)) {
@@ -69,12 +70,10 @@ export async function submitWaiverClaim(
   if (!isLineupLocked(dayPT, league.currentWeek, league.draftTime, todayPT)) {
     const droppedArtistId = dropSpot.artistId;
     await prisma.rosterSpot.update({ where: { id: dropSpot.id }, data: { artistId } });
-    await logLeagueEvent(
-      prisma,
-      leagueId,
-      'claim',
-      `${myTeam.name} added ${artist.name}, dropped ${dropSpot.artist?.name ?? 'an artist'} (free agency)`,
-    );
+    const message = droppedArtistId
+      ? `${myTeam.name} added ${artist.name}, dropped ${dropSpot.artist?.name ?? 'an artist'} (free agency)`
+      : `${myTeam.name} added ${artist.name} to an empty slot (free agency)`;
+    await logLeagueEvent(prisma, leagueId, 'claim', message);
     return { success: true, instant: true, slot: dropSlot, droppedArtistId, addedArtistId: artistId };
   }
 
@@ -180,7 +179,7 @@ export async function resolveWaivers(leagueId: string): Promise<void> {
   const order = teams.map((t) => t.id);
 
   const dropArtists = await prisma.artist.findMany({
-    where: { id: { in: [...new Set(claims.map((c) => c.dropArtistId))] } },
+    where: { id: { in: [...new Set(claims.map((c) => c.dropArtistId).filter((id): id is string => id != null))] } },
     select: { id: true, name: true },
   });
   const dropName = new Map(dropArtists.map((a) => [a.id, a.name]));
@@ -230,19 +229,23 @@ export async function resolveWaivers(leagueId: string): Promise<void> {
           await tx.team.update({ where: { id: order[i] }, data: { waiverPriority: i + 1 } });
         }
 
-        const dropped = dropName.get(claim.dropArtistId) ?? 'an artist';
+        const dropped = claim.dropArtistId ? (dropName.get(claim.dropArtistId) ?? 'an artist') : null;
         await logLeagueEvent(
           tx,
           leagueId,
           'waiver_won',
-          `${claim.team.name} claimed ${claim.artist.name} off waivers, dropped ${dropped}`,
+          dropped
+            ? `${claim.team.name} claimed ${claim.artist.name} off waivers, dropped ${dropped}`
+            : `${claim.team.name} claimed ${claim.artist.name} off waivers into an empty slot`,
         );
         await tx.notification.createMany({
           data: [{
             userId: claim.team.userId,
             leagueId,
             type: 'waiver_result',
-            message: `Your waiver claim went through: you added ${claim.artist.name} and dropped ${dropped}.`,
+            message: dropped
+              ? `Your waiver claim went through: you added ${claim.artist.name} and dropped ${dropped}.`
+              : `Your waiver claim went through: you added ${claim.artist.name} to an empty roster slot.`,
           }],
         });
         console.log(`[waivers] league ${leagueId} — ${claim.team.name} won ${claim.artist.name}`);
@@ -276,7 +279,7 @@ export async function resolveWaivers(leagueId: string): Promise<void> {
           where: { id: { in: losers.map((c) => c.id) }, status: 'pending' },
           data: {
             status: 'lost',
-            resolution: `Lost to ${claim.team.name} — higher waiver priority`,
+            resolution: `Lost to ${claim.team.name} (higher waiver priority)`,
             resolvedAt: new Date(),
           },
         });

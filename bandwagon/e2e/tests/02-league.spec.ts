@@ -12,9 +12,11 @@ test.describe('League management', () => {
   let leagueId: string;
 
   test.beforeAll(async () => {
-    const ts = Date.now();
-    const u1 = await createUser(uniqueEmail('comm'), 'testpass123', `comm${ts}`.slice(0, 20));
-    const u2 = await createUser(uniqueEmail('mem'), 'testpass123', `mem${ts}`.slice(0, 20));
+    // Random suffix: the fast and full projects run concurrently, so a
+    // timestamp alone can collide on the unique username constraint.
+    const ts = `${Date.now()}${Math.random().toString(36).slice(2, 5)}`;
+    const u1 = await createUser(uniqueEmail('comm'), 'testpass123!', `comm${ts}`.slice(0, 20));
+    const u2 = await createUser(uniqueEmail('mem'), 'testpass123!', `mem${ts}`.slice(0, 20));
     commissioner = { token: u1.token, username: u1.username };
     member = { token: u2.token, username: u2.username };
   });

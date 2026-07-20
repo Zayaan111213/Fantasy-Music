@@ -6,26 +6,34 @@ import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import type { User } from '../api/types';
+import { passwordPolicyError } from '../utils/passwordPolicy';
+import { WagonMark, Wordmark } from '../components/Logo';
 
 export function Auth() {
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [params] = useSearchParams();
+  const [mode, setMode] = useState<'login' | 'signup'>(params.get('mode') === 'signup' ? 'signup' : 'login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [params] = useSearchParams();
   const redirect = params.get('redirect') || '/home';
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    if (mode === 'signup') {
+      const policyError = passwordPolicyError(password);
+      if (policyError) { setError(policyError); return; }
+    }
     setLoading(true);
     try {
       const path = mode === 'login' ? '/auth/login' : '/auth/signup';
       const { token, user } = await api.post<{ token: string; user: User }>(path, { email, password });
       login(token, user);
+      // New accounts see the "How Bandwagoner Works" modal on their first Home visit
+      if (mode === 'signup') localStorage.setItem('bw_show_how_it_works', '1');
       navigate(mode === 'signup' ? '/onboarding' : redirect, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
@@ -36,16 +44,12 @@ export function Auth() {
 
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
-      {/* Background gradient */}
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/50 via-gray-950 to-purple-950/30 pointer-events-none" />
 
       <div className="relative w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 mb-4">
-            <Music2 className="w-7 h-7 text-indigo-400" />
-          </div>
-          <h1 className="text-3xl font-bold text-white">Bandwagon</h1>
+          <div className="inline-flex mb-4"><WagonMark size={56} /></div>
+          <h1><Wordmark className="text-3xl" /></h1>
           <p className="text-gray-400 mt-1">Fantasy sports for music fans</p>
         </div>
 
@@ -55,13 +59,13 @@ export function Auth() {
           <div className="flex bg-white/5 rounded-lg p-1 mb-6">
             <button
               onClick={() => setMode('login')}
-              className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${mode === 'login' ? 'bg-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}
+              className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${mode === 'login' ? 'bg-indigo-500 text-gray-950' : 'text-gray-400 hover:text-white'}`}
             >
               Log In
             </button>
             <button
               onClick={() => setMode('signup')}
-              className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${mode === 'signup' ? 'bg-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}
+              className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${mode === 'signup' ? 'bg-indigo-500 text-gray-950' : 'text-gray-400 hover:text-white'}`}
             >
               Sign Up
             </button>
@@ -104,7 +108,7 @@ export function Auth() {
           </form>
 
           <div className="mt-4 p-3 bg-white/5 rounded-lg">
-            <p className="text-xs text-gray-400 text-center mb-2">Demo accounts — click to fill</p>
+            <p className="text-xs text-gray-400 text-center mb-2">Demo accounts: click to fill</p>
             <div className="grid grid-cols-2 gap-2 text-xs">
               {[
                 { email: 'demo1@bandwagon.app', label: 'MusicMaven' },

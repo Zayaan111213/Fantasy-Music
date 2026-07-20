@@ -63,6 +63,10 @@ model League {
   currentWeek    Int       @default(1)
   seasonYear     Int       @default(2026)
   scoringConfig  Json?
+  // PT calendar date (YYYY-MM-DD) of this league's last finalize. DB-persisted
+  // guard so finalize runs at most once per PT date per league — process
+  // restarts (deploys) on a Monday used to re-trigger it and skip whole weeks.
+  lastFinalizedDatePT String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -81,7 +85,7 @@ model WaiverClaim {
   teamId       String
   artistId     String
   dropSlot     String
-  dropArtistId String // snapshot of the slot occupant at submit time; mismatch at resolution invalidates
+  dropArtistId String? // snapshot of the slot occupant at submit time; null = the slot was empty (add, no drop); mismatch at resolution invalidates
   priority     Int       @default(0) // per-team ordering: 1 = attempted first at resolution
   status       String    @default("pending") // pending | won | lost | invalid | cancelled
   resolution   String?
@@ -203,10 +207,14 @@ model RosterSpot {
 }
 
 model WeeklyScore {
-  id                  String  @id @default(cuid())
-  artistId            String
-  week                Int
-  seasonYear          Int
+  id       String   @id @default(cuid())
+  artistId String
+  // Real chart week (the Tuesday it started, PT — same value as
+  // ChartEntry.weekDate). Scores are keyed by CALENDAR week, never by a
+  // league's week number: league weeks are per-league counters translated to
+  // weekDate at read time (weekDateForLeagueWeek). Keying on week numbers let
+  // leagues with different start dates overwrite each other's history.
+  weekDate            DateTime @db.Date
   streamingPoints     Float   @default(0)
   chartPositionPoints Float   @default(0)
   chartMovementPoints Float   @default(0)
@@ -238,7 +246,8 @@ model WeeklyScore {
 
   artist Artist @relation(fields: [artistId], references: [id])
 
-  @@unique([artistId, week, seasonYear])
+  @@unique([artistId, weekDate])
+  @@index([weekDate])
 }
 
 model Matchup {

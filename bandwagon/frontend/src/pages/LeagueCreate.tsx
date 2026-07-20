@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Music2, ChevronLeft, Copy, Check } from 'lucide-react';
+import { ChevronLeft, Copy, Check } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
 import { Avatar } from '../components/ui/Avatar';
+import { WagonMark } from '../components/Logo';
 
 type Step = 'form' | 'success';
 
@@ -84,7 +85,7 @@ export function LeagueCreate() {
           if (logoFile) formData.append('logo', logoFile);
           await api.put(`/leagues/${league.id}/team`, formData);
         } catch {
-          setTeamSyncWarning("League created, but we couldn't save your team customization — you can set it from the My Team tab.");
+          setTeamSyncWarning("League created, but we couldn't save your team customization. You can set it from the My Team tab.");
         }
       }
 
@@ -107,7 +108,6 @@ export function LeagueCreate() {
   if (step === 'success') {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/30 via-gray-950 to-purple-950/20 pointer-events-none" />
         <div className="relative w-full max-w-md text-center">
           <div className="w-16 h-16 rounded-2xl bg-green-500/20 border border-green-500/30 flex items-center justify-center mx-auto mb-4">
             <Check className="w-8 h-8 text-green-400" />
@@ -140,14 +140,13 @@ export function LeagueCreate() {
 
   return (
     <div className="min-h-screen bg-gray-950">
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/30 via-gray-950 to-purple-950/20 pointer-events-none" />
       <header className="relative border-b border-white/10">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
           <Link to="/home" className="text-gray-400 hover:text-white transition-colors">
             <ChevronLeft className="w-5 h-5" />
           </Link>
           <div className="flex items-center gap-2">
-            <Music2 className="w-5 h-5 text-indigo-400" />
+            <WagonMark size={20} />
             <span className="font-bold text-white">Create a League</span>
           </div>
         </div>
@@ -194,7 +193,7 @@ export function LeagueCreate() {
                     key={n}
                     type="button"
                     onClick={() => setTeamCount(n)}
-                    className={`w-12 h-10 rounded-lg text-sm font-medium transition-colors ${teamCount === n ? 'bg-indigo-500 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}
+                    className={`w-12 h-10 rounded-lg text-sm font-medium transition-colors ${teamCount === n ? 'bg-indigo-500 text-gray-950' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}
                   >
                     {n}
                   </button>
@@ -210,7 +209,7 @@ export function LeagueCreate() {
                     key={String(p)}
                     type="button"
                     onClick={() => setIsPrivate(p)}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${isPrivate === p ? 'bg-indigo-500 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${isPrivate === p ? 'bg-indigo-500 text-gray-950' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}
                   >
                     {p ? '🔒 Private' : '🌐 Public'}
                   </button>

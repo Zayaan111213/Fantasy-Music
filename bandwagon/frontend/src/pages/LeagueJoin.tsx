@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Users, ChevronLeft, Music2 } from 'lucide-react';
+import { Users, ChevronLeft } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Avatar } from '../components/ui/Avatar';
@@ -8,6 +8,7 @@ import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Spinner } from '../components/ui/Spinner';
+import { WagonMark } from '../components/Logo';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -122,11 +123,10 @@ export function LeagueJoin() {
   if (joinedLeagueId) {
     return (
       <div className="min-h-screen bg-gray-950">
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/30 via-gray-950 to-purple-950/20 pointer-events-none" />
         <header className="relative border-b border-white/10">
           <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <Music2 className="w-5 h-5 text-indigo-400" />
+              <WagonMark size={20} />
               <span className="font-bold text-white">Set Up Your Team</span>
             </div>
           </div>
@@ -171,14 +171,13 @@ export function LeagueJoin() {
 
   return (
     <div className="min-h-screen bg-gray-950">
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/30 via-gray-950 to-purple-950/20 pointer-events-none" />
       <header className="relative border-b border-white/10">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
           <Link to="/home" className="text-gray-400 hover:text-white transition-colors">
             <ChevronLeft className="w-5 h-5" />
           </Link>
           <div className="flex items-center gap-2">
-            <Music2 className="w-5 h-5 text-indigo-400" />
+            <WagonMark size={20} />
             <span className="font-bold text-white">Join a League</span>
           </div>
         </div>

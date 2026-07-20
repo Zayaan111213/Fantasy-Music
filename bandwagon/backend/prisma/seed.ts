@@ -7,6 +7,22 @@ const prisma = new PrismaClient();
 const SEASON_YEAR = 2026;
 const TOTAL_WEEKS = 10;
 
+// Mock "week N" maps to a real calendar chart week: week TOTAL_WEEKS is the
+// current chart week (Tuesday PT), counting back 7 days per week.
+function mockWeekDate(week: number): Date {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Los_Angeles', year: 'numeric', month: 'numeric', day: 'numeric',
+  }).formatToParts(now);
+  const y = parseInt(parts.find((p) => p.type === 'year')!.value);
+  const m = parseInt(parts.find((p) => p.type === 'month')!.value) - 1;
+  const d = parseInt(parts.find((p) => p.type === 'day')!.value);
+  const dow = new Date(Date.UTC(y, m, d)).getUTCDay();
+  const daysBack = (dow + 5) % 7;
+  const current = new Date(Date.UTC(y, m, d - daysBack));
+  return new Date(current.getTime() - (TOTAL_WEEKS - week) * 7 * 24 * 60 * 60 * 1000);
+}
+
 // Deterministic pseudo-random from a string seed
 function seededRandom(seed: string, index: number = 0): number {
   let h = 0;
@@ -204,7 +220,7 @@ async function createWeeklyScores(
   tierMap: Map<string, { minStreams: bigint; maxStreams: bigint | null; points: number }[]>
 ) {
   const rows: {
-    artistId: string; week: number; seasonYear: number;
+    artistId: string; weekDate: Date;
     streamingPoints: number; chartPositionPoints: number; chartMovementPoints: number; totalPoints: number;
     weeklyStreams: bigint; bestChartPosition: number | null; chartMovement: number | null; isFinalized: boolean;
   }[] = [];
@@ -216,8 +232,7 @@ async function createWeeklyScores(
       const cm = scoreChartMovement(chartMovement, isNewEntry);
       rows.push({
         artistId: artist.id,
-        week,
-        seasonYear: SEASON_YEAR,
+        weekDate: mockWeekDate(week),
         streamingPoints: sp,
         chartPositionPoints: cp,
         chartMovementPoints: cm,
@@ -284,7 +299,7 @@ async function main() {
         data: {
           name: a.name,
           primaryGenre: a.primaryGenre,
-          imageUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(a.name)}&background=6366f1&color=fff&size=256`,
+          imageUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(a.name)}&background=e8b23a&color=2c1e12&size=256`,
         },
       })
     )
@@ -303,7 +318,7 @@ async function main() {
       email: 'demo1@bandwagon.app',
       passwordHash,
       username: 'MusicMaven',
-      avatarUrl: 'https://ui-avatars.com/api/?name=Music+Maven&background=6366f1&color=fff&size=256',
+      avatarUrl: 'https://ui-avatars.com/api/?name=Music+Maven&background=e8b23a&color=2c1e12&size=256',
     },
   });
 
@@ -312,7 +327,7 @@ async function main() {
       email: 'demo2@bandwagon.app',
       passwordHash,
       username: 'ChartWatcher',
-      avatarUrl: 'https://ui-avatars.com/api/?name=Chart+Watcher&background=8b5cf6&color=fff&size=256',
+      avatarUrl: 'https://ui-avatars.com/api/?name=Chart+Watcher&background=e07a3e&color=2c1e12&size=256',
     },
   });
 
@@ -411,13 +426,13 @@ async function main() {
     let awayScore = 0;
     for (const id of team1StarterIds) {
       const ws = await prisma.weeklyScore.findUnique({
-        where: { artistId_week_seasonYear: { artistId: id, week, seasonYear: SEASON_YEAR } },
+        where: { artistId_weekDate: { artistId: id, weekDate: mockWeekDate(week) } },
       });
       homeScore += ws?.totalPoints ?? 0;
     }
     for (const id of team2StarterIds) {
       const ws = await prisma.weeklyScore.findUnique({
-        where: { artistId_week_seasonYear: { artistId: id, week, seasonYear: SEASON_YEAR } },
+        where: { artistId_weekDate: { artistId: id, weekDate: mockWeekDate(week) } },
       });
       awayScore += ws?.totalPoints ?? 0;
     }
@@ -439,7 +454,7 @@ async function main() {
   // Seed a public pending league so the join page has something to show
   const publicLeague = await prisma.league.create({
     data: {
-      name: 'Open Draft — Join Now',
+      name: 'Open Draft: Join Now',
       commissionerId: user1.id,
       teamCount: 8,
       isPrivate: false,

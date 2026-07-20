@@ -105,7 +105,7 @@ export function TradePropose() {
     if (!player) {
       setNotice('That artist could not be found in this league.');
     } else if (!player.rosteredBy) {
-      setNotice(`${player.name} is a free agent — claim them from the Players tab instead of trading.`);
+      setNotice(`${player.name} is a free agent. Claim them from the Players tab instead of trading.`);
     } else if (player.rosteredBy.id === myTeamId) {
       setGive((prev) => new Set(prev).add(player.id));
     } else {
@@ -171,7 +171,7 @@ export function TradePropose() {
 
   const clearDraftAndLeave = () => {
     sessionStorage.removeItem(draftKey(leagueId));
-    navigate(`/leagues/${leagueId}`);
+    navigate(-1);
   };
 
   const canSubmit = !tradesMeta.tradingClosed
@@ -183,11 +183,13 @@ export function TradePropose() {
 
   return (
     <div className="min-h-screen bg-gray-950">
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/20 via-gray-950 to-purple-950/10 pointer-events-none" />
 
       <header className="relative border-b border-white/10">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
-          <button onClick={() => navigate(`/leagues/${leagueId}`)} className="text-gray-400 hover:text-white transition-colors">
+          {/* History back, not the league hub — entry points include the
+              Players tab and artist profiles, and landing on My Team instead
+              of where you came from is disorienting. */}
+          <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-white transition-colors">
             <ChevronLeft className="w-5 h-5" />
           </button>
           <ArrowLeftRight className="w-4 h-4 text-indigo-400" />
@@ -254,7 +256,7 @@ export function TradePropose() {
         {dropsNeeded > 0 && (
           <Card className="p-4">
             <div className="text-[10px] text-amber-400 uppercase tracking-wider font-medium mb-2">
-              You receive more than you send — drop {dropsNeeded} player{dropsNeeded === 1 ? '' : 's'} ({effectiveDrops.size}/{dropsNeeded} selected)
+              You receive more than you send. Drop {dropsNeeded} player{dropsNeeded === 1 ? '' : 's'} ({effectiveDrops.size}/{dropsNeeded} selected)
             </div>
             <div className="space-y-1">
               {dropCandidates.map((p) => (
@@ -276,7 +278,7 @@ export function TradePropose() {
           <button
             disabled={!canSubmit}
             onClick={() => proposeMutation.mutate()}
-            className="flex-1 px-3 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-sm font-medium transition-colors"
+            className="flex-1 px-3 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-gray-950 text-sm font-medium transition-colors"
           >
             {proposeMutation.isPending ? 'Proposing…' : 'Propose Trade'}
           </button>

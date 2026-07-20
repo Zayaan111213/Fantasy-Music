@@ -20,12 +20,12 @@ test.describe('Public league joining', () => {
     // Create two users: one creates the public league, one joins it via the browse UI
     const commissioner = await createUser(
       `comm-${RUN_ID}@e2e.test`,
-      'password123',
+      'password123!',
       `Comm${RUN_ID}`,
     );
     const joiner = await createUser(
       `joiner-${RUN_ID}@e2e.test`,
-      'password123',
+      'password123!',
       `Joiner${RUN_ID}`,
     );
 
