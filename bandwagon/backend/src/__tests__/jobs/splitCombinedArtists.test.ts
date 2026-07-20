@@ -12,10 +12,13 @@ import { chooseReplacement } from '../../jobs/splitCombinedArtists';
 
 const KANYE = { id: 'kanye', primaryGenre: 'R&B/Hip-Hop' };
 const DON = { id: 'don', primaryGenre: 'R&B/Hip-Hop' };
+const HYPHEN_SLOTS = ['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country', 'Other', 'Flex', 'Bench-1', 'Bench-2', 'Bench-3'];
+// resetLeagues-created demo rosters name their bench slots with spaces
+const SPACE_SLOTS = ['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country', 'Other', 'Flex', 'Bench 1', 'Bench 2', 'Bench 3'];
 
 describe('chooseReplacement', () => {
   it('picks the first-listed component when it is available', () => {
-    const result = chooseReplacement([KANYE, DON], new Set(), []);
+    const result = chooseReplacement([KANYE, DON], new Set(), [], HYPHEN_SLOTS);
     expect(result?.artist.id).toBe('kanye');
     // Lands in an eligible slot
     const slot = [...result!.assignment.entries()].find(([, id]) => id === 'kanye')![0];
@@ -23,12 +26,12 @@ describe('chooseReplacement', () => {
   });
 
   it('falls back to the next component when the first is rostered in the league', () => {
-    const result = chooseReplacement([KANYE, DON], new Set(['kanye']), []);
+    const result = chooseReplacement([KANYE, DON], new Set(['kanye']), [], HYPHEN_SLOTS);
     expect(result?.artist.id).toBe('don');
   });
 
   it('returns null when every component is already rostered', () => {
-    expect(chooseReplacement([KANYE, DON], new Set(['kanye', 'don']), [])).toBeNull();
+    expect(chooseReplacement([KANYE, DON], new Set(['kanye', 'don']), [], HYPHEN_SLOTS)).toBeNull();
   });
 
   it('shuffles kept artists to make room when the direct slot is occupied', () => {
@@ -47,13 +50,25 @@ describe('chooseReplacement', () => {
     ];
     const candidate = { id: 'tim', primaryGenre: 'Country' };
 
-    const result = chooseReplacement([candidate], new Set(), keep);
+    const result = chooseReplacement([candidate], new Set(), keep, HYPHEN_SLOTS);
     expect(result).not.toBeNull();
     const assignment = result!.assignment;
     expect([...assignment.values()]).toContain('tim');
     // Roster stays legal: 9 occupied slots, every keep still placed
     expect(assignment.size).toBe(9);
     for (const kept of keep) expect([...assignment.values()]).toContain(kept.artist.id);
+  });
+
+  it('works with space-named bench slots (resetLeagues demo rosters)', () => {
+    // Only the space-named bench slots are open — the assignment must use the
+    // team's actual slot names, not the hyphenated ALL_SLOTS constant.
+    const keep = [
+      { slot: 'R&B/Hip-Hop', artist: { id: 'a1', primaryGenre: 'R&B/Hip-Hop' } },
+    ];
+    const result = chooseReplacement([KANYE], new Set(), keep, SPACE_SLOTS);
+    expect(result).not.toBeNull();
+    const slot = [...result!.assignment.entries()].find(([, id]) => id === 'kanye')![0];
+    expect(SPACE_SLOTS).toContain(slot);
   });
 
   it('returns null when no legal arrangement exists', () => {
@@ -67,6 +82,6 @@ describe('chooseReplacement', () => {
       { slot: 'Bench-3', artist: { id: 'c5', primaryGenre: 'Country' } },
     ];
     const candidate = { id: 'c6', primaryGenre: 'Country' };
-    expect(chooseReplacement([candidate], new Set(), keep)).toBeNull();
+    expect(chooseReplacement([candidate], new Set(), keep, HYPHEN_SLOTS)).toBeNull();
   });
 });

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Music2, Check, X } from 'lucide-react';
+import { ChevronLeft, Check, X } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
@@ -8,6 +8,7 @@ import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
 import { Avatar } from '../components/ui/Avatar';
 import type { User } from '../api/types';
+import { WagonMark } from '../components/Logo';
 
 const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,20}$/;
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -130,14 +131,13 @@ export function AccountSettings() {
 
   return (
     <div className="min-h-screen bg-gray-950">
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/30 via-gray-950 to-purple-950/20 pointer-events-none" />
       <header className="relative border-b border-white/10">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
           <Link to="/home" className="text-gray-400 hover:text-white transition-colors">
             <ChevronLeft className="w-5 h-5" />
           </Link>
           <div className="flex items-center gap-2">
-            <Music2 className="w-5 h-5 text-indigo-400" />
+            <WagonMark size={20} />
             <span className="font-bold text-white">Account Settings</span>
           </div>
         </div>

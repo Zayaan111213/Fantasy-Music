@@ -10,7 +10,7 @@ describe('Card', () => {
 
   it('includes the base card style class', () => {
     const { container } = render(<Card>Content</Card>);
-    expect((container.firstChild as HTMLElement).className).toContain('bg-white/5');
+    expect((container.firstChild as HTMLElement).className).toContain('bg-gray-800');
   });
 
   it('passes through additional className', () => {

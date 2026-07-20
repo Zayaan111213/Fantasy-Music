@@ -117,14 +117,44 @@ describe('submitWaiverClaim', () => {
     });
   });
 
-  it('400 when the drop slot is empty or invalid', async () => {
+  it('400 when the target slot is invalid', async () => {
     pm.league.findUnique.mockResolvedValue(LEAGUE);
     pm.artist.findUnique.mockResolvedValue(ARTIST_POP);
     pm.rosterSpot.findUnique.mockResolvedValue(null);
     expect(await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop', 'Tuesday', '2026-07-08')).toMatchObject({ status: 400 });
+  });
 
+  it('empty slot: queues a claim with no drop (dropArtistId null)', async () => {
+    pm.league.findUnique.mockResolvedValue(LEAGUE);
+    pm.artist.findUnique.mockResolvedValue(ARTIST_POP);
     pm.rosterSpot.findUnique.mockResolvedValue({ id: 'spot-1', artistId: null, artist: null });
-    expect(await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop', 'Tuesday', '2026-07-08')).toMatchObject({ status: 400 });
+    pm.waiverClaim.create.mockResolvedValue({ id: 'claim-1', artistId: 'artist-pop', dropSlot: 'Pop', status: 'pending' });
+
+    const result = await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop', 'Tuesday', '2026-07-08');
+
+    expect(result).toEqual({ claim: { id: 'claim-1', artistId: 'artist-pop', dropSlot: 'Pop', status: 'pending' } });
+    expect(pm.waiverClaim.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ dropArtistId: null }),
+    });
+  });
+
+  it('empty slot: Monday free agency adds instantly with no drop', async () => {
+    pm.league.findUnique.mockResolvedValue(LEAGUE);
+    pm.artist.findUnique.mockResolvedValue(ARTIST_POP);
+    pm.rosterSpot.findUnique.mockResolvedValue({ id: 'spot-1', artistId: null, artist: null });
+
+    const result = await submitWaiverClaim('league-1', 'user-1', 'artist-pop', 'Pop', 'Monday', '2026-07-06');
+
+    expect(result).toEqual({
+      success: true, instant: true, slot: 'Pop', droppedArtistId: null, addedArtistId: 'artist-pop',
+    });
+    expect(pm.rosterSpot.update).toHaveBeenCalledWith({ where: { id: 'spot-1' }, data: { artistId: 'artist-pop' } });
+    expect(pm.leagueEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: 'claim',
+        message: 'Chart Chasers added Pop Star to an empty slot (free agency)',
+      }),
+    });
   });
 
   it('400 with the trade-lock message when the drop artist is in an accepted trade', async () => {
@@ -523,6 +553,32 @@ describe('resolveWaivers', () => {
       where: { id: { in: ['a-x'] }, status: 'pending' },
       data: expect.objectContaining({ status: 'lost' }),
     }));
+  });
+
+  it('claim into an empty slot: wins with no drop, message and notification say so', async () => {
+    pm.waiverClaim.findMany.mockResolvedValue([
+      makeClaim({ id: 'c1', teamId: 't1', teamName: 'Alpha', userId: 'u1', priority: 1,
+                  artistId: 'x', artistName: 'X', dropSlot: 'Bench1', dropArtistId: null as unknown as string }),
+    ]);
+    pm.team.findMany.mockResolvedValue([{ id: 't1' }, { id: 't2' }]);
+    pm.artist.findMany.mockResolvedValue([]);
+    fakeRoster({ t1: { Bench1: null }, t2: {} });
+
+    await resolveWaivers('league-1');
+
+    expect(pm.rosterSpot.update).toHaveBeenCalledTimes(1);
+    expect(pm.leagueEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: 'waiver_won',
+        message: 'Alpha claimed X off waivers into an empty slot',
+      }),
+    });
+    expect(pm.notification.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({
+        userId: 'u1',
+        message: 'Your waiver claim went through: you added X to an empty roster slot.',
+      })],
+    });
   });
 
   it('gate count=0 (concurrent/repeated run) → no side effects at all', async () => {

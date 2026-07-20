@@ -1,4 +1,6 @@
 import 'dotenv/config';
+import * as Sentry from '@sentry/node';
+import { sentryEnabled } from './instrument';
 
 // BigInt → string for JSON serialization
 (BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function () {
@@ -19,7 +21,8 @@ import artistRoutes from './api/routes/artists';
 import draftRoutes from './api/routes/draft';
 import tradeRoutes from './api/routes/trades';
 import notificationRoutes from './api/routes/notifications';
-import { errorHandler, notFound } from './api/middleware/errorHandler';
+import chartRoutes from './api/routes/charts';
+import { errorHandler, notFound, shouldReportToSentry } from './api/middleware/errorHandler';
 import { registerDraftSocket, startDraftScheduler } from './sockets/draft';
 import { startPipelineScheduler } from './jobs/scheduler';
 import { startEmailDispatcher } from './email/dispatcher';
@@ -48,6 +51,7 @@ app.use('/api/artists', artistRoutes);
 app.use('/api/leagues', draftRoutes);
 app.use('/api/leagues', tradeRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/charts', chartRoutes);
 
 if (process.env.NODE_ENV === 'test') {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -64,6 +68,9 @@ if (fs.existsSync(frontendDist)) {
 }
 
 app.use(notFound);
+if (sentryEnabled) {
+  Sentry.setupExpressErrorHandler(app, { shouldHandleError: shouldReportToSentry });
+}
 app.use(errorHandler);
 
 registerDraftSocket(io);
@@ -73,5 +80,5 @@ startEmailDispatcher(); // no-op under NODE_ENV=test / EMAIL_DISPATCH_DISABLED /
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 httpServer.listen(PORT, () => {
-  console.log(`🎵 Bandwagon backend running on http://localhost:${PORT}`);
+  console.log(`🎵 Bandwagoner backend running on http://localhost:${PORT}`);
 });

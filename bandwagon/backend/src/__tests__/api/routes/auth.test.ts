@@ -91,7 +91,7 @@ describe('POST /auth/forgot-password', () => {
 
     const email = sendEmailMock.mock.calls[0][0];
     expect(email.to).toBe(USER.email);
-    expect(email.subject).toBe('Reset your Bandwagon password');
+    expect(email.subject).toBe('Reset your Bandwagoner password');
     const match = /\/reset-password\?token=([0-9a-f]{64})/.exec(email.text ?? '');
     expect(match).not.toBeNull();
     const raw = match![1];

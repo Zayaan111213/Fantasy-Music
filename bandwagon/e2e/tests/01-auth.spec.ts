@@ -29,11 +29,11 @@ test.describe('Authentication', () => {
     await page.waitForURL('**/home', { timeout: 10_000 });
 
     // New accounts get the how-it-works modal on their first Home visit
-    await expect(page.getByText('How Bandwagon Works')).toBeVisible();
+    await expect(page.getByText('How Bandwagoner Works')).toBeVisible();
     await page.getByRole('button', { name: /Got it/ }).click();
-    await expect(page.getByText('How Bandwagon Works')).not.toBeVisible();
+    await expect(page.getByText('How Bandwagoner Works')).not.toBeVisible();
 
-    await expect(page.getByText('Bandwagon')).toBeVisible();
+    await expect(page.getByText('Bandwagoner')).toBeVisible();
   });
 
   test('demo account buttons fill the login form', async ({ page }) => {
@@ -55,7 +55,7 @@ test.describe('Authentication', () => {
     await page.locator('form').getByRole('button', { name: 'Log In' }).click();
 
     await page.waitForURL('**/home', { timeout: 10_000 });
-    await expect(page.getByText('Bandwagon')).toBeVisible();
+    await expect(page.getByText('Bandwagoner')).toBeVisible();
   });
 
   test('wrong password — shows error banner', async ({ page }) => {

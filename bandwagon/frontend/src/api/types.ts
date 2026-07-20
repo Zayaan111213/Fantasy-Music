@@ -45,6 +45,7 @@ export interface Artist {
   imageUrl: string | null;
   spotifyId: string | null;
   appleMusicId: string | null;
+  appleArtistId: string | null; // BigInt in the DB; serialized as a string
   lastWeekPoints?: number;
   avgLast5Points?: number;
 }
@@ -222,7 +223,7 @@ export interface WaiverClaimEntry {
   dropSlot: string;
   createdAt: string;
   artist: { id: string; name: string; imageUrl: string | null; primaryGenre: string };
-  dropArtist: { id: string; name: string };
+  dropArtist: { id: string; name: string } | null;
 }
 
 export interface WaiversResponse {
@@ -302,4 +303,35 @@ export interface LeagueCard {
   myScore: number;
   opponentScore: number;
   memberCount: number;
+}
+
+export interface ChartRow {
+  rank: number;
+  title: string;
+  artists: { id: string; name: string; imageUrl: string | null }[];
+  lastWeekRank: number | null;
+  delta: number | null;
+  isNew: boolean;
+}
+
+export interface ChartsPayload {
+  weekDate: string | null;
+  songs: ChartRow[];
+  albums: ChartRow[];
+}
+
+export interface MoversPayload {
+  weekDate: string | null;
+  songs: { risers: ChartRow[]; fallers: ChartRow[] };
+  albums: { risers: ChartRow[]; fallers: ChartRow[] };
+}
+
+export interface GlobalActivityItem {
+  id: string;
+  kind: 'league' | 'personal';
+  type: string;
+  message: string;
+  leagueId: string;
+  leagueName: string;
+  createdAt: string;
 }
