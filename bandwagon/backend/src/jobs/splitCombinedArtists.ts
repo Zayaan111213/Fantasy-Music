@@ -1,7 +1,6 @@
 import { prisma } from '../db/prisma';
 import { splitArtistCredit } from '../data/artistCredits';
 import { assignRoster, type RosterArtist } from '../trades/engine';
-import { ALL_SLOTS } from '../api/routes/draft';
 import { logLeagueEvent } from '../events/leagueEvents';
 import { getCurrentWeekDate } from './ingestCharts';
 import { scoreArtistWeekFromCharts, updateMatchupScores } from '../scoring/engine';
@@ -9,37 +8,126 @@ import { scoreArtistWeekFromCharts, updateMatchupScores } from '../scoring/engin
 // One-off admin script: splits existing combined-credit Artist rows
 // ("Kanye West & Don Toliver") into their individual artists so each scores
 // the shared songs. Idempotent — processed combined rows get hiddenAt set and
-// are skipped on re-runs. Usage:
+// are skipped on re-runs, and the roster-repair pass targets any spot still
+// holding a hidden artist, so re-running also heals partial applies. Usage:
 //   DATABASE_URL="<url>" npx tsx src/jobs/splitCombinedArtists.ts [--dry-run]
 //
 // Per combined artist: upsert components by exact name, duplicate its chart
 // entries per component (new 4-col unique makes this skip-if-exists),
-// re-point roster spots to the first-listed available component (legality via
-// assignRoster), invalidate pending waiver claims and open trades touching
-// it, hide it, and log a feed event per affected league. Afterwards, re-score
-// the components for every league week and refresh current matchup totals.
-
-interface SpotFix {
-  leagueId: string;
-  teamId: string;
-  teamName: string;
-  replacement: string | null; // artist name or null when the spot was emptied
-}
+// invalidate pending waiver claims and open trades touching it, and hide it.
+// Then a repair pass re-points every roster spot holding a hidden artist to
+// the first-listed available component (legality via assignRoster over the
+// team's ACTUAL slot names — prod demo rosters use 'Bench 2', seeds use
+// 'Bench-2'). Finally, re-score components for every league week and refresh
+// current matchup totals.
 
 // Picks the first component (credit order) not already rostered in the league
-// that has a legal placement on the team. Pure given its inputs — exported
-// for unit tests.
+// that has a legal placement on the team. `slots` must be the team's actual
+// slot names. Pure given its inputs — exported for unit tests.
 export function chooseReplacement(
   components: RosterArtist[],
   takenArtistIds: Set<string>,
   keep: { slot: string; artist: RosterArtist }[],
+  slots: string[],
 ): { artist: RosterArtist; assignment: Map<string, string> } | null {
   for (const candidate of components) {
     if (takenArtistIds.has(candidate.id)) continue;
-    const assignment = assignRoster(keep, [candidate], ALL_SLOTS);
+    const assignment = assignRoster(keep, [candidate], slots);
     if (assignment) return { artist: candidate, assignment };
   }
   return null;
+}
+
+// Re-points every roster spot that holds a hidden (retired) artist to the
+// first-listed available component. Uses the team's ACTUAL rosterSpot rows —
+// slot names differ between data sources ('Bench 2' in resetLeagues demo
+// rosters vs 'Bench-2' in drafted/seeded ones) — and applies updates by row
+// id, never by slot-name lookup.
+async function repairSpotsHoldingHiddenArtists(
+  dryRun: boolean,
+  label: string,
+  affectedComponentIds: Set<string>,
+): Promise<void> {
+  // Real runs: the split step has already hidden combined rows. Dry runs hide
+  // nothing, so also preview spots holding still-visible splittable credits.
+  const candidates = await prisma.rosterSpot.findMany({
+    where: { artist: { OR: [{ hiddenAt: { not: null } }, { name: { contains: ' & ' } }] } },
+    include: {
+      artist: { select: { name: true, primaryGenre: true, hiddenAt: true } },
+      team: {
+        include: {
+          rosterSpots: { include: { artist: { select: { id: true, primaryGenre: true } } } },
+        },
+      },
+    },
+  });
+  const spots = candidates.filter(
+    (s) => s.artist!.hiddenAt !== null || splitArtistCredit(s.artist!.name).length > 1,
+  );
+  if (spots.length === 0) return;
+  console.log(`\n${label} repairing ${spots.length} roster spot(s) holding split credits`);
+
+  for (const spot of spots) {
+    const combinedName = spot.artist!.name;
+    const leagueId = spot.team.leagueId;
+
+    // Resolve the visible component rows by name (created by the split step);
+    // in dry runs they may not exist yet — synthesize for the legality check.
+    const components: (RosterArtist & { name: string })[] = [];
+    for (const name of splitArtistCredit(combinedName)) {
+      const comp = await prisma.artist.findFirst({ where: { name, hiddenAt: null } });
+      if (comp) {
+        components.push({ id: comp.id, primaryGenre: comp.primaryGenre, name: comp.name });
+        affectedComponentIds.add(comp.id);
+      } else if (dryRun) {
+        components.push({ id: `dry:${name}`, primaryGenre: spot.artist!.primaryGenre, name });
+      }
+    }
+
+    const leagueSpots = await prisma.rosterSpot.findMany({
+      where: { team: { leagueId }, artistId: { not: null } },
+      select: { artistId: true },
+    });
+    const taken = new Set(leagueSpots.map((s) => s.artistId!));
+    const keep = spot.team.rosterSpots
+      .filter((s) => s.artistId && s.id !== spot.id && s.artist)
+      .map((s) => ({ slot: s.slot, artist: { id: s.artist!.id, primaryGenre: s.artist!.primaryGenre } }));
+    const teamSlots = spot.team.rosterSpots.map((s) => s.slot);
+
+    const choice = chooseReplacement(components, taken, keep, teamSlots);
+    const replacement = choice ? components.find((x) => x.id === choice.artist.id)!.name : null;
+    console.log(`${label}   roster: ${spot.team.name} (${spot.slot}) "${combinedName}" → ${replacement ?? 'emptied'}`);
+    if (dryRun) continue;
+
+    if (choice) {
+      // Apply the full slot assignment (candidate + any relocated keeps) by row id
+      for (const row of spot.team.rosterSpots) {
+        const newArtistId = choice.assignment.get(row.slot) ?? null;
+        if (row.artistId !== newArtistId || row.id === spot.id) {
+          await prisma.rosterSpot.update({ where: { id: row.id }, data: { artistId: newArtistId } });
+        }
+      }
+    } else {
+      await prisma.rosterSpot.update({ where: { id: spot.id }, data: { artistId: null } });
+    }
+
+    await prisma.notification.createMany({
+      data: [{
+        userId: spot.team.userId,
+        leagueId,
+        type: 'artist_split',
+        message: choice
+          ? `"${combinedName}" was split into individual artists. Your roster now has ${replacement} instead.`
+          : `"${combinedName}" was split into individual artists. All of them are already rostered in your league, so your ${spot.slot} slot is now open.`,
+      }],
+    });
+    await logLeagueEvent(
+      prisma,
+      leagueId,
+      'artist_split',
+      `"${combinedName}" was split into individual artists. ${choice ? `${spot.team.name} now has ${replacement}` : `${spot.team.name}'s ${spot.slot} slot was emptied`}.`,
+    );
+  }
 }
 
 async function upsertComponent(name: string, genre: string, dryRun: boolean) {
@@ -60,13 +148,14 @@ export async function splitCombinedArtists(dryRun: boolean): Promise<void> {
   const visible = await prisma.artist.findMany({ where: { hiddenAt: null } });
   const combined = visible.filter((a) => splitArtistCredit(a.name).length > 1);
 
+  const affectedComponentIds = new Set<string>();
+
   if (combined.length === 0) {
-    console.log(`${label} no combined-credit artists found — nothing to do`);
+    console.log(`${label} no visible combined-credit artists — checking rosters for leftover repairs`);
+    await repairSpotsHoldingHiddenArtists(dryRun, label, affectedComponentIds);
     return;
   }
   console.log(`${label} found ${combined.length} combined artist(s): ${combined.map((a) => `"${a.name}"`).join(', ')}`);
-
-  const affectedComponentIds = new Set<string>();
 
   for (const c of combined) {
     const names = splitArtistCredit(c.name);
@@ -106,69 +195,7 @@ export async function splitCombinedArtists(dryRun: boolean): Promise<void> {
       }
     }
 
-    // 3. Re-point roster spots (serially: each assignment changes what's taken)
-    const spots = await prisma.rosterSpot.findMany({
-      where: { artistId: c.id },
-      include: {
-        team: {
-          include: {
-            rosterSpots: { include: { artist: { select: { id: true, primaryGenre: true } } } },
-          },
-        },
-      },
-    });
-    const fixes: SpotFix[] = [];
-    for (const spot of spots) {
-      const leagueId = spot.team.leagueId;
-      const leagueSpots = await prisma.rosterSpot.findMany({
-        where: { team: { leagueId }, artistId: { not: null } },
-        select: { artistId: true },
-      });
-      const taken = new Set(leagueSpots.map((s) => s.artistId!));
-      const keep = spot.team.rosterSpots
-        .filter((s) => s.artistId && s.id !== spot.id && s.artist)
-        .map((s) => ({ slot: s.slot, artist: { id: s.artist!.id, primaryGenre: s.artist!.primaryGenre } }));
-
-      const choice = chooseReplacement(components, taken, keep);
-      const fix: SpotFix = {
-        leagueId,
-        teamId: spot.teamId,
-        teamName: spot.team.name,
-        replacement: choice?.artist ? components.find((x) => x.id === choice.artist.id)!.name : null,
-      };
-      fixes.push(fix);
-      console.log(`${label}   roster: ${spot.team.name} (${spot.slot}) → ${fix.replacement ?? 'emptied'}`);
-
-      if (!dryRun) {
-        if (choice) {
-          // Apply the full slot assignment (candidate + any relocated keeps)
-          for (const slot of ALL_SLOTS) {
-            const newArtistId = choice.assignment.get(slot) ?? null;
-            const current = spot.team.rosterSpots.find((s) => s.slot === slot);
-            if ((current?.artistId ?? null) !== newArtistId) {
-              await prisma.rosterSpot.updateMany({
-                where: { teamId: spot.teamId, slot },
-                data: { artistId: newArtistId },
-              });
-            }
-          }
-        } else {
-          await prisma.rosterSpot.update({ where: { id: spot.id }, data: { artistId: null } });
-        }
-        await prisma.notification.createMany({
-          data: [{
-            userId: spot.team.userId,
-            leagueId,
-            type: 'artist_split',
-            message: choice
-              ? `"${c.name}" was split into individual artists. Your roster now has ${fix.replacement} instead.`
-              : `"${c.name}" was split into individual artists. All of them are already rostered in your league, so your ${spot.slot} slot is now open.`,
-          }],
-        });
-      }
-    }
-
-    // 4. Invalidate pending waiver claims touching the combined artist
+    // 3. Invalidate pending waiver claims touching the combined artist
     const claims = await prisma.waiverClaim.findMany({
       where: { status: 'pending', OR: [{ artistId: c.id }, { dropArtistId: c.id }] },
       include: { team: { select: { userId: true } } },
@@ -189,7 +216,7 @@ export async function splitCombinedArtists(dryRun: boolean): Promise<void> {
       });
     }
 
-    // 5. Cancel open trades containing the combined artist
+    // 4. Cancel open trades containing the combined artist
     const trades = await prisma.trade.findMany({
       where: { status: { in: ['pending', 'accepted'] }, items: { some: { artistId: c.id } } },
       include: {
@@ -213,28 +240,26 @@ export async function splitCombinedArtists(dryRun: boolean): Promise<void> {
       });
     }
 
-    // 6. Hide the combined row + feed events
+    // 5. Hide the combined row + feed events for claim/trade leagues (roster
+    // repair below logs its own per-league events)
     if (!dryRun) {
       await prisma.artist.update({ where: { id: c.id }, data: { hiddenAt: new Date() } });
-      const leagueIds = new Set([
-        ...fixes.map((f) => f.leagueId),
-        ...claims.map((cl) => cl.leagueId),
-        ...trades.map((t) => t.leagueId),
-      ]);
+      const leagueIds = new Set([...claims.map((cl) => cl.leagueId), ...trades.map((t) => t.leagueId)]);
       for (const leagueId of leagueIds) {
-        const leagueFixes = fixes.filter((f) => f.leagueId === leagueId);
-        const detail = leagueFixes
-          .map((f) => (f.replacement ? `${f.teamName} now has ${f.replacement}` : `${f.teamName}'s slot was emptied`))
-          .join('; ');
         await logLeagueEvent(
           prisma,
           leagueId,
           'artist_split',
-          `"${c.name}" was split into ${names.join(', ')}. Each now scores the shared songs${detail ? `. ${detail}` : ''}.`,
+          `"${c.name}" was split into ${names.join(', ')}. Each now scores the shared songs.`,
         );
       }
     }
   }
+
+  // 6. Repair pass: re-point every roster spot holding a hidden artist. Runs
+  // over ALL hidden artists (not just this run's) so re-runs heal any spot a
+  // previous partial run missed.
+  await repairSpotsHoldingHiddenArtists(dryRun, label, affectedComponentIds);
 
   // 7. Re-score the components for every real chart week, then refresh
   // current matchups. Scores are keyed by calendar weekDate, so this is a
