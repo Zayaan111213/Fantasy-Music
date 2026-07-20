@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { FullPageSpinner } from './components/ui/Spinner';
+import { Landing } from './pages/Landing';
 import { Auth } from './pages/Auth';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { ResetPassword } from './pages/ResetPassword';
@@ -36,6 +37,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   );
 }
 
+function LandingOrHome() {
+  const { user } = useAuth();
+  if (user) return <Navigate to="/home" replace />;
+  return <Landing />;
+}
+
 export function App() {
   const { isLoading } = useAuth();
   if (isLoading) return <FullPageSpinner />;
@@ -46,7 +53,7 @@ export function App() {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/onboarding" element={<RequireAuth><Onboarding /></RequireAuth>} />
-      <Route path="/" element={<Navigate to="/home" replace />} />
+      <Route path="/" element={<LandingOrHome />} />
       <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
       <Route path="/charts" element={<ProtectedRoute><Charts /></ProtectedRoute>} />
       <Route path="/account" element={<ProtectedRoute><AccountSettings /></ProtectedRoute>} />
@@ -57,7 +64,7 @@ export function App() {
       <Route path="/leagues/:id/draft" element={<ProtectedRoute><DraftRoom /></ProtectedRoute>} />
       <Route path="/leagues/:id/trade" element={<ProtectedRoute><TradePropose /></ProtectedRoute>} />
       <Route path="/artists/:id" element={<ProtectedRoute><ArtistDetail /></ProtectedRoute>} />
-      <Route path="*" element={<Navigate to="/home" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
