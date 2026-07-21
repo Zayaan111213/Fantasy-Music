@@ -129,6 +129,7 @@ function ActivityCard({ items }: { items?: GlobalActivityItem[] }) {
 }
 
 const HOW_IT_WORKS_FLAG = 'bw_show_how_it_works';
+const INSTALL_BANNER_DISMISSED_FLAG = 'bw_install_banner_dismissed';
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; cls: string }> = {
@@ -148,6 +149,14 @@ export function Home() {
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [showInstallInstructions, setShowInstallInstructions] = useState(false);
   const { installed, canPrompt, isIos, promptInstall } = useInstallPrompt();
+  const [installBannerDismissed, setInstallBannerDismissed] = useState(
+    () => localStorage.getItem(INSTALL_BANNER_DISMISSED_FLAG) === '1',
+  );
+  const dismissInstallBanner = () => {
+    localStorage.setItem(INSTALL_BANNER_DISMISSED_FLAG, '1');
+    setInstallBannerDismissed(true);
+  };
+  const showInstallBanner = !installed && !installBannerDismissed && (canPrompt || isIos);
 
   // Auto-open once after account creation (flag set at signup)
   useEffect(() => {
@@ -196,16 +205,6 @@ export function Home() {
             <Wordmark className="text-lg" />
           </Link>
           <div className="flex items-center gap-3">
-            {!installed && (canPrompt || isIos) && (
-              <button
-                onClick={() => (canPrompt ? promptInstall() : setShowInstallInstructions(true))}
-                className="text-gray-400 hover:text-white transition-colors"
-                aria-label="Add to home screen"
-                title="Add to home screen"
-              >
-                <Download className="w-5 h-5" />
-              </button>
-            )}
             <button
               onClick={() => setShowHowItWorks(true)}
               className="text-gray-400 hover:text-white transition-colors"
@@ -249,6 +248,35 @@ export function Home() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {showInstallBanner && (
+        <div className="relative max-w-5xl mx-auto px-4 pt-4">
+          <div className="relative flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl px-5 py-4 pr-10 sm:pr-5 bg-indigo-500/10 border border-indigo-500/30">
+            <button
+              onClick={dismissInstallBanner}
+              className="absolute top-4 right-4 sm:static sm:order-last shrink-0 text-gray-500 hover:text-white transition-colors"
+              aria-label="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="flex items-center gap-3 min-w-0">
+              <Download className="w-6 h-6 text-indigo-400 shrink-0" />
+              <div className="min-w-0">
+                <div className="text-white font-semibold text-sm">Get the Bandwagoner app</div>
+                <div className="text-gray-400 text-xs mt-0.5">Add it to your home screen for one-tap access, no browser tabs.</div>
+              </div>
+            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              className="shrink-0 self-start sm:self-auto"
+              onClick={() => (canPrompt ? promptInstall() : setShowInstallInstructions(true))}
+            >
+              Get the App
+            </Button>
+          </div>
         </div>
       )}
 
