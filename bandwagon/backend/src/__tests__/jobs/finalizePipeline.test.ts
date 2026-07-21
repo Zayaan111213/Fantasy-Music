@@ -342,6 +342,22 @@ describe('firstScoringTuesdayPT', () => {
     // the following Tuesday, so lineups opened that Tuesday have a full week ahead.
     expect(firstScoringTuesdayPT(new Date('2026-07-07T12:00:00Z'))).toBe('2026-07-14');
   });
+
+  // Regression: computing the +N-day shift via draftTime.getDate()/.setDate()
+  // (the process's local timezone, not PT) and then re-projecting through
+  // timeZone: 'America/Los_Angeles' silently loses a day whenever a DST
+  // transition falls inside the shift, for draft times close to midnight PT.
+  it('draft the Tuesday before fall-back DST ends → still +7 days, not off by one', () => {
+    // 2026-10-27T07:30:00Z = Tue Oct 27, 12:30am PDT. DST ends Sun Nov 1, 2026,
+    // so the correct answer (Tue Nov 3) sits on the PST side of the transition.
+    expect(firstScoringTuesdayPT(new Date('2026-10-27T07:30:00Z'))).toBe('2026-11-03');
+  });
+
+  it('draft the Tuesday before spring-forward DST starts → still +7 days, not off by one', () => {
+    // 2026-03-03T08:30:00Z = Tue Mar 3, 12:30am PST. DST starts Sun Mar 8, 2026,
+    // so the correct answer (Tue Mar 10) sits on the PDT side of the transition.
+    expect(firstScoringTuesdayPT(new Date('2026-03-03T08:30:00Z'))).toBe('2026-03-10');
+  });
 });
 
 // ---------------------------------------------------------------------------

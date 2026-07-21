@@ -194,17 +194,29 @@ async function advanceSeason(leagueId: string, week: number): Promise<void> {
 }
 
 // Returns the PT calendar date (YYYY-MM-DD) of the first scoring Tuesday after the draft.
-// Matches the same logic used by isLineupLocked() in leagues.ts.
+// Also used by isLineupLocked() in leagues.ts.
+//
+// Computed entirely in PT-calendar-date space (extract Y/M/D, then Date.UTC
+// arithmetic) rather than draftTime.getDate()/.setDate(), which operate in
+// the process's local timezone. Adding N days that way and re-projecting
+// through timeZone: 'America/Los_Angeles' breaks across a DST transition:
+// a 7-UTC-day jump shifts PT wall-clock time by an hour, which can roll a
+// near-midnight-PT draft time onto the wrong calendar date (verified: a
+// 2026-10-27T07:30:00Z draft — Tue 12:30am PDT — landed on 2026-11-02
+// instead of the correct 2026-11-03, since PT flips to PST on Nov 1).
 export function firstScoringTuesdayPT(draftTime: Date): string {
-  const dowNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const draftDow = dowNames.indexOf(
-    draftTime.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/Los_Angeles' }),
-  );
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric', month: 'numeric', day: 'numeric',
+  }).formatToParts(draftTime);
+  const ptYear = parseInt(parts.find((p) => p.type === 'year')!.value);
+  const ptMonth = parseInt(parts.find((p) => p.type === 'month')!.value) - 1;
+  const ptDay = parseInt(parts.find((p) => p.type === 'day')!.value);
+  const draftDow = new Date(Date.UTC(ptYear, ptMonth, ptDay)).getUTCDay(); // 0 = Sun … 6 = Sat
   // If draft is on Tuesday, next scoring Tuesday is 7 days later (week-1 exception).
   const daysToTuesday = draftDow === 2 ? 7 : (2 - draftDow + 7) % 7;
-  const firstTuesday = new Date(draftTime);
-  firstTuesday.setDate(draftTime.getDate() + daysToTuesday);
-  return firstTuesday.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+  const firstTuesday = new Date(Date.UTC(ptYear, ptMonth, ptDay + daysToTuesday));
+  return firstTuesday.toISOString().slice(0, 10);
 }
 
 export async function runFinalizePipeline(options: { force?: boolean } = {}): Promise<void> {
