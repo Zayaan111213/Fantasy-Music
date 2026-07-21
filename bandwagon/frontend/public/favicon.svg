@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
-  <rect width="120" height="120" rx="26" fill="#3a2a1c"/>
-  <rect x="30" y="45" width="60" height="26" rx="7" fill="#E8B23A"/>
-  <rect x="30" y="45" width="60" height="7" rx="3.5" fill="#F0C766"/>
-  <line x1="30" y1="58" x2="16" y2="51" stroke="#E8B23A" stroke-width="6" stroke-linecap="round"/>
-  <circle cx="42" cy="86" r="13" fill="#12100b"/><circle cx="42" cy="86" r="4.5" fill="#E07A3E"/>
-  <circle cx="82" cy="86" r="13" fill="#12100b"/><circle cx="82" cy="86" r="4.5" fill="#E07A3E"/>
+  <rect width="120" height="120" rx="26" fill="#F3E7CE"/>
+  <rect x="30" y="45" width="60" height="26" rx="7" fill="#E07A3E"/>
+  <rect x="30" y="45" width="60" height="7" rx="3.5" fill="#EC9A66"/>
+  <line x1="30" y1="58" x2="16" y2="51" stroke="#E07A3E" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="42" cy="86" r="13" fill="#3A2A1C"/><circle cx="42" cy="86" r="7.5" fill="none" stroke="#F3E7CE" stroke-width="2"/><circle cx="42" cy="86" r="4" fill="#E8B23A"/><circle cx="42" cy="86" r="1.5" fill="#3A2A1C"/>
+  <circle cx="82" cy="86" r="13" fill="#3A2A1C"/><circle cx="82" cy="86" r="7.5" fill="none" stroke="#F3E7CE" stroke-width="2"/><circle cx="82" cy="86" r="4" fill="#E8B23A"/><circle cx="82" cy="86" r="1.5" fill="#3A2A1C"/>
 </svg>
