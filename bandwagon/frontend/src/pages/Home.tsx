@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Users, Trophy, ChevronRight, Clock, X, HelpCircle, Music, Disc3 } from 'lucide-react';
+import { Plus, Users, Trophy, ChevronRight, Clock, X, HelpCircle, Music, Disc3, Download } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
@@ -9,6 +9,8 @@ import { Card } from '../components/ui/Card';
 import { Spinner } from '../components/ui/Spinner';
 import { Avatar } from '../components/ui/Avatar';
 import { HowItWorksModal } from '../components/HowItWorksModal';
+import { InstallInstructionsModal } from '../components/InstallInstructionsModal';
+import { useInstallPrompt } from '../hooks/useInstallPrompt';
 import type { ChartRow, GlobalActivityItem, LeagueCard, MoversPayload, Notification } from '../api/types';
 import { WagonMark, Wordmark } from '../components/Logo';
 import { timeAgo } from '../utils/timeAgo';
@@ -144,6 +146,8 @@ export function Home() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [showInstallInstructions, setShowInstallInstructions] = useState(false);
+  const { installed, canPrompt, isIos, promptInstall } = useInstallPrompt();
 
   // Auto-open once after account creation (flag set at signup)
   useEffect(() => {
@@ -182,6 +186,7 @@ export function Home() {
     <div className="min-h-screen bg-gray-950">
 
       {showHowItWorks && <HowItWorksModal onClose={() => setShowHowItWorks(false)} />}
+      {showInstallInstructions && <InstallInstructionsModal onClose={() => setShowInstallInstructions(false)} />}
 
       {/* Nav */}
       <header className="relative border-b border-white/10">
@@ -191,6 +196,16 @@ export function Home() {
             <Wordmark className="text-lg" />
           </Link>
           <div className="flex items-center gap-3">
+            {!installed && (canPrompt || isIos) && (
+              <button
+                onClick={() => (canPrompt ? promptInstall() : setShowInstallInstructions(true))}
+                className="text-gray-400 hover:text-white transition-colors"
+                aria-label="Add to home screen"
+                title="Add to home screen"
+              >
+                <Download className="w-5 h-5" />
+              </button>
+            )}
             <button
               onClick={() => setShowHowItWorks(true)}
               className="text-gray-400 hover:text-white transition-colors"
