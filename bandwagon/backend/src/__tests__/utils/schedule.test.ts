@@ -83,6 +83,50 @@ describe('buildRoundRobin', () => {
     });
   });
 
+  describe('5 teams, 10 weeks (odd count → weekly bye)', () => {
+    const teams = ['t1', 't2', 't3', 't4', 't5'];
+    const matchups = buildRoundRobin(teams, 'league-odd', 10);
+
+    it('each week has exactly 2 matchups (one team on bye)', () => {
+      for (let w = 1; w <= 10; w++) {
+        expect(matchups.filter((m) => m.week === w)).toHaveLength(2);
+      }
+    });
+
+    it('no team plays itself', () => {
+      expect(matchups.every((m) => m.homeTeamId !== m.awayTeamId)).toBe(true);
+    });
+
+    it('byes are distributed evenly: every team plays exactly 8 of 10 weeks', () => {
+      for (const t of teams) {
+        expect(gamesFor(matchups, t)).toBe(8);
+      }
+    });
+
+    it('byes rotate through all 5 teams within the first 5 weeks (no team repeats before all have sat out once)', () => {
+      const byeTeamByWeek = new Map<number, string>();
+      for (let w = 1; w <= 5; w++) {
+        const playing = new Set(
+          matchups.filter((m) => m.week === w).flatMap((m) => [m.homeTeamId, m.awayTeamId]),
+        );
+        const bye = teams.find((t) => !playing.has(t))!;
+        byeTeamByWeek.set(w, bye);
+      }
+      expect(new Set(byeTeamByWeek.values()).size).toBe(5);
+    });
+  });
+
+  describe('3 teams, 9 weeks (odd count, exact multiple of cycle length)', () => {
+    const teams = ['t1', 't2', 't3'];
+    const matchups = buildRoundRobin(teams, 'league-odd3', 9);
+
+    it('every team gets exactly 3 byes (plays 6 of 9 weeks)', () => {
+      for (const t of teams) {
+        expect(gamesFor(matchups, t)).toBe(6);
+      }
+    });
+  });
+
   describe('does not mutate the input array', () => {
     it('original teamIds array is unchanged after call', () => {
       const original = ['x', 'y', 'z', 'w'];
