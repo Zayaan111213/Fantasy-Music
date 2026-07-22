@@ -498,7 +498,11 @@ router.post('/:id/trades/:tradeId/veto', requireAuth, async (req: AuthRequest, r
         where: { id: trade.id, status: 'accepted' },
         data: { status: 'vetoed', resolvedAt: new Date() },
       });
-      vetoed = true;
+      // Guarded on status: 'accepted' — if finalize executed this trade in the
+      // gap between our status check above and this update, count is 0 and the
+      // trade is actually 'executed'. Report what really happened, not what
+      // this request tried to do.
+      vetoed = count > 0;
       if (count > 0) {
         await prisma.notification.createMany({
           data: [trade.proposerTeam.userId, trade.receiverTeam.userId].map((userId) => ({

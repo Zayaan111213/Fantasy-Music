@@ -118,13 +118,15 @@ export function buildWeek12Matchups(
   return matchups;
 }
 
-// Final regular-season standings order — same sort as the standings endpoint,
-// with createdAt as a deterministic last-resort tiebreaker.
+// Final regular-season standings order — same sort as the standings endpoint.
+// createdAt is TIMESTAMP(3) and teams can be created in the same millisecond
+// under concurrent joins, so id backs it up as a fully deterministic final
+// tiebreaker (Postgres doesn't guarantee tie order for a bare ORDER BY).
 export async function getFinalSeeds(leagueId: string): Promise<SeededTeam[]> {
   const teams = await prisma.team.findMany({
     where: { leagueId },
     select: { id: true },
-    orderBy: [{ wins: 'desc' }, { pointsFor: 'desc' }, { createdAt: 'asc' }],
+    orderBy: [{ wins: 'desc' }, { pointsFor: 'desc' }, { createdAt: 'asc' }, { id: 'asc' }],
   });
   return teams.map((t, i) => ({ teamId: t.id, seed: i + 1 }));
 }

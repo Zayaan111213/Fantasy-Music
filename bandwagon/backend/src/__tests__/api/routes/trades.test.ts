@@ -337,6 +337,23 @@ describe('POST /leagues/:id/trades/:tradeId/veto', () => {
       data: expect.objectContaining({ leagueId: 'l1', type: 'trade_vetoed' }),
     }));
   });
+
+  it('reports vetoed:false when finalize executed the trade in the gap before this vote committed', async () => {
+    // Regression: the guarded updateMany (status: 'accepted') can match 0 rows
+    // if finalize's execute already flipped the trade to 'executed' between our
+    // status check and this update. The response used to hardcode vetoed:true
+    // regardless, lying about what actually happened.
+    pm.trade.findFirst.mockResolvedValue(TRADE);
+    pm.tradeVeto.create.mockResolvedValue({});
+    pm.tradeVeto.count.mockResolvedValue(2);
+    pm.trade.updateMany.mockResolvedValue({ count: 0 });
+
+    const res = await request(app).post('/leagues/l1/trades/t1/veto').send({});
+    expect(res.status).toBe(200);
+    expect(res.body.vetoed).toBe(false);
+    expect(pm.notification.createMany).not.toHaveBeenCalled();
+    expect(pm.leagueEvent.create).not.toHaveBeenCalled();
+  });
 });
 
 describe('reject / cancel role guards', () => {

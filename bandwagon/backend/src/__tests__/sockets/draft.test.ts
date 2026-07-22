@@ -7,6 +7,7 @@ vi.mock('../../db/prisma', () => ({
     team: { findUnique: vi.fn() },
     artist: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn() },
     draftPick: { findMany: vi.fn() },
+    user: { findUnique: vi.fn() },
     $transaction: vi.fn().mockResolvedValue([{}, {}]),
   },
 }));
@@ -37,6 +38,7 @@ const pm = prisma as unknown as {
     findMany: ReturnType<typeof vi.fn>;
   };
   draftPick: { findMany: ReturnType<typeof vi.fn> };
+  user: { findUnique: ReturnType<typeof vi.fn> };
   $transaction: ReturnType<typeof vi.fn>;
 };
 
@@ -74,6 +76,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   connectionHandler = undefined;
   pm.$transaction.mockResolvedValue([{}, {}]);
+  pm.user.findUnique.mockResolvedValue({ deletedAt: null });
   registerDraftSocket(mockIo as any);
 });
 
@@ -351,6 +354,20 @@ describe('draft:pick', () => {
       expect.stringContaining('No eligible slot')
     );
   });
+
+  it('rejects a pick from a soft-deleted user even with a still-valid JWT', async () => {
+    // JWTs live 30 days and are never revoked on account deletion — a user
+    // who deletes mid-draft must not be able to keep picking with the same token.
+    mockJwtVerify.mockReturnValue({ userId: 'user-1' } as any);
+    pm.user.findUnique.mockResolvedValue({ deletedAt: new Date() });
+    const { socket, handlers } = connect();
+
+    await handlers['draft:pick']({ leagueId: 'l1', artistId: 'artist-1', token: 'valid' });
+
+    expect(socket.emit).toHaveBeenCalledWith('draft:error', 'Pick failed');
+    expect(pm.draftState.findUnique).not.toHaveBeenCalled();
+    expect(mockMakePick).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -453,5 +470,44 @@ describe('fireAutoDraft — timer expiry', () => {
 
     expect(roomEmit).toHaveBeenCalledWith('draft:pick-made', expect.any(Object));
     expect(roomEmit).toHaveBeenCalledWith('draft:complete');
+  });
+
+  it('a losing makePick race (unique-constraint throw) does not crash the tick loop', async () => {
+    // Regression: fireAutoDraft's makePick call had no try/catch of its own, so if
+    // it lost a race to a simultaneous human draft:pick for the same pick number,
+    // the throw used to become an unhandled rejection inside a bare async
+    // setInterval callback — which crashes the whole process on Node 15+, not
+    // just this league. The tick loop must survive it.
+    const leagueId = 'league-autod-race';
+    setupAutodrftMocks(leagueId);
+    mockMakePick.mockRejectedValue(new Error('Unique constraint failed on the fields: (leagueId,pickNumber)'));
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const { handlers } = connect();
+    await handlers['draft:join']({ leagueId, token: 'valid' });
+
+    await expect(vi.advanceTimersByTimeAsync(60_000)).resolves.not.toThrow();
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('pick timer tick failed'),
+      expect.any(Error),
+    );
+    errorSpy.mockRestore();
+  });
+
+  it('stalls visibly (not silently) when the undrafted pool is exhausted for every open slot', async () => {
+    const leagueId = 'league-autod-stall';
+    setupAutodrftMocks(leagueId);
+    // Pool fully exhausted — nothing left to draft for any of the team's open slots.
+    pm.artist.findFirst.mockResolvedValue(null);
+    pm.artist.findMany.mockResolvedValue([]);
+
+    const { handlers } = connect();
+    await handlers['draft:join']({ leagueId, token: 'valid' });
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(mockMakePick).not.toHaveBeenCalled();
+    expect(roomEmit).toHaveBeenCalledWith('draft:error', expect.stringContaining('no eligible artist'));
   });
 });
