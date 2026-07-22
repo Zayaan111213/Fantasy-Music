@@ -12,9 +12,10 @@ import { buildWeek11Matchups } from '../../playoffs/bracket';
 import { logLeagueEvent } from '../../events/leagueEvents';
 import { weekDateForLeagueWeek } from '../../scoring/engine';
 import { getCurrentWeekDate } from '../../jobs/ingestCharts';
+import { firstScoringTuesdayPT } from '../../jobs/finalizePipeline';
 // Circular with waivers/engine (which imports artistEligibleForSlot from here,
-// as does trades/engine); safe because both sides only reference the other's
-// exports at call time.
+// as does trades/engine, as does finalizePipeline transitively via both);
+// safe because all sides only reference the other's exports at call time.
 import { submitWaiverClaim, cancelWaiverClaim, reorderWaiverClaims } from '../../waivers/engine';
 import { renewLeague } from '../../season/rollover';
 import { transferCommissioner } from '../../leagues/transfer';
@@ -989,16 +990,9 @@ export function isLineupLocked(
 ): boolean {
   if (dayPT === 'Monday') return false;
 
+  // Week-1 exception: lineup stays open until the first scoring Tuesday after the draft.
   if (currentWeek === 1 && draftTime) {
-    const dowNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const draftDow = dowNames.indexOf(
-      draftTime.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/Los_Angeles' }),
-    );
-    const daysToTuesday = draftDow === 2 ? 7 : (2 - draftDow + 7) % 7;
-    const firstTuesdayApprox = new Date(draftTime);
-    firstTuesdayApprox.setDate(draftTime.getDate() + daysToTuesday);
-    const firstTuesdayPT = firstTuesdayApprox.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
-    if (todayPT < firstTuesdayPT) return false;
+    if (todayPT < firstScoringTuesdayPT(draftTime)) return false;
   }
 
   return true;
