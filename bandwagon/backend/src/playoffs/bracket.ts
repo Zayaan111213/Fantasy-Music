@@ -153,25 +153,31 @@ export async function ensurePlayoffMatchups(leagueId: string, completedWeek: num
       return;
     }
     const data = buildWeek11Matchups(leagueId, seeds);
-    await prisma.matchup.createMany({ data, skipDuplicates: true });
-    console.log(`[playoffs] league ${leagueId} — created ${data.length} week-${targetWeek} playoff matchups`);
+    const result = await prisma.matchup.createMany({ data, skipDuplicates: true });
+    console.log(`[playoffs] league ${leagueId} — created ${result.count} week-${targetWeek} playoff matchups`);
 
-    // The `existing` early-return above guarantees this fires exactly once.
-    const teams = await prisma.team.findMany({
-      where: { leagueId },
-      select: { id: true, name: true },
-    });
-    const names = new Map(teams.map((t) => [t.id, t.name]));
-    const semis = data
-      .filter((m) => m.matchupType === 'semifinal')
-      .map((m) => `${names.get(m.homeTeamId) ?? '?'} (${m.homeSeed}) vs ${names.get(m.awayTeamId) ?? '?'} (${m.awaySeed})`)
-      .join(', ');
-    await logLeagueEvent(
-      prisma,
-      leagueId,
-      'playoffs_set',
-      `The playoff bracket is set. Semifinals: ${semis}`,
-    );
+    // The `existing` check above isn't atomic with this createMany — two
+    // concurrent callers can both pass it before either inserts. skipDuplicates
+    // + the unique index keep the matchup rows themselves safe either way, but
+    // without this count>0 gate both callers would also log a duplicate feed
+    // event. Only the caller that actually inserted rows logs it.
+    if (result.count > 0) {
+      const teams = await prisma.team.findMany({
+        where: { leagueId },
+        select: { id: true, name: true },
+      });
+      const names = new Map(teams.map((t) => [t.id, t.name]));
+      const semis = data
+        .filter((m) => m.matchupType === 'semifinal')
+        .map((m) => `${names.get(m.homeTeamId) ?? '?'} (${m.homeSeed}) vs ${names.get(m.awayTeamId) ?? '?'} (${m.awaySeed})`)
+        .join(', ');
+      await logLeagueEvent(
+        prisma,
+        leagueId,
+        'playoffs_set',
+        `The playoff bracket is set. Semifinals: ${semis}`,
+      );
+    }
   } else {
     const week11 = await prisma.matchup.findMany({
       where: { leagueId, week: PLAYOFF_SEMIS_WEEK, isFinalized: true, matchupType: { not: 'regular' } },
