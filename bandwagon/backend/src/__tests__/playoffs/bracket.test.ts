@@ -1,14 +1,30 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // bracket.ts imports the prisma singleton; the pure functions under test never
-// touch it, so a bare stub keeps the module import side-effect free.
-vi.mock('../../db/prisma', () => ({ prisma: {} }));
+// touch it. ensurePlayoffMatchups does, so the stub carries real vi.fn()s for
+// its calls (harmless no-ops for the pure-function tests above, which never
+// invoke them).
+vi.mock('../../db/prisma', () => ({
+  prisma: {
+    matchup: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
+      createMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
+    team: { findMany: vi.fn().mockResolvedValue([]) },
+    league: { update: vi.fn() },
+    leagueEvent: { create: vi.fn() },
+  },
+}));
 
+import { prisma } from '../../db/prisma';
 import {
   buildWeek11Matchups,
   buildWeek12Matchups,
+  ensurePlayoffMatchups,
   PLAYOFF_FINALS_WEEK,
   PLAYOFF_SEMIS_WEEK,
+  REGULAR_SEASON_WEEKS,
   type FinalizedPlayoffMatchup,
   type PlayoffMatchupInput,
   type SeededTeam,
@@ -158,5 +174,39 @@ describe('buildWeek12Matchups', () => {
 
   it('throws when semifinals are missing', () => {
     expect(() => buildWeek12Matchups(LEAGUE, seeds(8), [])).toThrow(/expected 2 finalized semifinals/);
+  });
+});
+
+describe('ensurePlayoffMatchups', () => {
+  beforeEach(() => {
+    vi.mocked(prisma.matchup.findFirst).mockReset().mockResolvedValue(null);
+    vi.mocked(prisma.matchup.createMany).mockReset().mockResolvedValue({ count: 4 });
+    vi.mocked(prisma.team.findMany).mockReset().mockResolvedValue(
+      seeds(4).map((s) => ({ id: s.teamId, name: s.teamId, wins: 0, pointsFor: 0, createdAt: new Date() })) as never,
+    );
+    vi.mocked(prisma.leagueEvent.create).mockReset();
+  });
+
+  it('logs playoffs_set once when this call actually inserts the matchups', async () => {
+    await ensurePlayoffMatchups(LEAGUE, REGULAR_SEASON_WEEKS);
+    expect(prisma.leagueEvent.create).toHaveBeenCalledTimes(1);
+    expect(prisma.leagueEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ type: 'playoffs_set' }) }),
+    );
+  });
+
+  it('does not log a duplicate playoffs_set when a concurrent caller already inserted the matchups', async () => {
+    // Both callers pass the `existing` pre-check (still null) before either commits;
+    // this caller's createMany then hits skipDuplicates and inserts nothing.
+    vi.mocked(prisma.matchup.createMany).mockResolvedValue({ count: 0 });
+    await ensurePlayoffMatchups(LEAGUE, REGULAR_SEASON_WEEKS);
+    expect(prisma.leagueEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('no-ops entirely when the target week already has matchups', async () => {
+    vi.mocked(prisma.matchup.findFirst).mockResolvedValue({ id: 'existing' } as never);
+    await ensurePlayoffMatchups(LEAGUE, REGULAR_SEASON_WEEKS);
+    expect(prisma.matchup.createMany).not.toHaveBeenCalled();
+    expect(prisma.leagueEvent.create).not.toHaveBeenCalled();
   });
 });

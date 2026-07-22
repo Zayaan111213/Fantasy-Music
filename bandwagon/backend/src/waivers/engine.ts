@@ -253,43 +253,52 @@ export async function resolveWaivers(leagueId: string): Promise<void> {
       });
     } catch (err) {
       if (!(err instanceof WaiverInvalidError)) throw err;
-      // Tx rolled back (flip reverted) — record the claim as invalid.
-      const { count } = await prisma.waiverClaim.updateMany({
-        where: { id: claim.id, status: 'pending' },
-        data: { status: 'invalid', resolution: err.message, resolvedAt: new Date() },
-      });
-      if (count > 0) {
-        await prisma.notification.createMany({
-          data: [{
-            userId: claim.team.userId,
-            leagueId,
-            type: 'waiver_result',
-            message: `Your waiver claim for ${claim.artist.name} could not be processed: ${err.message}.`,
-          }],
+      // Tx rolled back (flip reverted) — record the claim as invalid. Status
+      // flip + notification share one transaction so a crash between them
+      // can't leave a silently-invalidated claim whose owner never finds out
+      // (the claim is no longer 'pending', so nothing retries it).
+      await prisma.$transaction(async (tx) => {
+        const { count } = await tx.waiverClaim.updateMany({
+          where: { id: claim.id, status: 'pending' },
+          data: { status: 'invalid', resolution: err.message, resolvedAt: new Date() },
         });
-        console.log(`[waivers] league ${leagueId} — claim for ${claim.artist.name} invalid: ${err.message}`);
-      }
+        if (count > 0) {
+          await tx.notification.createMany({
+            data: [{
+              userId: claim.team.userId,
+              leagueId,
+              type: 'waiver_result',
+              message: `Your waiver claim for ${claim.artist.name} could not be processed: ${err.message}.`,
+            }],
+          });
+          console.log(`[waivers] league ${leagueId} — claim for ${claim.artist.name} invalid: ${err.message}`);
+        }
+      });
     }
 
     if (won) {
       // Everyone else who wanted this artist loses to the winner.
       const losers = remaining.filter((c) => c.artistId === claim.artistId);
       if (losers.length > 0) {
-        await prisma.waiverClaim.updateMany({
-          where: { id: { in: losers.map((c) => c.id) }, status: 'pending' },
-          data: {
-            status: 'lost',
-            resolution: `Lost to ${claim.team.name} (higher waiver priority)`,
-            resolvedAt: new Date(),
-          },
-        });
-        await prisma.notification.createMany({
-          data: losers.map((c) => ({
-            userId: c.team.userId,
-            leagueId,
-            type: 'waiver_result',
-            message: `Your waiver claim for ${claim.artist.name} was lost to ${claim.team.name} (higher waiver priority).`,
-          })),
+        // Same crash-safety reasoning as the invalid path above: one
+        // transaction for the status flip and the loss notifications.
+        await prisma.$transaction(async (tx) => {
+          await tx.waiverClaim.updateMany({
+            where: { id: { in: losers.map((c) => c.id) }, status: 'pending' },
+            data: {
+              status: 'lost',
+              resolution: `Lost to ${claim.team.name} (higher waiver priority)`,
+              resolvedAt: new Date(),
+            },
+          });
+          await tx.notification.createMany({
+            data: losers.map((c) => ({
+              userId: c.team.userId,
+              leagueId,
+              type: 'waiver_result',
+              message: `Your waiver claim for ${claim.artist.name} was lost to ${claim.team.name} (higher waiver priority).`,
+            })),
+          });
         });
         remaining = remaining.filter((c) => c.artistId !== claim.artistId);
       }

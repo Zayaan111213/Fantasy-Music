@@ -581,6 +581,48 @@ describe('resolveWaivers', () => {
     });
   });
 
+  it('invalid-claim status flip and its notification share one transaction (crash-safety)', async () => {
+    // Regression: these used to be two independent prisma calls, so a crash
+    // between them could leave a claim silently marked 'invalid' with no
+    // notification ever sent (it's no longer 'pending', so nothing retries it).
+    pm.waiverClaim.findMany.mockResolvedValue([
+      makeClaim({ id: 'c1', teamId: 't1', teamName: 'Alpha', userId: 'u1', priority: 1,
+                  artistId: 'x', artistName: 'X', dropSlot: 'Pop', dropArtistId: 'old' }),
+    ]);
+    pm.team.findMany.mockResolvedValue([{ id: 't1' }]);
+    pm.artist.findMany.mockResolvedValue([{ id: 'old', name: 'Old Timer' }]);
+    fakeRoster({ t1: { Pop: 'old' }, t2: { Flex: 'x' } }); // X already rostered on t2 → invalid
+
+    const transactionCallsBefore = pm.$transaction.mock.calls.length;
+    await resolveWaivers('league-1');
+
+    // One $transaction for the failed win attempt (rolled back) + one for the
+    // invalid-status flip + notification, wrapped together.
+    expect(pm.$transaction.mock.calls.length - transactionCallsBefore).toBe(2);
+    expect(pm.notification.createMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('lost-claim status flip and its notifications share one transaction (crash-safety)', async () => {
+    pm.waiverClaim.findMany.mockResolvedValue([
+      makeClaim({ id: 'c-high', teamId: 't1', teamName: 'Alpha', userId: 'u1', priority: 1,
+                  artistId: 'x', artistName: 'X', dropSlot: 'Pop', dropArtistId: 'a-old' }),
+      makeClaim({ id: 'c-low', teamId: 't2', teamName: 'Beta', userId: 'u2', priority: 2,
+                  artistId: 'x', artistName: 'X', dropSlot: 'Pop', dropArtistId: 'b-old' }),
+    ]);
+    pm.team.findMany.mockResolvedValue([{ id: 't1' }, { id: 't2' }]);
+    pm.artist.findMany.mockResolvedValue([{ id: 'a-old', name: 'A Old' }, { id: 'b-old', name: 'B Old' }]);
+    fakeRoster({ t1: { Pop: 'a-old' }, t2: { Pop: 'b-old' } });
+
+    const transactionCallsBefore = pm.$transaction.mock.calls.length;
+    await resolveWaivers('league-1');
+
+    // One $transaction for the win + one for the loser's status flip + notification.
+    expect(pm.$transaction.mock.calls.length - transactionCallsBefore).toBe(2);
+    expect(pm.notification.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ userId: 'u2', type: 'waiver_result' })],
+    });
+  });
+
   it('gate count=0 (concurrent/repeated run) → no side effects at all', async () => {
     pm.waiverClaim.findMany.mockResolvedValue([
       makeClaim({ id: 'c1', teamId: 't1', teamName: 'Alpha', userId: 'u1', priority: 1,
