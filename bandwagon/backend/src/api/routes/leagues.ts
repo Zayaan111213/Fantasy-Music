@@ -442,7 +442,7 @@ router.get('/:id/standings', requireAuth, async (req: AuthRequest, res, next) =>
       where: { leagueId: req.params.id },
       include: { user: { select: { username: true, avatarUrl: true } } },
       // Same order as playoff seeding (getFinalSeeds), so rank always matches seed
-      orderBy: [{ wins: 'desc' }, { pointsFor: 'desc' }, { createdAt: 'asc' }],
+      orderBy: [{ wins: 'desc' }, { pointsFor: 'desc' }, { createdAt: 'asc' }, { id: 'asc' }],
     });
 
     res.json(teams.map((t, i) => ({
@@ -556,7 +556,7 @@ router.get('/:id/bracket', requireAuth, async (req: AuthRequest, res, next) => {
     const teams = await prisma.team.findMany({
       where: { leagueId },
       select: { id: true, name: true, wins: true, losses: true },
-      orderBy: [{ wins: 'desc' }, { pointsFor: 'desc' }, { createdAt: 'asc' }],
+      orderBy: [{ wins: 'desc' }, { pointsFor: 'desc' }, { createdAt: 'asc' }, { id: 'asc' }],
     });
     if (teams.length < 4) { res.json(null); return; }
 
