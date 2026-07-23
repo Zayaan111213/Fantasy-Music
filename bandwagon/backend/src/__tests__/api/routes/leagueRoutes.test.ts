@@ -7,11 +7,13 @@ import request from 'supertest';
 vi.mock('../../../db/prisma', () => ({
   prisma: {
     league: { findUnique: vi.fn() },
-    team: { findMany: vi.fn(), findFirst: vi.fn() },
+    team: { findMany: vi.fn(), findFirst: vi.fn(), delete: vi.fn() },
     matchup: { findFirst: vi.fn(), findUnique: vi.fn() },
     artist: { findUnique: vi.fn(), findMany: vi.fn() },
     genreStreamingTier: { findMany: vi.fn() },
     rosterSpot: { findUnique: vi.fn(), update: vi.fn() },
+    notification: { create: vi.fn() },
+    leagueEvent: { create: vi.fn() },
     $transaction: vi.fn(),
   },
 }));
@@ -34,11 +36,13 @@ import { weekDateForLeagueWeek } from '../../../scoring/engine';
 
 const pm = prisma as unknown as {
   league: { findUnique: ReturnType<typeof vi.fn> };
-  team: { findMany: ReturnType<typeof vi.fn>; findFirst: ReturnType<typeof vi.fn> };
+  team: { findMany: ReturnType<typeof vi.fn>; findFirst: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn> };
   matchup: { findFirst: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn> };
   artist: { findUnique: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> };
   genreStreamingTier: { findMany: ReturnType<typeof vi.fn> };
   rosterSpot: { findUnique: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
+  notification: { create: ReturnType<typeof vi.fn> };
+  leagueEvent: { create: ReturnType<typeof vi.fn> };
   $transaction: ReturnType<typeof vi.fn>;
 };
 
@@ -295,7 +299,7 @@ describe('GET /leagues/:id/players', () => {
     const res = await request(app).get('/leagues/l1/players');
     expect(res.status).toBe(200);
     expect(res.body[0].lastWeekPoints).toBe(32); // raw totalPoints
-    expect(res.body[0].avgLast5Points).toBe(32);
+    expect(res.body[0].avgLast5Points).toBe(32 / 5); // fixed 5-week window, zero-filled
   });
 
   it('applies custom chartPosition tiers when scoringConfig is set', async () => {
@@ -318,7 +322,7 @@ describe('GET /leagues/:id/players', () => {
 
     const res = await request(app).get('/leagues/l1/players');
     expect(res.status).toBe(200);
-    expect(res.body[0].avgLast5Points).toBe(107); // avg of [107, 107]
+    expect(res.body[0].avgLast5Points).toBe((107 + 107) / 5); // fixed 5-week window, zero-filled
   });
 
   it('includes rosteredBy team when artist is on a roster in this league', async () => {
@@ -507,5 +511,74 @@ describe('GET /leagues (league cards)', () => {
     expect(res.body[0].opponent.name).toBe('BeatBroker');
     expect(res.body[0].myScore).toBe(230);
     expect(res.body[0].opponentScore).toBe(108);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /leagues/:id/teams/:teamId/kick
+// ---------------------------------------------------------------------------
+
+describe('POST /leagues/:id/teams/:teamId/kick', () => {
+  // requireAuth mock always sets req.userId = 'user-1'
+  const baseLeague = { id: 'l1', name: 'Test League', commissionerId: 'user-1', status: 'pending' };
+  const targetTeam = { id: 't-2', userId: 'user-2', name: 'Rival Team' };
+
+  it('returns 404 when league not found', async () => {
+    pm.league.findUnique.mockResolvedValue(null);
+
+    const res = await request(app).post('/leagues/l1/teams/t-2/kick');
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('League not found');
+  });
+
+  it('returns 403 when requester is not the commissioner', async () => {
+    pm.league.findUnique.mockResolvedValue({ ...baseLeague, commissionerId: 'someone-else', teams: [targetTeam] });
+
+    const res = await request(app).post('/leagues/l1/teams/t-2/kick');
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('Only the commissioner can remove members');
+  });
+
+  it('returns 404 when the team is not in this league', async () => {
+    pm.league.findUnique.mockResolvedValue({ ...baseLeague, teams: [] });
+
+    const res = await request(app).post('/leagues/l1/teams/t-2/kick');
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('Team not found in this league');
+  });
+
+  it('returns 400 when the commissioner targets their own team', async () => {
+    pm.league.findUnique.mockResolvedValue({ ...baseLeague, teams: [{ id: 't-1', userId: 'user-1', name: 'My Team' }] });
+
+    const res = await request(app).post('/leagues/l1/teams/t-1/kick');
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/cannot kick themselves/);
+  });
+
+  it('returns 400 once the draft has started', async () => {
+    pm.league.findUnique.mockResolvedValue({ ...baseLeague, status: 'active', teams: [targetTeam] });
+
+    const res = await request(app).post('/leagues/l1/teams/t-2/kick');
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/before the draft starts/);
+  });
+
+  it('deletes the team, notifies the kicked user, and logs a league event', async () => {
+    pm.league.findUnique.mockResolvedValue({ ...baseLeague, teams: [targetTeam] });
+    pm.team.delete.mockResolvedValue(targetTeam);
+    pm.notification.create.mockResolvedValue({});
+    pm.leagueEvent.create.mockResolvedValue({});
+
+    const res = await request(app).post('/leagues/l1/teams/t-2/kick');
+    expect(res.status).toBe(200);
+    expect(res.body.message).toBe('Member removed');
+
+    expect(pm.team.delete).toHaveBeenCalledWith({ where: { id: 't-2' } });
+    expect(pm.notification.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ userId: 'user-2', type: 'kicked_from_league' }),
+    });
+    expect(pm.leagueEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ leagueId: 'l1', type: 'member_kicked' }),
+    });
   });
 });

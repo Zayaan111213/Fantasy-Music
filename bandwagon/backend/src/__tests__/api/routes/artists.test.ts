@@ -145,10 +145,10 @@ describe('GET /artists', () => {
     expect(res.body[0].lastWeekPoints).toBe(30);
   });
 
-  it('derives avgLast5Points as a mean across all returned weekly scores', async () => {
+  it('derives avgLast5Points as a mean over a fixed 5-week window, zero-filling missing weeks', async () => {
     pm.artist.findMany.mockResolvedValue([makeArtist(1, 'Pop', [30, 20, 10])]);
     const res = await request(app).get('/artists');
-    expect(res.body[0].avgLast5Points).toBeCloseTo(20); // (30+20+10)/3
+    expect(res.body[0].avgLast5Points).toBeCloseTo(12); // (30+20+10)/5
   });
 
   it('strips raw weeklyScores from the response', async () => {

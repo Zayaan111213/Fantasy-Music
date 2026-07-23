@@ -39,9 +39,9 @@ function artistWithStats(artist: { id: string; name: string; primaryGenre: strin
     primaryGenre: artist.primaryGenre,
     imageUrl: artist.imageUrl,
     lastWeekPoints: artist.weeklyScores[0]?.totalPoints ?? 0,
-    avgLast5Points: artist.weeklyScores.length > 0
-      ? artist.weeklyScores.reduce((sum, w) => sum + w.totalPoints, 0) / artist.weeklyScores.length
-      : 0,
+    // Always divide by 5: weeks with no WeeklyScore row (artist wasn't
+    // tracked/charted yet) count as zero rather than being excluded.
+    avgLast5Points: artist.weeklyScores.reduce((sum, w) => sum + w.totalPoints, 0) / 5,
   };
 }
 

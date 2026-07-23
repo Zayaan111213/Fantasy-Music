@@ -46,9 +46,9 @@ router.get('/', requireAuth, async (req, res, next) => {
       ...a,
       weeklyScores: undefined,
       lastWeekPoints: a.weeklyScores[0]?.totalPoints ?? 0,
-      avgLast5Points: a.weeklyScores.length > 0
-        ? a.weeklyScores.reduce((s, w) => s + w.totalPoints, 0) / a.weeklyScores.length
-        : 0,
+      // Always divide by 5: weeks with no WeeklyScore row (artist wasn't
+      // tracked/charted yet) count as zero rather than being excluded.
+      avgLast5Points: a.weeklyScores.reduce((s, w) => s + w.totalPoints, 0) / 5,
     })));
   } catch (err) {
     next(err);

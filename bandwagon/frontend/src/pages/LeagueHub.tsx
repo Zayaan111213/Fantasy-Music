@@ -1707,6 +1707,9 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League & 
   const [transferTarget, setTransferTarget] = useState('');
   const [transferring, setTransferring] = useState(false);
   const [transferError, setTransferError] = useState('');
+  const [confirmKickTeamId, setConfirmKickTeamId] = useState<string | null>(null);
+  const [kicking, setKicking] = useState(false);
+  const [kickError, setKickError] = useState('');
 
   const [chartPosition, setChartPosition] = useState<[number, number, number, number, number]>(
     league.scoringConfig?.chartPosition ?? DEFAULT_CHART_POSITION
@@ -1749,6 +1752,20 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League & 
       setTransferError(err instanceof Error ? err.message : 'Transfer failed');
     } finally {
       setTransferring(false);
+    }
+  }
+
+  async function handleKick(teamId: string) {
+    setKicking(true);
+    setKickError('');
+    try {
+      await api.post(`/leagues/${leagueId}/teams/${teamId}/kick`, {});
+      setConfirmKickTeamId(null);
+      queryClient.invalidateQueries({ queryKey: ['league', leagueId] });
+    } catch (err) {
+      setKickError(err instanceof Error ? err.message : 'Failed to remove member');
+    } finally {
+      setKicking(false);
     }
   }
 
@@ -2042,6 +2059,42 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League & 
           >
             Start Draft Now
           </Button>
+        </Card>
+      )}
+
+      {isCommissioner && league.status === 'pending' && (league.teams ?? []).some((t) => t.userId !== user?.id) && (
+        <Card className="p-5">
+          <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Members</h3>
+          <p className="text-sm text-gray-400 mb-4">Remove a member before the draft starts. They'll need a new invite to rejoin.</p>
+          <div className="space-y-2">
+            {(league.teams ?? [])
+              .filter((t) => t.userId !== user?.id)
+              .map((t) => (
+                <div key={t.id} className="flex items-center justify-between gap-3 bg-white/5 rounded-lg p-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Avatar src={t.user?.avatarUrl} name={t.user?.username ?? t.name} size="sm" />
+                    <span className="text-sm text-white truncate">{t.user?.username ?? t.name}</span>
+                  </div>
+                  {confirmKickTeamId === t.id ? (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button variant="danger" size="sm" onClick={() => handleKick(t.id)} disabled={kicking}>
+                        {kicking ? 'Removing…' : 'Confirm'}
+                      </Button>
+                      <Button variant="secondary" size="sm" onClick={() => setConfirmKickTeamId(null)} disabled={kicking}>
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button variant="secondary" size="sm" onClick={() => { setConfirmKickTeamId(t.id); setKickError(''); }} className="shrink-0">
+                      Remove
+                    </Button>
+                  )}
+                </div>
+              ))}
+          </div>
+          {kickError && (
+            <div className="mt-3 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg p-2">{kickError}</div>
+          )}
         </Card>
       )}
 
