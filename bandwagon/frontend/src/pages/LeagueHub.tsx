@@ -1873,7 +1873,7 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League & 
                 min={new Date(Date.now() + 60 * 60_000).toISOString().slice(0, 16)}
                 disabled={isDraftTimeLocked}
                 onChange={(e) => setDraftTime(e.target.value)}
-                className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full min-w-0 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
               />
               {isDraftTimeLocked
                 ? <p className="text-xs text-gray-500">Draft time cannot be changed after the draft has started</p>
@@ -2344,7 +2344,7 @@ function SeasonCompleteBanner({ leagueId, league, isCommissioner }: {
               type="datetime-local"
               value={draftTime}
               onChange={(e) => setDraftTime(e.target.value)}
-              className="flex-1 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="flex-1 min-w-0 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
             <div className="flex gap-2 sm:contents">
               <Button
