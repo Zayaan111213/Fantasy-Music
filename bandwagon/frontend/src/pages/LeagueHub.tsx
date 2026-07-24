@@ -1836,19 +1836,17 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League & 
             Copy
           </button>
         </div>
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500">Code:</span>
-            <span className="font-mono text-sm font-semibold text-white tracking-widest">{league.inviteCode}</span>
-            <button
-              onClick={() => navigator.clipboard.writeText(league.inviteCode)}
-              className="text-indigo-400 hover:text-indigo-300 text-xs ml-1"
-            >
-              Copy
-            </button>
-          </div>
-          <ShareInviteButton leagueName={league.name} inviteUrl={inviteUrl} size="sm" />
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xs text-gray-500">Code:</span>
+          <span className="font-mono text-sm font-semibold text-white tracking-widest">{league.inviteCode}</span>
+          <button
+            onClick={() => navigator.clipboard.writeText(league.inviteCode)}
+            className="text-indigo-400 hover:text-indigo-300 text-xs ml-1"
+          >
+            Copy
+          </button>
         </div>
+        <ShareInviteButton leagueName={league.name} inviteUrl={inviteUrl} className="w-full" />
       </Card>
 
       <Card className="p-5">
