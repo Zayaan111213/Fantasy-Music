@@ -9,6 +9,7 @@ import { Card } from '../components/ui/Card';
 import { Avatar } from '../components/ui/Avatar';
 import { Header } from '../components/Header';
 import { ShareInviteButton } from '../components/ShareInviteButton';
+import { posthog } from '../lib/posthog';
 
 type Step = 'form' | 'success';
 
@@ -90,6 +91,7 @@ export function LeagueCreate() {
         }
       }
 
+      posthog.capture('league_created', { leagueId: league.id, teamCount, isPrivate });
       setStep('success');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create league');

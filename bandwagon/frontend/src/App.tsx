@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import { posthog } from './lib/posthog';
 import { FullPageSpinner } from './components/ui/Spinner';
 import { Landing } from './pages/Landing';
 import { Auth } from './pages/Auth';
@@ -55,6 +57,12 @@ function LandingOrHome() {
 
 export function App() {
   const { isLoading } = useAuth();
+  const location = useLocation();
+
+  useEffect(() => {
+    posthog.capture('$pageview');
+  }, [location.pathname]);
+
   if (isLoading) return <FullPageSpinner />;
 
   return (

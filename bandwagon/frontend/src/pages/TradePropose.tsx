@@ -9,6 +9,7 @@ import { Avatar } from '../components/ui/Avatar';
 import { Spinner } from '../components/ui/Spinner';
 import { Header } from '../components/Header';
 import { dropsNeededFor } from '../components/TradesSection';
+import { posthog } from '../lib/posthog';
 import type { League, PlayerEntry, TradesResponse } from '../api/types';
 
 // In-progress proposal survives navigating to an artist's stats page and back.
@@ -133,6 +134,7 @@ export function TradePropose() {
       drops: [...effectiveDrops],
     }),
     onSuccess: () => {
+      posthog.capture('trade_proposed', { leagueId, giveCount: give.size, receiveCount: receive.size });
       sessionStorage.removeItem(draftKey(leagueId));
       queryClient.invalidateQueries({ queryKey: ['trades', leagueId] });
       navigate(`/leagues/${leagueId}`);
