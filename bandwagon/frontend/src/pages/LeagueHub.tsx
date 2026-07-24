@@ -15,6 +15,7 @@ import { Header } from '../components/Header';
 import type { ActivityFeed, ActivityItem, Bracket, BracketMatchup, League, LeagueMatchup, Matchup, StandingsEntry, PlayerEntry, RosterSpot, Team, TeamWithRoster, WaiversResponse } from '../api/types';
 import { SlotPill, GenreLabel } from '../components/SlotPill';
 import { timeAgo } from '../utils/timeAgo';
+import { posthog } from '../lib/posthog';
 
 type Tab = 'overview' | 'myteam' | 'matchup' | 'standings' | 'players' | 'notifications' | 'settings';
 
@@ -487,7 +488,10 @@ function MyTeamTab({ leagueId, league, phase }: { leagueId: string; league: Leag
   const swapMutation = useMutation({
     mutationFn: ({ slotA, slotB }: { slotA: string; slotB: string }) =>
       api.put(`/leagues/${leagueId}/roster/lineup`, { slotA, slotB }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['myTeam', leagueId] }),
+    onSuccess: (_, { slotA, slotB }) => {
+      posthog.capture('lineup_updated', { leagueId, slotA, slotB });
+      queryClient.invalidateQueries({ queryKey: ['myTeam', leagueId] });
+    },
   });
 
   if (isLoading) return <div className="flex justify-center py-12"><Spinner className="w-8 h-8" /></div>;
@@ -1437,7 +1441,8 @@ function PlayersTab({ leagueId, league, onProposeTrade }: {
   const claimMutation = useMutation({
     mutationFn: ({ artistId, dropSlot }: { artistId: string; dropSlot: string }) =>
       api.post(`/leagues/${leagueId}/roster/claim`, { artistId, dropSlot }),
-    onSuccess: () => {
+    onSuccess: (_, { artistId, dropSlot }) => {
+      posthog.capture('artist_claimed', { leagueId, artistId, dropSlot, is_free_agency: freeAgency });
       queryClient.invalidateQueries({ queryKey: ['waivers', leagueId] });
       queryClient.invalidateQueries({ queryKey: ['players', leagueId] });
       queryClient.invalidateQueries({ queryKey: ['myTeam', leagueId] });
@@ -2307,6 +2312,7 @@ function SeasonCompleteBanner({ leagueId, league, isCommissioner }: {
     mutationFn: () =>
       api.post(`/leagues/${leagueId}/renew`, { draftTime: new Date(draftTime).toISOString() }),
     onSuccess: () => {
+      posthog.capture('season_renewed', { leagueId });
       setRenewOpen(false);
       setRenewError('');
       queryClient.invalidateQueries();

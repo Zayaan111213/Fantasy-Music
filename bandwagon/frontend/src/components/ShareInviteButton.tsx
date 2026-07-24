@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Share2, X, MessageSquare, Mail, MessageCircle, Copy, Check } from 'lucide-react';
 import { WagonMark } from './Logo';
+import { posthog } from '../lib/posthog';
 
 interface Props {
   leagueName: string;
@@ -32,11 +33,13 @@ export function ShareInviteButton({ leagueName, inviteUrl, className = '', size 
           text: `Join my league "${leagueName}" on Bandwagoner!`,
           url: inviteUrl,
         });
+        posthog.capture('invite_shared', { method: 'native' });
       } catch {
         // User cancelled the native share sheet — no-op
       }
       return;
     }
+    posthog.capture('invite_shared', { method: 'fallback_modal' });
     setFallbackOpen(true);
   }
 
@@ -70,6 +73,7 @@ function ShareFallbackModal({ leagueName, inviteUrl, onClose }: { leagueName: st
 
   async function handleCopy() {
     await navigator.clipboard.writeText(inviteUrl);
+    posthog.capture('invite_shared', { method: 'copy_link' });
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }

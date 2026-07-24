@@ -170,6 +170,7 @@ export function DraftRoom() {
   }
 
   function makePick(artistId: string) {
+    posthog.capture('draft_pick_made', { leagueId, artistId });
     socketRef.current?.emit('draft:pick', { leagueId, artistId, token });
   }
 

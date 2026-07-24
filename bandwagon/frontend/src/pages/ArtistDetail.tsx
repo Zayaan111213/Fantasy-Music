@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ExternalLink, Music2, BarChart2, TrendingUp, Radio, ArrowLeftRight } from 'lucide-react';
@@ -8,6 +8,7 @@ import { Card } from '../components/ui/Card';
 import { Spinner } from '../components/ui/Spinner';
 import { Header } from '../components/Header';
 import type { Artist, WeeklyScore, ChartBreakdown } from '../api/types';
+import { posthog } from '../lib/posthog';
 
 type ArtistWithScores = Artist & { weeklyScores: WeeklyScore[]; chartBreakdown?: ChartBreakdown | null };
 
@@ -81,6 +82,12 @@ export function ArtistDetail() {
   });
 
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (artist) {
+      posthog.capture('artist_viewed', { artistId: artist.id, artistName: artist.name, genre: artist.primaryGenre, leagueId: leagueId ?? undefined });
+    }
+  }, [artist?.id]);
 
   if (isLoading) return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center">

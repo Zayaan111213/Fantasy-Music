@@ -8,6 +8,7 @@ import { Input } from '../components/ui/Input';
 import { Avatar } from '../components/ui/Avatar';
 import type { User } from '../api/types';
 import { WagonMark } from '../components/Logo';
+import { posthog } from '../lib/posthog';
 
 const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,20}$/;
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -88,6 +89,7 @@ export function Onboarding() {
 
       const { user: updated } = await api.post<{ user: User }>('/auth/complete-onboarding', formData);
       updateUser(updated);
+      posthog.capture('onboarding_completed', { has_avatar: !!avatarFile });
       navigate(redirect, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
