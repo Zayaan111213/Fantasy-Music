@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { FullPageSpinner } from './components/ui/Spinner';
 import { Landing } from './pages/Landing';
@@ -18,14 +18,24 @@ import { ArtistDetail } from './pages/ArtistDetail';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
+  const location = useLocation();
   if (isLoading) return <FullPageSpinner />;
-  if (!user) return <Navigate to="/auth" replace />;
+  if (!user) {
+    // Preserve where the user was headed (e.g. an invite link) so login/signup
+    // can send them straight there instead of dropping them on /home.
+    const redirect = encodeURIComponent(location.pathname + location.search);
+    return <Navigate to={`/auth?redirect=${redirect}`} replace />;
+  }
   return <>{children}</>;
 }
 
 function RequireOnboarded({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
-  if (user!.username === null) return <Navigate to="/onboarding" replace />;
+  const location = useLocation();
+  if (user!.username === null) {
+    const redirect = encodeURIComponent(location.pathname + location.search);
+    return <Navigate to={`/onboarding?redirect=${redirect}`} replace />;
+  }
   return <>{children}</>;
 }
 

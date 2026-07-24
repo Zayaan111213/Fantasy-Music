@@ -34,7 +34,12 @@ export function Auth() {
       login(token, user);
       // New accounts see the "How Bandwagoner Works" modal on their first Home visit
       if (mode === 'signup') localStorage.setItem('bw_show_how_it_works', '1');
-      navigate(mode === 'signup' ? '/onboarding' : redirect, { replace: true });
+      // New accounts still need to onboard first — carry the redirect (e.g. an
+      // invite link) through so onboarding can forward them there afterward.
+      navigate(
+        mode === 'signup' ? `/onboarding?redirect=${encodeURIComponent(redirect)}` : redirect,
+        { replace: true },
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {

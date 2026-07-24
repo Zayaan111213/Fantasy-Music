@@ -10,6 +10,7 @@ import { Avatar } from '../components/ui/Avatar';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
 import { TradesSection } from '../components/TradesSection';
+import { ShareInviteButton } from '../components/ShareInviteButton';
 import type { ActivityFeed, ActivityItem, Bracket, BracketMatchup, League, LeagueMatchup, Matchup, StandingsEntry, PlayerEntry, RosterSpot, Team, TeamWithRoster, WaiversResponse } from '../api/types';
 import { WagonMark } from '../components/Logo';
 import { SlotPill, GenreLabel } from '../components/SlotPill';
@@ -1835,15 +1836,18 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League & 
             Copy
           </button>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500">Code:</span>
-          <span className="font-mono text-sm font-semibold text-white tracking-widest">{league.inviteCode}</span>
-          <button
-            onClick={() => navigator.clipboard.writeText(league.inviteCode)}
-            className="text-indigo-400 hover:text-indigo-300 text-xs ml-1"
-          >
-            Copy
-          </button>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">Code:</span>
+            <span className="font-mono text-sm font-semibold text-white tracking-widest">{league.inviteCode}</span>
+            <button
+              onClick={() => navigator.clipboard.writeText(league.inviteCode)}
+              className="text-indigo-400 hover:text-indigo-300 text-xs ml-1"
+            >
+              Copy
+            </button>
+          </div>
+          <ShareInviteButton leagueName={league.name} inviteUrl={inviteUrl} size="sm" />
         </div>
       </Card>
 
