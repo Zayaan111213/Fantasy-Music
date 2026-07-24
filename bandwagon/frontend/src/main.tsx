@@ -7,9 +7,11 @@ import { queryClient } from './lib/queryClient';
 import { AuthProvider } from './context/AuthContext';
 import { App } from './App';
 import { initSentry } from './lib/sentry';
+import { initPostHog } from './lib/posthog';
 import './index.css';
 
 initSentry();
+initPostHog();
 
 function ErrorFallback() {
   return (

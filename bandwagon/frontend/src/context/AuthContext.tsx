@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { api } from '../api/client';
 import { queryClient } from '../lib/queryClient';
+import { posthog, identifyPostHogUser } from '../lib/posthog';
 import type { User } from '../api/types';
 
 interface AuthContextType {
@@ -23,7 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const t = localStorage.getItem('bw_token');
     if (!t) { setIsLoading(false); return; }
     api.get<User>('/auth/me')
-      .then((u) => setUser(u))
+      .then((u) => { setUser(u); identifyPostHogUser(u); })
       .catch(() => { localStorage.removeItem('bw_token'); setToken(null); })
       .finally(() => setIsLoading(false));
   }, []);
@@ -32,6 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('bw_token', t);
     setToken(t);
     setUser(u);
+    identifyPostHogUser(u);
   }
 
   function logout() {
@@ -39,10 +41,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null);
     setUser(null);
     queryClient.clear();
+    posthog.reset();
   }
 
   function updateUser(u: User) {
     setUser(u);
+    identifyPostHogUser(u);
   }
 
   return (

@@ -9,6 +9,7 @@ import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Spinner } from '../components/ui/Spinner';
 import { Header } from '../components/Header';
+import { posthog } from '../lib/posthog';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -81,6 +82,7 @@ export function LeagueJoin() {
       const { league } = await api.post<{ league: { id: string } }>(`/leagues/join/${c}`, {});
       setTeamName(user?.username ? `${user.username}'s Squad` : '');
       setJoinedLeagueId(league.id);
+      posthog.capture('league_joined', { leagueId: league.id });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to join league');
     } finally {

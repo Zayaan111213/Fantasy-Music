@@ -12,6 +12,7 @@ import { Header } from '../components/Header';
 import type { DraftState, DraftPick, Artist } from '../api/types';
 import { api } from '../api/client';
 import { SlotPill, GenreLabel } from '../components/SlotPill';
+import { posthog } from '../lib/posthog';
 
 const ALL_SLOTS = ['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country', 'Other', 'Flex', 'Bench-1', 'Bench-2', 'Bench-3'];
 
@@ -134,6 +135,7 @@ export function DraftRoom() {
 
     socket.on('draft:complete', () => {
       addToast('Draft complete! Loading scores…');
+      posthog.capture('draft_completed', { leagueId });
       setTimeout(() => navigate(`/leagues/${leagueId}`), 5000);
     });
 

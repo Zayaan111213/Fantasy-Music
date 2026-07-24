@@ -7,6 +7,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import type { User } from '../api/types';
 import { passwordPolicyError } from '../utils/passwordPolicy';
+import { posthog } from '../lib/posthog';
 import { WagonMark, Wordmark } from '../components/Logo';
 
 export function Auth() {
@@ -32,8 +33,11 @@ export function Auth() {
       const path = mode === 'login' ? '/auth/login' : '/auth/signup';
       const { token, user } = await api.post<{ token: string; user: User }>(path, { email, password });
       login(token, user);
-      // New accounts see the "How Bandwagoner Works" modal on their first Home visit
-      if (mode === 'signup') localStorage.setItem('bw_show_how_it_works', '1');
+      if (mode === 'signup') {
+        // New accounts see the "How Bandwagoner Works" modal on their first Home visit
+        localStorage.setItem('bw_show_how_it_works', '1');
+        posthog.capture('user_signed_up');
+      }
       // New accounts still need to onboard first — carry the redirect (e.g. an
       // invite link) through so onboarding can forward them there afterward.
       navigate(
