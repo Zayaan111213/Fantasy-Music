@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Check, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Check, X } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
 import { Avatar } from '../components/ui/Avatar';
+import { Header } from '../components/Header';
 import type { User } from '../api/types';
-import { WagonMark } from '../components/Logo';
 
 const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,20}$/;
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -131,17 +131,7 @@ export function AccountSettings() {
 
   return (
     <div className="min-h-screen bg-gray-950">
-      <header className="relative border-b border-white/10">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
-          <Link to="/home" className="text-gray-400 hover:text-white transition-colors">
-            <ChevronLeft className="w-5 h-5" />
-          </Link>
-          <div className="flex items-center gap-2">
-            <WagonMark size={20} />
-            <span className="font-bold text-white">Account Settings</span>
-          </div>
-        </div>
-      </header>
+      <Header backTo="/home" title="Account Settings" maxWidthClass="max-w-2xl" />
 
       <main className="relative max-w-2xl mx-auto px-4 py-8">
         <Card className="p-6">

@@ -11,12 +11,12 @@ import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
 import { TradesSection } from '../components/TradesSection';
 import { ShareInviteButton } from '../components/ShareInviteButton';
+import { Header } from '../components/Header';
 import type { ActivityFeed, ActivityItem, Bracket, BracketMatchup, League, LeagueMatchup, Matchup, StandingsEntry, PlayerEntry, RosterSpot, Team, TeamWithRoster, WaiversResponse } from '../api/types';
-import { WagonMark } from '../components/Logo';
 import { SlotPill, GenreLabel } from '../components/SlotPill';
 import { timeAgo } from '../utils/timeAgo';
 
-type Tab = 'myteam' | 'matchup' | 'standings' | 'players' | 'notifications' | 'settings';
+type Tab = 'overview' | 'myteam' | 'matchup' | 'standings' | 'players' | 'notifications' | 'settings';
 
 const ALL_STARTER_SLOTS = ['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country', 'Other', 'Flex'];
 const ALL_BENCH_SLOTS = ['Bench-1', 'Bench-2', 'Bench-3'];
@@ -2369,7 +2369,88 @@ function SeasonCompleteBanner({ leagueId, league, isCommissioner }: {
   );
 }
 
-const TAB_IDS: readonly Tab[] = ['myteam', 'matchup', 'standings', 'players', 'notifications', 'settings'];
+// Shown instead of My Team before the draft happens — there's no roster to manage
+// yet, and dropping members straight onto an empty roster page reads as broken.
+function LeagueIntroTab({ leagueId, league, isCommissioner }: {
+  leagueId: string;
+  league: League & { teams?: Team[] };
+  isCommissioner: boolean;
+}) {
+  const navigate = useNavigate();
+  const isPreDraft = league.status === 'pre_draft';
+  const draftDate = league.draftTime ? new Date(league.draftTime) : null;
+  const teams = league.teams ?? [];
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-6 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center mx-auto mb-4">
+          <Sparkles className="w-7 h-7 text-indigo-400" />
+        </div>
+        <h2 className="text-xl font-bold text-white mb-1">Welcome to {league.name}!</h2>
+        <p className="text-gray-400 text-sm max-w-sm mx-auto">
+          Rosters fill up at the draft, so there's nothing to manage until then. Here's what to expect.
+        </p>
+      </Card>
+
+      <Card className="p-5">
+        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <AlarmClock className="w-4 h-4" />
+          Draft Time
+        </h3>
+        {draftDate ? (
+          <>
+            <p className="text-lg font-semibold text-white">
+              {draftDate.toLocaleString(undefined, { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+            </p>
+            {isPreDraft ? (
+              <Button size="sm" className="mt-3 animate-pulse" onClick={() => navigate(`/leagues/${leagueId}/draft`)}>
+                Join Draft Lobby
+              </Button>
+            ) : (
+              <p className="text-xs text-gray-500 mt-1">We'll take you to the draft room automatically when it's time.</p>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-gray-500">
+            {isCommissioner ? 'Set a draft time in the Settings tab to get started.' : "The commissioner hasn't scheduled a draft time yet."}
+          </p>
+        )}
+      </Card>
+
+      <Card className="p-5">
+        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">How Bandwagoner Works</h3>
+        <ul className="space-y-2.5 text-sm text-gray-300">
+          <li className="flex gap-2"><span className="text-indigo-400 shrink-0">•</span> Draft a 9-artist roster: 6 starters across R&B/Hip-Hop, Pop, Rock &amp; Alternative, Country, Other, and Flex, plus 3 bench spots.</li>
+          <li className="flex gap-2"><span className="text-indigo-400 shrink-0">•</span> Each week your artists score points from real Apple Music chart position, movement, and longevity.</li>
+          <li className="flex gap-2"><span className="text-indigo-400 shrink-0">•</span> Set your lineup on Mondays, then it locks Tuesday through Sunday while scores roll in.</li>
+          <li className="flex gap-2"><span className="text-indigo-400 shrink-0">•</span> Head-to-head matchups all season, then the top teams make the playoffs.</li>
+        </ul>
+      </Card>
+
+      <Card className="p-5">
+        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <Users className="w-4 h-4" />
+          Who's In
+        </h3>
+        <div className="space-y-2.5">
+          {teams.map((t) => (
+            <div key={t.id} className="flex items-center gap-2.5">
+              <Avatar src={t.logoUrl ?? t.user?.avatarUrl ?? null} name={t.name} size="sm" />
+              <span className="text-sm text-white truncate">{t.name}</span>
+              {t.userId === league.commissionerId && (
+                <span className="text-[10px] text-amber-400 font-medium shrink-0">Commissioner</span>
+              )}
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-gray-500 mt-3">{teams.length}/{league.teamCount} teams joined</p>
+      </Card>
+    </div>
+  );
+}
+
+const TAB_IDS: readonly Tab[] = ['overview', 'myteam', 'matchup', 'standings', 'players', 'notifications', 'settings'];
 
 export function LeagueHub() {
   const { id } = useParams<{ id: string }>();
@@ -2378,8 +2459,6 @@ export function LeagueHub() {
   // Tab switches use replace so flipping tabs doesn't stack history entries.
   const [searchParams, setSearchParams] = useSearchParams();
   const rawTab = searchParams.get('tab');
-  const tab: Tab = TAB_IDS.includes(rawTab as Tab) ? (rawTab as Tab) : 'myteam';
-  const setTab = (t: Tab) => setSearchParams(t === 'myteam' ? {} : { tab: t }, { replace: true });
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -2405,9 +2484,17 @@ export function LeagueHub() {
 
   const isCommissioner = league.commissionerId === user?.id;
   const phase = getWeekPhase(league);
+  // Before the draft happens there's no roster to show — land on a quick
+  // welcome/intro view instead of the empty My Team tab.
+  const isPreDraftPhase = league.status === 'pending' || league.status === 'pre_draft';
+  const defaultTab: Tab = isPreDraftPhase ? 'overview' : 'myteam';
+  const tab: Tab = TAB_IDS.includes(rawTab as Tab) ? (rawTab as Tab) : defaultTab;
+  const setTab = (t: Tab) => setSearchParams(t === defaultTab ? {} : { tab: t }, { replace: true });
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    { id: 'myteam', label: 'My Team', icon: <User className="w-4 h-4" /> },
+    isPreDraftPhase
+      ? { id: 'overview', label: 'Overview', icon: <Sparkles className="w-4 h-4" /> }
+      : { id: 'myteam', label: 'My Team', icon: <User className="w-4 h-4" /> },
     { id: 'matchup', label: 'Matchup', icon: <Swords className="w-4 h-4" /> },
     { id: 'standings', label: 'Standings', icon: <Trophy className="w-4 h-4" /> },
     { id: 'players', label: 'Players', icon: <Users className="w-4 h-4" /> },
@@ -2418,26 +2505,19 @@ export function LeagueHub() {
   return (
     <div className="min-h-screen bg-gray-950">
 
-      <header className="relative border-b border-white/10 sticky top-0 bg-gray-950/80 backdrop-blur-sm z-10">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
-          <Link to="/home" className="text-gray-400 hover:text-white transition-colors">
-            <ChevronLeft className="w-5 h-5" />
-          </Link>
-          <div className="flex-1 min-w-0 flex items-center gap-2">
-            <WagonMark size={18} />
-            <span className="font-semibold text-white text-sm truncate">{league.name}</span>
-          </div>
-          {league.status === 'pre_draft' && (
-            <Button size="sm" onClick={() => navigate(`/leagues/${id}/draft`)} className="animate-pulse">
-              Draft Lobby
-            </Button>
-          )}
-          {league.status === 'drafting' && (
-            <Button size="sm" onClick={() => navigate(`/leagues/${id}/draft`)} className="animate-pulse">
-              Draft Live
-            </Button>
-          )}
-        </div>
+      <div className="sticky top-0 z-10 bg-gray-950/80 backdrop-blur-sm border-b border-white/10">
+        <Header
+          backTo="/home"
+          title={league.name}
+          maxWidthClass="max-w-3xl"
+          actions={
+            (league.status === 'pre_draft' || league.status === 'drafting') ? (
+              <Button size="sm" onClick={() => navigate(`/leagues/${id}/draft`)} className="animate-pulse">
+                {league.status === 'pre_draft' ? 'Draft Lobby' : 'Draft Live'}
+              </Button>
+            ) : undefined
+          }
+        />
 
         {/* Tab bar */}
         <div className="max-w-3xl mx-auto px-4">
@@ -2465,12 +2545,13 @@ export function LeagueHub() {
             ))}
           </div>
         </div>
-      </header>
+      </div>
 
       <main className="relative max-w-3xl mx-auto px-4 py-6">
         {league.status === 'complete' && (
           <SeasonCompleteBanner leagueId={id!} league={league} isCommissioner={isCommissioner} />
         )}
+        {tab === 'overview' && <LeagueIntroTab leagueId={id!} league={league} isCommissioner={isCommissioner} />}
         {tab === 'myteam' && <MyTeamTab leagueId={id!} league={league} phase={phase} />}
         {tab === 'matchup' && <MatchupTab leagueId={id!} league={league} phase={phase} />}
         {tab === 'standings' && <StandingsTab leagueId={id!} league={league} />}

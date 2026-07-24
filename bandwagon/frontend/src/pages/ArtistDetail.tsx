@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ExternalLink, Music2, BarChart2, TrendingUp, Radio, ArrowLeftRight } from 'lucide-react';
+import { ExternalLink, Music2, BarChart2, TrendingUp, Radio, ArrowLeftRight } from 'lucide-react';
 import { api } from '../api/client';
 import { Badge } from '../components/ui/Badge';
 import { Card } from '../components/ui/Card';
 import { Spinner } from '../components/ui/Spinner';
+import { Header } from '../components/Header';
 import type { Artist, WeeklyScore, ChartBreakdown } from '../api/types';
-import { WagonMark } from '../components/Logo';
 
 type ArtistWithScores = Artist & { weeklyScores: WeeklyScore[]; chartBreakdown?: ChartBreakdown | null };
 
@@ -107,14 +107,7 @@ export function ArtistDetail() {
   return (
     <div className="min-h-screen bg-gray-950">
 
-      <header className="relative border-b border-white/10">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-white transition-colors">
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <WagonMark size={18} />
-        </div>
-      </header>
+      <Header onBack={() => navigate(-1)} />
 
       <main className="relative max-w-3xl mx-auto px-4 py-6 space-y-6">
         {/* Artist header */}
