@@ -225,7 +225,7 @@ export function Home() {
       {notifications && notifications.length > 0 && (
         <div className="relative max-w-5xl mx-auto px-4 pt-4 space-y-2">
           {notifications.map((n) => {
-            const isDeletion = n.type === 'league_deleted';
+            const isDeletion = n.type === 'league_deleted' || n.type === 'kicked_from_league';
             return (
               <div
                 key={n.id}

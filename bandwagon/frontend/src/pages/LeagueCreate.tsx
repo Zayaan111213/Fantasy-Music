@@ -8,6 +8,7 @@ import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
 import { Avatar } from '../components/ui/Avatar';
 import { WagonMark } from '../components/Logo';
+import { ShareInviteButton } from '../components/ShareInviteButton';
 
 type Step = 'form' | 'success';
 
@@ -122,12 +123,13 @@ export function LeagueCreate() {
           )}
 
           <Card className="p-4 mb-4">
-            <div className="flex items-center gap-2 bg-white/5 rounded-lg p-3">
+            <div className="flex items-center gap-2 bg-white/5 rounded-lg p-3 mb-3">
               <span className="flex-1 text-sm text-gray-300 truncate">{inviteUrl}</span>
               <button onClick={copyInvite} className="shrink-0 text-indigo-400 hover:text-indigo-300 transition-colors">
                 {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
               </button>
             </div>
+            <ShareInviteButton leagueName={name} inviteUrl={inviteUrl} variant="primary" className="w-full" />
           </Card>
 
           <Button onClick={() => navigate(`/leagues/${leagueId}`)} className="w-full" size="lg">

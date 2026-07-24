@@ -373,6 +373,48 @@ router.post('/:id/leave', requireAuth, async (req: AuthRequest, res, next) => {
   }
 });
 
+// Kick a member (commissioner only). Only allowed pre-draft — once picks,
+// matchups, or trade/waiver history exist for a team, deleting it would
+// either violate FK constraints (DraftPick/Matchup don't cascade on Team)
+// or destroy other members' league history.
+router.post('/:id/teams/:teamId/kick', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const league = await prisma.league.findUnique({
+      where: { id: req.params.id },
+      include: { teams: { where: { id: req.params.teamId } } },
+    });
+    if (!league) { res.status(404).json({ error: 'League not found' }); return; }
+    if (league.commissionerId !== req.userId) {
+      res.status(403).json({ error: 'Only the commissioner can remove members' });
+      return;
+    }
+    const team = league.teams[0];
+    if (!team) { res.status(404).json({ error: 'Team not found in this league' }); return; }
+    if (team.userId === req.userId) {
+      res.status(400).json({ error: 'Commissioners cannot kick themselves. Delete the league instead.' });
+      return;
+    }
+    if (league.status !== 'pending') {
+      res.status(400).json({ error: 'Members can only be removed before the draft starts' });
+      return;
+    }
+
+    await prisma.team.delete({ where: { id: team.id } });
+    await prisma.notification.create({
+      data: {
+        userId: team.userId,
+        type: 'kicked_from_league',
+        message: `You were removed from "${league.name}" by the commissioner.`,
+      },
+    });
+    await logLeagueEvent(prisma, league.id, 'member_kicked', `${team.name} was removed from the league by the commissioner.`);
+
+    res.json({ message: 'Member removed' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Join league by invite code
 router.post('/join/:code', requireAuth, async (req: AuthRequest, res, next) => {
   try {
@@ -888,9 +930,9 @@ router.get('/:id/players', requireAuth, async (req: AuthRequest, res, next) => {
             imageUrl: a.imageUrl,
             rosteredBy: a.rosterSpots[0]?.team ?? null,
             lastWeekPoints: a.weeklyScores[0]?.totalPoints ?? 0,
-            avgLast5Points: a.weeklyScores.length > 0
-              ? a.weeklyScores.reduce((s, w) => s + w.totalPoints, 0) / a.weeklyScores.length
-              : 0,
+            // Always divide by 5: weeks with no WeeklyScore row (artist wasn't
+            // tracked/charted yet) count as zero rather than being excluded.
+            avgLast5Points: a.weeklyScores.reduce((s, w) => s + w.totalPoints, 0) / 5,
           };
         }
 
@@ -906,9 +948,7 @@ router.get('/:id/players', requireAuth, async (req: AuthRequest, res, next) => {
           imageUrl: a.imageUrl,
           rosteredBy: a.rosterSpots[0]?.team ?? null,
           lastWeekPoints: adjustedScores[0] ?? 0,
-          avgLast5Points: adjustedScores.length > 0
-            ? adjustedScores.reduce((s, p) => s + p, 0) / adjustedScores.length
-            : 0,
+          avgLast5Points: adjustedScores.reduce((s, p) => s + p, 0) / 5,
         };
       })
     );

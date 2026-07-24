@@ -41,7 +41,7 @@ model PasswordResetToken {
 model Notification {
   id        String    @id @default(cuid())
   userId    String
-  leagueId  String? // scopes the notification to a league's activity feed; null for league_deleted
+  leagueId  String? // scopes the notification to a league's activity feed; null for league_deleted, kicked_from_league
   type      String
   message   String
   seenAt    DateTime?

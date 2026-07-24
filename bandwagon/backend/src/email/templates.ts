@@ -13,6 +13,7 @@ const SUBJECTS: Record<string, string> = {
   waiver_result: 'Your waiver claim results are in',
   lineup_reminder: 'New week: set your lineup before Tuesday',
   league_deleted: 'One of your leagues was deleted',
+  kicked_from_league: 'You were removed from a league',
   league_renewed: 'Your league is back for a new season',
   commissioner_transfer: 'You are now a league commissioner',
 };

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Check, X } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -18,6 +18,8 @@ type UsernameStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid';
 export function Onboarding() {
   const { user, updateUser } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const redirect = params.get('redirect') || '/home';
 
   const [username, setUsername] = useState('');
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>('idle');
@@ -52,7 +54,7 @@ export function Onboarding() {
   }, [avatarPreview]);
 
   if (user && user.username !== null) {
-    return <Navigate to="/home" replace />;
+    return <Navigate to={redirect} replace />;
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -86,7 +88,7 @@ export function Onboarding() {
 
       const { user: updated } = await api.post<{ user: User }>('/auth/complete-onboarding', formData);
       updateUser(updated);
-      navigate('/home', { replace: true });
+      navigate(redirect, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
