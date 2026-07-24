@@ -23,6 +23,27 @@
   ::-webkit-scrollbar-thumb {
     @apply bg-white/20 rounded-full;
   }
+
+  /*
+   * iOS Safari renders the datetime-local value with its own native text
+   * size that a plain text-sm class on the input doesn't reliably override
+   * (unlike Chromium/desktop WebKit, which do respect it) — target the
+   * -webkit pseudo-elements directly so it matches surrounding form text.
+   */
+  input[type='datetime-local'] {
+    font-size: 0.875rem;
+  }
+  input[type='datetime-local']::-webkit-datetime-edit,
+  input[type='datetime-local']::-webkit-datetime-edit-fields-wrapper,
+  input[type='datetime-local']::-webkit-datetime-edit-text,
+  input[type='datetime-local']::-webkit-datetime-edit-month-field,
+  input[type='datetime-local']::-webkit-datetime-edit-day-field,
+  input[type='datetime-local']::-webkit-datetime-edit-year-field,
+  input[type='datetime-local']::-webkit-datetime-edit-hour-field,
+  input[type='datetime-local']::-webkit-datetime-edit-minute-field,
+  input[type='datetime-local']::-webkit-datetime-edit-ampm-field {
+    font-size: 0.875rem;
+  }
 }
 
 @layer utilities {
