@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { ChevronLeft, Copy, Check } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Copy, Check } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
 import { Avatar } from '../components/ui/Avatar';
-import { WagonMark } from '../components/Logo';
+import { Header } from '../components/Header';
 import { ShareInviteButton } from '../components/ShareInviteButton';
 
 type Step = 'form' | 'success';
@@ -142,17 +142,7 @@ export function LeagueCreate() {
 
   return (
     <div className="min-h-screen bg-gray-950">
-      <header className="relative border-b border-white/10">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
-          <Link to="/home" className="text-gray-400 hover:text-white transition-colors">
-            <ChevronLeft className="w-5 h-5" />
-          </Link>
-          <div className="flex items-center gap-2">
-            <WagonMark size={20} />
-            <span className="font-bold text-white">Create a League</span>
-          </div>
-        </div>
-      </header>
+      <Header backTo="/home" title="Create a League" maxWidthClass="max-w-2xl" />
 
       <main className="relative max-w-2xl mx-auto px-4 py-8">
         <Card className="p-6">

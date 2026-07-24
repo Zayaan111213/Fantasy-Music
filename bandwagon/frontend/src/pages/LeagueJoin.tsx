@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Users, ChevronLeft } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Users } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Avatar } from '../components/ui/Avatar';
@@ -8,7 +8,7 @@ import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Spinner } from '../components/ui/Spinner';
-import { WagonMark } from '../components/Logo';
+import { Header } from '../components/Header';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -123,14 +123,7 @@ export function LeagueJoin() {
   if (joinedLeagueId) {
     return (
       <div className="min-h-screen bg-gray-950">
-        <header className="relative border-b border-white/10">
-          <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <WagonMark size={20} />
-              <span className="font-bold text-white">Set Up Your Team</span>
-            </div>
-          </div>
-        </header>
+        <Header title="Set Up Your Team" maxWidthClass="max-w-2xl" />
         <main className="relative max-w-md mx-auto px-4 py-8">
           <Card className="p-6">
             <p className="text-gray-400 text-sm mb-5">You joined <span className="text-white font-medium">{preview?.name}</span>. Give your team a name and logo before you head in.</p>
@@ -171,17 +164,7 @@ export function LeagueJoin() {
 
   return (
     <div className="min-h-screen bg-gray-950">
-      <header className="relative border-b border-white/10">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
-          <Link to="/home" className="text-gray-400 hover:text-white transition-colors">
-            <ChevronLeft className="w-5 h-5" />
-          </Link>
-          <div className="flex items-center gap-2">
-            <WagonMark size={20} />
-            <span className="font-bold text-white">Join a League</span>
-          </div>
-        </div>
-      </header>
+      <Header backTo="/home" title="Join a League" maxWidthClass="max-w-2xl" />
 
       <main className="relative max-w-md mx-auto px-4 py-8">
         {loading ? (

@@ -98,6 +98,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res, next) => {
           currentWeek,
           isPrivate: team.league.isPrivate,
           teamCount: team.league.teamCount,
+          draftTime: team.league.draftTime,
           isCommissioner: team.league.commissionerId === req.userId,
           myTeam: { id: team.id, name: team.name, logoUrl: team.logoUrl, wins: team.wins, losses: team.losses },
           opponent,

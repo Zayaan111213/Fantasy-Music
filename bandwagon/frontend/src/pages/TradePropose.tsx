@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ArrowLeftRight, Check } from 'lucide-react';
+import { ArrowLeftRight, Check } from 'lucide-react';
 import { api } from '../api/client';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Avatar } from '../components/ui/Avatar';
 import { Spinner } from '../components/ui/Spinner';
+import { Header } from '../components/Header';
 import { dropsNeededFor } from '../components/TradesSection';
 import type { League, PlayerEntry, TradesResponse } from '../api/types';
 
@@ -184,18 +185,14 @@ export function TradePropose() {
   return (
     <div className="min-h-screen bg-gray-950">
 
-      <header className="relative border-b border-white/10">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
-          {/* History back, not the league hub — entry points include the
-              Players tab and artist profiles, and landing on My Team instead
-              of where you came from is disorienting. */}
-          <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-white transition-colors">
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <ArrowLeftRight className="w-4 h-4 text-indigo-400" />
-          <h1 className="font-semibold text-white">Propose Trade</h1>
-        </div>
-      </header>
+      {/* History back, not the league hub — entry points include the
+          Players tab and artist profiles, and landing on My Team instead
+          of where you came from is disorienting. */}
+      <Header
+        onBack={() => navigate(-1)}
+        icon={<ArrowLeftRight className="w-4 h-4 text-indigo-400" />}
+        title="Propose Trade"
+      />
 
       <main className="relative max-w-3xl mx-auto px-4 py-6 space-y-4">
         {tradesMeta.tradingClosed && (

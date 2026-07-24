@@ -297,6 +297,7 @@ export interface LeagueCard {
   currentWeek: number;
   isPrivate: boolean;
   teamCount: number;
+  draftTime: string | null;
   isCommissioner: boolean;
   myTeam: { id: string; name: string; logoUrl: string | null; wins: number; losses: number };
   opponent: { id: string; name: string; logoUrl: string | null } | null;

@@ -8,6 +8,7 @@ import { Avatar } from '../components/ui/Avatar';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Spinner } from '../components/ui/Spinner';
+import { Header } from '../components/Header';
 import type { DraftState, DraftPick, Artist } from '../api/types';
 import { api } from '../api/client';
 import { SlotPill, GenreLabel } from '../components/SlotPill';
@@ -198,6 +199,12 @@ export function DraftRoom() {
 
   return (
     <div className="min-h-screen bg-gray-950">
+
+      <Header
+        backTo={`/leagues/${leagueId}`}
+        title={isPreDraft ? 'Draft Lobby' : 'Live Draft'}
+        maxWidthClass="max-w-7xl"
+      />
 
       {/* Toast notifications */}
       <div className="fixed top-4 right-4 z-50 space-y-2 max-w-xs">

@@ -3,16 +3,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Users, Trophy, ChevronRight, Clock, X, HelpCircle, Music, Disc3, Download } from 'lucide-react';
 import { api } from '../api/client';
-import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Spinner } from '../components/ui/Spinner';
 import { Avatar } from '../components/ui/Avatar';
 import { HowItWorksModal } from '../components/HowItWorksModal';
 import { InstallInstructionsModal } from '../components/InstallInstructionsModal';
+import { Header } from '../components/Header';
 import { useInstallPrompt } from '../hooks/useInstallPrompt';
 import type { ChartRow, GlobalActivityItem, LeagueCard, MoversPayload, Notification } from '../api/types';
-import { WagonMark, Wordmark } from '../components/Logo';
 import { timeAgo } from '../utils/timeAgo';
 
 function MoverRow({ row }: { row: ChartRow }) {
@@ -143,7 +142,6 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export function Home() {
-  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showHowItWorks, setShowHowItWorks] = useState(false);
@@ -197,30 +195,20 @@ export function Home() {
       {showHowItWorks && <HowItWorksModal onClose={() => setShowHowItWorks(false)} />}
       {showInstallInstructions && <InstallInstructionsModal onClose={() => setShowInstallInstructions(false)} />}
 
-      {/* Nav */}
-      <header className="relative border-b border-white/10">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/home" className="flex items-center gap-2">
-            <WagonMark size={32} />
-            <Wordmark className="text-lg" />
-          </Link>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setShowHowItWorks(true)}
-              className="text-gray-400 hover:text-white transition-colors"
-              aria-label="How Bandwagoner works"
-              title="How Bandwagoner works"
-            >
-              <HelpCircle className="w-5 h-5" />
-            </button>
-            <Link to="/account" aria-label="Account" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <Avatar src={user?.avatarUrl} name={user?.username ?? '?'} size="sm" />
-              <span className="hidden sm:inline text-gray-400 text-sm">{user?.username}</span>
-            </Link>
-            <Button variant="ghost" size="sm" onClick={logout}>Sign out</Button>
-          </div>
-        </div>
-      </header>
+      <Header
+        showWordmark
+        maxWidthClass="max-w-5xl"
+        actions={
+          <button
+            onClick={() => setShowHowItWorks(true)}
+            className="text-gray-400 hover:text-white transition-colors"
+            aria-label="How Bandwagoner works"
+            title="How Bandwagoner works"
+          >
+            <HelpCircle className="w-5 h-5" />
+          </button>
+        }
+      />
 
       {notifications && notifications.length > 0 && (
         <div className="relative max-w-5xl mx-auto px-4 pt-4 space-y-2">
@@ -361,6 +349,29 @@ export function Home() {
                           Draft Live →
                         </Button>
                       </Link>
+                    )}
+
+                    {league.status === 'pre_draft' && (
+                      <Link to={`/leagues/${league.id}/draft`} onClick={(e) => e.stopPropagation()}>
+                        <Button size="sm" className="animate-pulse">
+                          Draft Lobby →
+                        </Button>
+                      </Link>
+                    )}
+
+                    {league.status === 'pending' && league.draftTime && (
+                      <div className="text-right">
+                        <div className="text-xs text-gray-500 mb-1 flex items-center justify-end gap-1">
+                          <Clock className="w-3 h-3" />
+                          Draft
+                        </div>
+                        <div className="text-sm font-semibold text-white">
+                          {new Date(league.draftTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {new Date(league.draftTime).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                        </div>
+                      </div>
                     )}
                   </div>
                 </Card>
