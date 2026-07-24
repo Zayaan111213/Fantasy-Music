@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { subjectFor, renderEmail, escapeHtml } from '../../email/templates';
 
 const PERSONAL_TYPES = [
+  'welcome',
   'trade_proposed',
   'trade_accepted',
   'trade_rejected',

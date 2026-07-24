@@ -62,6 +62,16 @@ router.post('/signup', async (req, res, next) => {
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({ data: { email, passwordHash } });
 
+    // Goes out via the email outbox dispatcher (src/email/dispatcher.ts),
+    // same as every other personal Notification row.
+    await prisma.notification.create({
+      data: {
+        userId: user.id,
+        type: 'welcome',
+        message: 'Welcome to Bandwagoner! Create a league or join one with an invite link, draft real artists, and start scoring on their chart performance.',
+      },
+    });
+
     const token = signToken(user.id);
     res.json({ token, user: userResponse(user) });
   } catch (err) {

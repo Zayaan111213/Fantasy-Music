@@ -3,6 +3,7 @@
 // is just that message inside a minimal branded wrapper.
 
 const SUBJECTS: Record<string, string> = {
+  welcome: 'Welcome to Bandwagoner!',
   trade_proposed: 'You have a new trade offer',
   trade_accepted: 'Your trade offer was accepted',
   trade_rejected: 'Your trade offer was rejected',

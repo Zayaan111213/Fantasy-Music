@@ -9,6 +9,7 @@ import crypto from 'crypto';
 vi.mock('../../../db/prisma', () => ({
   prisma: {
     user: { findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
+    notification: { create: vi.fn() },
     passwordResetToken: { updateMany: vi.fn(), create: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
     $transaction: vi.fn(),
   },
@@ -54,6 +55,7 @@ beforeEach(() => {
   sendEmailMock.mockResolvedValue({ status: 'sent' });
   pm.passwordResetToken.updateMany.mockResolvedValue({ count: 0 });
   pm.passwordResetToken.create.mockResolvedValue({});
+  pm.notification.create.mockResolvedValue({});
   pm.$transaction.mockResolvedValue([]);
 });
 
@@ -191,5 +193,15 @@ describe('POST /auth/signup password policy', () => {
     const res = await request(app).post('/auth/signup').send({ email: 'new@example.com', password: 'longenough1!' });
     expect(res.status).toBe(200);
     expect(typeof res.body.token).toBe('string');
+  });
+
+  it('creates a welcome notification for the new user (sent by the email outbox dispatcher)', async () => {
+    pm.user.findUnique.mockResolvedValue(null);
+    pm.user.create.mockResolvedValue({ id: 'u1', email: 'new@example.com', username: null, avatarUrl: null });
+    const res = await request(app).post('/auth/signup').send({ email: 'new@example.com', password: 'longenough1!' });
+    expect(res.status).toBe(200);
+    expect(pm.notification.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ userId: 'u1', type: 'welcome' }),
+    });
   });
 });
