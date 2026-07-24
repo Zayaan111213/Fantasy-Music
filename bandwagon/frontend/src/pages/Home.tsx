@@ -303,9 +303,9 @@ export function Home() {
             <Spinner className="w-8 h-8" />
           </div>
         ) : leagues && leagues.length > 0 ? (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {leagues.map((league) => (
-              <Link key={league.id} to={`/leagues/${league.id}`}>
+              <Link key={league.id} to={`/leagues/${league.id}`} className="block w-full">
                 <Card className="p-5 hover:bg-white/10 transition-colors cursor-pointer group">
                   <div className="flex items-start justify-between mb-4">
                     <div className="min-w-0">
@@ -391,7 +391,7 @@ export function Home() {
 
         {/* Charts movers side by side, cross-league activity beneath */}
         <div className="mt-8 space-y-5">
-          <div className="grid gap-5 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             <MoversCard label="Songs" icon={Music} tab="songs" data={movers?.songs} />
             <MoversCard label="Albums" icon={Disc3} tab="albums" data={movers?.albums} />
           </div>

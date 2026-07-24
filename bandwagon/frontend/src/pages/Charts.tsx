@@ -6,7 +6,7 @@ import { api } from '../api/client';
 import { Card } from '../components/ui/Card';
 import { Spinner } from '../components/ui/Spinner';
 import { Avatar } from '../components/ui/Avatar';
-import { WagonMark } from '../components/Logo';
+import { WagonMark, Wordmark } from '../components/Logo';
 import type { ChartRow, ChartsPayload } from '../api/types';
 
 function MovePill({ row }: { row: ChartRow }) {
@@ -83,18 +83,22 @@ export function Charts() {
     <div className="min-h-screen bg-gray-950">
       <header className="border-b border-white/10">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-white transition-colors" aria-label="Back">
+          <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-white transition-colors shrink-0" aria-label="Back">
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <WagonMark size={24} />
-          <div>
-            <h1 className="font-serif font-bold text-white text-lg leading-tight">Apple Music Charts</h1>
-            {weekLabel && <p className="text-xs text-gray-500">Most Played · week of {weekLabel}</p>}
-          </div>
+          <Link to="/home" className="flex items-center gap-2">
+            <WagonMark size={28} />
+            <Wordmark className="text-lg" />
+          </Link>
         </div>
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-4">
+        <div>
+          <h1 className="font-serif font-bold text-white text-lg leading-tight whitespace-nowrap">Apple Music Charts</h1>
+          {weekLabel && <p className="text-xs text-gray-500">Most Played · week of {weekLabel}</p>}
+        </div>
+
         <div className="flex gap-2">
           <button
             onClick={() => setTab('songs')}
