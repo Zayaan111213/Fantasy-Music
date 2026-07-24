@@ -81,17 +81,14 @@ export function Charts() {
 
   return (
     <div className="min-h-screen bg-gray-950">
-      <Header
-        onBack={() => navigate(-1)}
-        title={
-          <div>
-            <h1 className="font-serif font-bold text-white text-lg leading-tight">Apple Music Charts</h1>
-            {weekLabel && <p className="text-xs text-gray-500">Most Played · week of {weekLabel}</p>}
-          </div>
-        }
-      />
+      <Header onBack={() => navigate(-1)} />
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-4">
+        <div>
+          <h1 className="font-serif font-bold text-white text-lg leading-tight">Apple Music Charts</h1>
+          {weekLabel && <p className="text-xs text-gray-500">Most Played · week of {weekLabel}</p>}
+        </div>
+
         <div className="flex gap-2">
           <button
             onClick={() => setTab('songs')}
