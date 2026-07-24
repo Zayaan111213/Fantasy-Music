@@ -2389,7 +2389,7 @@ function LeagueIntroTab({ leagueId, league, isCommissioner }: {
         </div>
         <h2 className="text-xl font-bold text-white mb-1">Welcome to {league.name}!</h2>
         <p className="text-gray-400 text-sm max-w-sm mx-auto">
-          Rosters fill up at the draft — there's nothing to manage until then. Here's what to expect.
+          Rosters fill up at the draft, so there's nothing to manage until then. Here's what to expect.
         </p>
       </Card>
 
@@ -2423,7 +2423,7 @@ function LeagueIntroTab({ leagueId, league, isCommissioner }: {
         <ul className="space-y-2.5 text-sm text-gray-300">
           <li className="flex gap-2"><span className="text-indigo-400 shrink-0">•</span> Draft a 9-artist roster: 6 starters across R&B/Hip-Hop, Pop, Rock &amp; Alternative, Country, Other, and Flex, plus 3 bench spots.</li>
           <li className="flex gap-2"><span className="text-indigo-400 shrink-0">•</span> Each week your artists score points from real Apple Music chart position, movement, and longevity.</li>
-          <li className="flex gap-2"><span className="text-indigo-400 shrink-0">•</span> Set your lineup on Mondays — it locks Tuesday through Sunday while scores roll in.</li>
+          <li className="flex gap-2"><span className="text-indigo-400 shrink-0">•</span> Set your lineup on Mondays, then it locks Tuesday through Sunday while scores roll in.</li>
           <li className="flex gap-2"><span className="text-indigo-400 shrink-0">•</span> Head-to-head matchups all season, then the top teams make the playoffs.</li>
         </ul>
       </Card>
