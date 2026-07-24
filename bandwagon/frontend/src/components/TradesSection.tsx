@@ -8,6 +8,7 @@ import { Badge } from './ui/Badge';
 import { Avatar } from './ui/Avatar';
 import { Spinner } from './ui/Spinner';
 import type { League, TeamWithRoster, TradeArtist, TradeItemView, TradesResponse, TradeView } from '../api/types';
+import { posthog } from '../lib/posthog';
 
 // Drops required to keep a 9-slot roster legal after a trade (mirrors the
 // backend's requiredDropCount). Also used by the TradePropose page.
@@ -156,6 +157,7 @@ function AcceptTradeModal({ leagueId, trade, myTeamId, onClose }: {
   const acceptMutation = useMutation({
     mutationFn: () => api.post(`/leagues/${leagueId}/trades/${trade.id}/accept`, { drops: [...drops] }),
     onSuccess: () => {
+      posthog.capture('trade_accepted', { leagueId, tradeId: trade.id });
       queryClient.invalidateQueries({ queryKey: ['trades', leagueId] });
       onClose();
     },
@@ -245,7 +247,9 @@ export function TradesSection({ leagueId, league }: {
   const actionMutation = useMutation({
     mutationFn: ({ tradeId, action }: { tradeId: string; action: 'reject' | 'cancel' | 'veto' }) =>
       api.post(`/leagues/${leagueId}/trades/${tradeId}/${action}`, {}),
-    onSuccess: () => {
+    onSuccess: (_, { tradeId, action }) => {
+      const eventName = action === 'cancel' ? 'trade_cancelled' : action === 'reject' ? 'trade_rejected' : 'trade_vetoed';
+      posthog.capture(eventName, { leagueId, tradeId });
       setActionError('');
       queryClient.invalidateQueries({ queryKey: ['trades', leagueId] });
     },

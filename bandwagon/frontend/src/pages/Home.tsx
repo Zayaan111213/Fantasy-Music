@@ -13,6 +13,7 @@ import { Header } from '../components/Header';
 import { useInstallPrompt } from '../hooks/useInstallPrompt';
 import type { ChartRow, GlobalActivityItem, LeagueCard, MoversPayload, Notification } from '../api/types';
 import { timeAgo } from '../utils/timeAgo';
+import { posthog } from '../lib/posthog';
 
 function MoverRow({ row }: { row: ChartRow }) {
   const up = (row.delta ?? 0) > 0;
@@ -260,7 +261,10 @@ export function Home() {
               variant="primary"
               size="sm"
               className="shrink-0 self-start sm:self-auto"
-              onClick={() => (canPrompt ? promptInstall() : setShowInstallInstructions(true))}
+              onClick={() => {
+                posthog.capture('app_install_prompted', { method: canPrompt ? 'native' : 'instructions' });
+                canPrompt ? promptInstall() : setShowInstallInstructions(true);
+              }}
             >
               Get the App
             </Button>
