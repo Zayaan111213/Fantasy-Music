@@ -36,12 +36,15 @@ export async function renewLeague(
   }
 
   // Reverse final standings (same sort as the standings endpoint / playoff
-  // seeding) — computed before the records are reset.
+  // seeding) — computed before the records are reset. id backs up createdAt
+  // as a fully deterministic final tiebreaker (TIMESTAMP(3) can genuinely
+  // tie under concurrent joins, and league.teams here isn't DB-ordered).
   const finalOrder = [...league.teams].sort(
     (a, b) =>
       b.wins - a.wins ||
       b.pointsFor - a.pointsFor ||
-      a.createdAt.getTime() - b.createdAt.getTime(),
+      a.createdAt.getTime() - b.createdAt.getTime() ||
+      (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
   );
   const newSeasonYear = league.seasonYear + 1;
 

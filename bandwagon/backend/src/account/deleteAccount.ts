@@ -33,7 +33,9 @@ export async function deleteAccount(userId: string, password: string): Promise<D
     include: {
       teams: {
         include: { user: { select: { id: true, username: true, deletedAt: true } } },
-        orderBy: { createdAt: 'asc' },
+        // id backs up createdAt (TIMESTAMP(3)) as a deterministic tiebreak —
+        // two teams can join in the same millisecond under concurrent joins.
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       },
     },
   });

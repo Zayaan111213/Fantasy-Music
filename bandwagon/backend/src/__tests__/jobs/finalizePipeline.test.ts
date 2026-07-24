@@ -408,6 +408,35 @@ describe('runFinalizePipeline once-per-PT-date guard', () => {
     await runFinalizePipeline({ force: true });
     expect(vi.mocked(prisma.matchup.updateMany).mock.calls[0][0].where).toMatchObject({ leagueId: 'l-done' });
   });
+
+  it("one league's failure does not block finalizing the others", async () => {
+    // Regression: the loop over leagues had no try/catch, so a throw for one
+    // league used to abort the whole run — every league after it in iteration
+    // order silently never got attempted, not just the failing one.
+    vi.mocked(prisma.league.findMany).mockResolvedValueOnce([
+      league('l-before', null),
+      league('l-fails', null),
+      league('l-after', null),
+    ] as never);
+    vi.mocked(prisma.matchup.updateMany).mockImplementation((args: unknown) => {
+      const leagueId = (args as { where: { leagueId: string } }).where.leagueId;
+      if (leagueId === 'l-fails') return Promise.reject(new Error('DB hiccup'));
+      return Promise.resolve({ count: 1 });
+    });
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      await expect(runFinalizePipeline()).rejects.toThrow(/l-fails/);
+
+      const stamped = vi.mocked(prisma.league.update).mock.calls.map((c) => (c[0] as { where: { id: string } }).where.id);
+      expect(stamped).toEqual(['l-before', 'l-after']); // l-fails never stamped, but wasn't skipped either
+    } finally {
+      errorSpy.mockRestore();
+      // This test's mockImplementation would otherwise leak into later tests
+      // in this file, which assume the module-level {count: 0} default.
+      vi.mocked(prisma.matchup.updateMany).mockResolvedValue({ count: 0 });
+    }
+  });
 });
 
 describe('Week 1 finalization gate', () => {

@@ -231,6 +231,8 @@ export async function runFinalizePipeline(options: { force?: boolean } = {}): Pr
     select: { id: true, currentWeek: true, draftTime: true, lastFinalizedDatePT: true },
   });
 
+  const failedLeagueIds: string[] = [];
+
   for (const { id: leagueId, currentWeek: week, draftTime, lastFinalizedDatePT } of leagues) {
     // DB-persisted once-per-PT-date guard. The scheduler's in-memory dedupe
     // resets on every restart, so each deploy on a Monday used to re-run
@@ -258,11 +260,25 @@ export async function runFinalizePipeline(options: { force?: boolean } = {}): Pr
       }
     }
 
-    await finalizeLeagueWeek(leagueId, week, weekDate);
-    await prisma.league.update({ where: { id: leagueId }, data: { lastFinalizedDatePT: todayPT } });
+    try {
+      await finalizeLeagueWeek(leagueId, week, weekDate);
+      await prisma.league.update({ where: { id: leagueId }, data: { lastFinalizedDatePT: todayPT } });
+    } catch (err) {
+      // One league's failure must not block every other league in this run —
+      // keep going instead of letting the throw abort the whole loop. The
+      // failure is still surfaced below (after every league got a turn) so
+      // the scheduler's own 15-min retry still engages for just this league;
+      // lastFinalizedDatePT stays unset for it, and the guard above skips
+      // every league that already succeeded on retry.
+      console.error(`[finalize] league ${leagueId} failed, continuing with remaining leagues:`, err);
+      failedLeagueIds.push(leagueId);
+    }
   }
 
   console.log('[finalize] done');
+  if (failedLeagueIds.length > 0) {
+    throw new Error(`[finalize] ${failedLeagueIds.length} league(s) failed: ${failedLeagueIds.join(', ')}`);
+  }
 }
 
 if (require.main === module) {

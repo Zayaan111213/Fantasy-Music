@@ -8,6 +8,18 @@ const PICK_SECONDS = 60;
 const ALL_SLOTS = ['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country', 'Other', 'Flex', 'Bench-1', 'Bench-2', 'Bench-3'];
 const MAIN_GENRES = new Set(['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country']);
 
+// JWTs live 30 days, so a signature check alone would keep serving accounts
+// deleted after the token was issued — same reasoning as requireAuth() for
+// HTTP routes, which this mirrors since sockets have no shared middleware
+// chain with Express here. Throws (caller's try/catch turns it into a
+// generic "action failed" emit) if the token is invalid or the user is gone.
+async function verifyActiveUser(token: string): Promise<string> {
+  const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
+  const user = await prisma.user.findUnique({ where: { id: payload.userId }, select: { deletedAt: true } });
+  if (!user || user.deletedAt) throw new Error('Invalid token');
+  return payload.userId;
+}
+
 function findBestSlot(genre: string, openSlots: string[]): string | null {
   const priority = [
     genre,
@@ -42,12 +54,23 @@ async function startPickTimer(io: Server, leagueId: string) {
 
   let seconds = PICK_SECONDS;
   const interval = setInterval(async () => {
-    seconds--;
-    io.to(`draft:${leagueId}`).emit('draft:tick', seconds);
+    try {
+      seconds--;
+      io.to(`draft:${leagueId}`).emit('draft:tick', seconds);
 
-    if (seconds <= 0) {
-      clearLeagueTimer(leagueId);
-      await fireAutoDraft(io, leagueId);
+      if (seconds <= 0) {
+        clearLeagueTimer(leagueId);
+        await fireAutoDraft(io, leagueId);
+      }
+    } catch (err) {
+      // A bare async setInterval callback that throws becomes an unhandled
+      // rejection, which crashes the whole process on Node 15+ — not just
+      // this league's draft. Concretely reachable: fireAutoDraft's makePick
+      // call has no try/catch of its own, so if it loses a race to a
+      // simultaneous human draft:pick for the same pick number (the DB
+      // unique constraint rejects the loser), that throw used to propagate
+      // all the way out here uncaught.
+      console.error(`[draft] league ${leagueId} — pick timer tick failed:`, err);
     }
   }, 1000);
   leagueTimers.set(leagueId, interval);
@@ -121,6 +144,7 @@ async function fireAutoDraft(io: Server, leagueId: string) {
     return genre === slot;
   }
 
+  let picked = false;
   for (const slot of openSlots) {
     const bestArtist = await prisma.artist.findFirst({
       where: { id: { notIn: draftedIds }, hiddenAt: null },
@@ -162,7 +186,20 @@ async function fireAutoDraft(io: Server, leagueId: string) {
 
     // Continue to next slot in the same auto-draft if team still has open slots
     // (auto-draft fires once per timer expiry, one pick per expiry)
+    picked = true;
     break;
+  }
+
+  if (!picked) {
+    // No eligible artist for ANY of this team's open slots (the undrafted
+    // pool is genre-thin — plausible for a small artist DB or a late pick in
+    // a big league). Without this, the clock would silently restart forever
+    // with no signal that the draft is stuck. Still restarting it below is
+    // the least-bad option available here (there's no "skip this pick"
+    // semantics to fall back to), but at least the room is told why.
+    const msg = `${team.name} has no eligible artist for any open slot (${openSlots.join(', ')}). The pool may be exhausted; a commissioner may need to add artists or adjust the roster.`;
+    console.error(`[draft] league ${leagueId} — auto-draft stalled: ${msg}`);
+    io.to(`draft:${leagueId}`).emit('draft:error', msg);
   }
 
   await startPickTimer(io, leagueId);
@@ -229,12 +266,19 @@ async function scheduledDraftStart(io: Server, leagueId: string) {
 
 export function startDraftScheduler(io: Server) {
   setInterval(async () => {
-    const overdue = await prisma.league.findMany({
-      where: { status: 'pending', draftTime: { not: null, lte: new Date() } },
-      select: { id: true },
-    });
-    for (const { id } of overdue) {
-      await scheduledDraftStart(io, id);
+    try {
+      const overdue = await prisma.league.findMany({
+        where: { status: 'pending', draftTime: { not: null, lte: new Date() } },
+        select: { id: true },
+      });
+      for (const { id } of overdue) {
+        await scheduledDraftStart(io, id);
+      }
+    } catch (err) {
+      // Same reasoning as startPickTimer's tick guard: an uncaught throw
+      // here (e.g. a transient DB error) would otherwise crash the whole
+      // process on Node 15+, not just skip this poll.
+      console.error('[draft] scheduler tick failed:', err);
     }
   }, 30_000);
 }
@@ -245,8 +289,7 @@ export function registerDraftSocket(io: Server) {
 
     socket.on('draft:join', async ({ leagueId, token }: { leagueId: string; token: string }) => {
       try {
-        const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
-        socketUserId = payload.userId;
+        socketUserId = await verifyActiveUser(token);
 
         await socket.join(`draft:${leagueId}`);
 
@@ -320,10 +363,10 @@ export function registerDraftSocket(io: Server) {
 
     socket.on('draft:skip-countdown', async ({ leagueId, token }: { leagueId: string; token: string }) => {
       try {
-        const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
+        const userId = await verifyActiveUser(token);
         const league = await prisma.league.findUnique({ where: { id: leagueId } });
         if (!league) { socket.emit('draft:error', 'League not found'); return; }
-        if (league.commissionerId !== payload.userId) {
+        if (league.commissionerId !== userId) {
           socket.emit('draft:error', 'Only the commissioner can skip the countdown');
           return;
         }
@@ -340,8 +383,7 @@ export function registerDraftSocket(io: Server) {
       leagueId: string; artistId: string; token: string;
     }) => {
       try {
-        const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
-        const userId = payload.userId;
+        const userId = await verifyActiveUser(token);
 
         // Resolve which team is picking and find their open slots
         const draftState = await prisma.draftState.findUnique({ where: { leagueId } });
