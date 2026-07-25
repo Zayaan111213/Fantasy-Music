@@ -8,6 +8,7 @@ import { AuthProvider } from './context/AuthContext';
 import { App } from './App';
 import { initSentry } from './lib/sentry';
 import { initPostHog } from './lib/posthog';
+import { CookieConsentBanner } from './components/CookieConsentBanner';
 import './index.css';
 
 initSentry();
@@ -31,6 +32,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <App />
+            <CookieConsentBanner />
           </AuthProvider>
         </QueryClientProvider>
       </BrowserRouter>
