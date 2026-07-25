@@ -1678,16 +1678,13 @@ function PlayersTab({ leagueId, league, onProposeTrade }: {
 const CHART_POSITION_LABELS = ['#1', '#2-10', '#11-25', '#26-50', '#51-100'];
 const DEFAULT_CHART_POSITION: [number, number, number, number, number] = [25, 18, 12, 8, 4];
 const DEFAULT_CHART_MOVEMENT = { newEntryBonus: 10, maxGain: 15, maxDrop: 10 };
+// Streaming scoring never contributes real points (weeklyStreams is always
+// null in production — no streaming signal is ingested, per PRD), so it has
+// no editable UI here. `streaming` state below just carries whatever the
+// league already has through PUT unchanged, since the backend schema still
+// requires the field.
 const GENRES = ['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country', 'Dance', 'Other'];
 const DEFAULT_STREAMING: [number, number, number, number, number, number, number] = [40, 30, 20, 12, 6, 2, 0];
-const STREAMING_TIER_LABELS: Record<string, string[]> = {
-  'R&B/Hip-Hop':        ['50M+', '25-49M', '10-24M', '5-9M', '1-4M', '1K-999K', '0'],
-  'Pop':                ['50M+', '25-49M', '10-24M', '5-9M', '1-4M', '1K-999K', '0'],
-  'Rock & Alternative': ['20M+', '10-19M', '4-9M',   '2-3M', '500K-1.9M', '1K-499K', '0'],
-  'Country':            ['15M+', '8-14M',  '3-7M',   '1.5-2M', '400K-1.4M', '1K-399K', '0'],
-  'Dance':              ['10M+', '5-9M',   '2-4M',   '1-1.9M', '250K-999K', '1K-249K', '0'],
-  'Other':              ['15M+', '7-14M',  '3-6M',   '1-2M', '250K-999K', '1K-249K', '0'],
-};
 
 function SettingsTab({ leagueId, league }: { leagueId: string; league: League & { teams?: Team[] } }) {
   const { user } = useAuth();
@@ -1726,7 +1723,6 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League & 
   const [streaming, setStreaming] = useState<Record<string, [number, number, number, number, number, number, number]>>(
     league.scoringConfig?.streaming ?? Object.fromEntries(GENRES.map((g) => [g, [...DEFAULT_STREAMING] as [number, number, number, number, number, number, number]]))
   );
-  const [activeGenre, setActiveGenre] = useState(GENRES[0]);
   const [scoringSaving, setScoringSaving] = useState(false);
   const [scoringSaved, setScoringSaved] = useState(false);
   const [scoringError, setScoringError] = useState('');
@@ -1974,45 +1970,6 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League & 
               ))}
             </div>
           </div>
-
-          {/* Streaming Tiers */}
-          <div>
-            <p className="text-xs font-medium text-gray-500 mb-2">Streaming Tiers</p>
-            <div className="flex gap-1 overflow-x-auto pb-1 mb-3">
-              {GENRES.map((g) => (
-                <button
-                  key={g}
-                  onClick={() => setActiveGenre(g)}
-                  className={`shrink-0 px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                    activeGenre === g
-                      ? 'bg-indigo-500/30 text-indigo-300 border border-indigo-500/40'
-                      : 'text-gray-500 hover:text-gray-300'
-                  }`}
-                >
-                  {g}
-                </button>
-              ))}
-            </div>
-            <div className="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
-              {(STREAMING_TIER_LABELS[activeGenre] ?? []).map((label, i) => (
-                <div key={i} className="flex flex-col gap-1">
-                  <label className="text-xs text-gray-500 text-center leading-tight">{label}</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={streaming[activeGenre]?.[i] ?? 0}
-                    onChange={(e) => {
-                      const next = [...(streaming[activeGenre] ?? DEFAULT_STREAMING)] as [number, number, number, number, number, number, number];
-                      next[i] = parseInt(e.target.value) || 0;
-                      setStreaming({ ...streaming, [activeGenre]: next });
-                    }}
-                    disabled={!isCommissioner || isScoringLocked}
-                    className="w-full text-center bg-white/10 border border-white/20 rounded-lg px-0.5 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
 
         {isCommissioner && !isScoringLocked && (
@@ -2027,7 +1984,6 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League & 
                 onClick={() => {
                   setChartPosition(DEFAULT_CHART_POSITION);
                   setChartMovement(DEFAULT_CHART_MOVEMENT);
-                  setStreaming(Object.fromEntries(GENRES.map((g) => [g, [...DEFAULT_STREAMING] as [number, number, number, number, number, number, number]])));
                 }}
               >
                 Reset to Defaults
