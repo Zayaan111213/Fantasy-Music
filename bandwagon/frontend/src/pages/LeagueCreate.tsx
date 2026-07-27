@@ -10,6 +10,7 @@ import { Avatar } from '../components/ui/Avatar';
 import { Header } from '../components/Header';
 import { ShareInviteButton } from '../components/ShareInviteButton';
 import { posthog } from '../lib/posthog';
+import { minDraftTime, minDraftTimeInputValue } from '../utils/draftTime';
 
 type Step = 'form' | 'success';
 
@@ -64,8 +65,7 @@ export function LeagueCreate() {
       setError('A draft date & time is required');
       return;
     }
-    const minAllowed = new Date(Date.now() + 60 * 60_000);
-    if (new Date(draftTime) < minAllowed) {
+    if (new Date(draftTime) < minDraftTime()) {
       setError('Draft time must be at least 1 hour from now');
       return;
     }
@@ -219,7 +219,7 @@ export function LeagueCreate() {
               <input
                 type="datetime-local"
                 value={draftTime}
-                min={new Date(Date.now() + 60 * 60_000).toISOString().slice(0, 16)}
+                min={minDraftTimeInputValue()}
                 onChange={(e) => setDraftTime(e.target.value)}
                 className="w-full min-w-0 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 required
