@@ -121,7 +121,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const data = CreateLeagueSchema.parse(req.body);
     if (new Date(data.draftTime) < minDraftTime()) {
-      res.status(400).json({ error: 'Draft time must be at least 1 hour from now' });
+      res.status(400).json({ error: 'Draft time must be at least 1 hour from now (Pacific Time)' });
       return;
     }
     let inviteCode = generateInviteCode();
@@ -240,7 +240,7 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res, next) => {
 
     if (data.draftTime) {
       if (new Date(data.draftTime) < minDraftTime()) {
-        res.status(400).json({ error: 'Draft time must be at least 1 hour from now' });
+        res.status(400).json({ error: 'Draft time must be at least 1 hour from now (Pacific Time)' });
         return;
       }
     }

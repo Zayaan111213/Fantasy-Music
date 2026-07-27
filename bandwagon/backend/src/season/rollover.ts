@@ -33,7 +33,7 @@ export async function renewLeague(
     return { error: 'Invalid draft time', status: 400 };
   }
   if (draftTime < minDraftTime()) {
-    return { error: 'Draft time must be at least 1 hour from now', status: 400 };
+    return { error: 'Draft time must be at least 1 hour from now (Pacific Time)', status: 400 };
   }
 
   // Reverse final standings (same sort as the standings endpoint / playoff

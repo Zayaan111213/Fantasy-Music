@@ -370,10 +370,10 @@ export function Home() {
                           Draft
                         </div>
                         <div className="text-sm font-semibold text-white">
-                          {new Date(league.draftTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                          {new Date(league.draftTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })}
                         </div>
                         <div className="text-xs text-gray-500">
-                          {new Date(league.draftTime).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                          {new Date(league.draftTime).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' })} PT
                         </div>
                       </div>
                     )}
