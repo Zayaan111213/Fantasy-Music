@@ -10,7 +10,7 @@ import { Avatar } from '../components/ui/Avatar';
 import { Header } from '../components/Header';
 import { ShareInviteButton } from '../components/ShareInviteButton';
 import { posthog } from '../lib/posthog';
-import { minDraftTime, minDraftTimeInputValue } from '../utils/draftTime';
+import { minDraftTime, minDraftTimeInputValue, pacificInputValueToUtcIso } from '../utils/draftTime';
 
 type Step = 'form' | 'success';
 
@@ -65,8 +65,9 @@ export function LeagueCreate() {
       setError('A draft date & time is required');
       return;
     }
-    if (new Date(draftTime) < minDraftTime()) {
-      setError('Draft time must be at least 1 hour from now');
+    const draftTimeIso = pacificInputValueToUtcIso(draftTime);
+    if (new Date(draftTimeIso) < minDraftTime()) {
+      setError('Draft time must be at least 1 hour from now (Pacific Time)');
       return;
     }
     setLoading(true);
@@ -75,7 +76,7 @@ export function LeagueCreate() {
         name,
         teamCount,
         isPrivate,
-        draftTime: new Date(draftTime).toISOString(),
+        draftTime: draftTimeIso,
       });
       setInviteCode(league.inviteCode);
       setLeagueId(league.id);
@@ -148,7 +149,7 @@ export function LeagueCreate() {
 
       <main className="relative max-w-2xl mx-auto px-4 py-8">
         <Card className="p-6">
-          <form onSubmit={handleCreate} className="space-y-5">
+          <form onSubmit={handleCreate} className="space-y-5" noValidate>
             <Input
               label="League Name"
               placeholder="e.g. Chart Toppers 2026"
@@ -215,7 +216,7 @@ export function LeagueCreate() {
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-gray-300">Draft Date & Time</label>
+              <label className="text-sm font-medium text-gray-300">Draft Date & Time (Pacific Time)</label>
               <input
                 type="datetime-local"
                 value={draftTime}
@@ -224,7 +225,7 @@ export function LeagueCreate() {
                 className="w-full min-w-0 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 required
               />
-              <p className="text-xs text-gray-500">Must be at least 1 hour from now</p>
+              <p className="text-xs text-gray-500">Must be at least 1 hour from now, Pacific Time</p>
             </div>
 
             {error && (

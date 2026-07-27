@@ -222,7 +222,7 @@ export function LeagueJoin() {
                         <p className="text-sm text-gray-400">
                           by {league.commissionerName} · {league.memberCount}/{league.teamCount} teams
                           {league.draftTime && (
-                            <> · Draft {new Date(league.draftTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</>
+                            <> · Draft {new Date(league.draftTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' })} PT</>
                           )}
                         </p>
                       </div>

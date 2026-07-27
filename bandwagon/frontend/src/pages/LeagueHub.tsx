@@ -16,7 +16,7 @@ import type { ActivityFeed, ActivityItem, Bracket, BracketMatchup, League, Leagu
 import { SlotPill, GenreLabel } from '../components/SlotPill';
 import { timeAgo } from '../utils/timeAgo';
 import { posthog } from '../lib/posthog';
-import { minDraftTime, minDraftTimeInputValue } from '../utils/draftTime';
+import { minDraftTime, minDraftTimeInputValue, utcToPacificInputValue, pacificInputValueToUtcIso, formatPacific } from '../utils/draftTime';
 
 type Tab = 'overview' | 'myteam' | 'matchup' | 'standings' | 'players' | 'notifications' | 'settings';
 
@@ -1697,7 +1697,7 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League & 
 
   const [name, setName] = useState(league.name);
   const [draftTime, setDraftTime] = useState(
-    league.draftTime ? new Date(league.draftTime).toISOString().slice(0, 16) : ''
+    league.draftTime ? utcToPacificInputValue(league.draftTime) : ''
   );
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -1787,14 +1787,15 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League & 
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    if (draftTime && new Date(draftTime) < minDraftTime()) {
-      setError('Draft time must be at least 1 hour from now');
+    const draftTimeIso = draftTime ? pacificInputValueToUtcIso(draftTime) : null;
+    if (draftTimeIso && new Date(draftTimeIso) < minDraftTime()) {
+      setError('Draft time must be at least 1 hour from now (Pacific Time)');
       return;
     }
     setSaving(true);
     setError('');
     try {
-      await api.put(`/leagues/${leagueId}`, { name, draftTime: draftTime ? new Date(draftTime).toISOString() : null });
+      await api.put(`/leagues/${leagueId}`, { name, draftTime: draftTimeIso });
       queryClient.invalidateQueries({ queryKey: ['league', leagueId] });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -1855,7 +1856,7 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League & 
         </div>
 
         {isCommissioner && !isSettingsLocked ? (
-          <form onSubmit={handleSave} className="space-y-4">
+          <form onSubmit={handleSave} className="space-y-4" noValidate>
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-gray-300">League Name</label>
               <input
@@ -1865,7 +1866,7 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League & 
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-gray-300">Draft Date & Time</label>
+              <label className="text-sm font-medium text-gray-300">Draft Date & Time (Pacific Time)</label>
               <input
                 type="datetime-local"
                 value={draftTime}
@@ -1876,7 +1877,7 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League & 
               />
               {isDraftTimeLocked
                 ? <p className="text-xs text-gray-500">Draft time cannot be changed after the draft has started</p>
-                : <p className="text-xs text-gray-500">Must be at least 1 hour from now</p>
+                : <p className="text-xs text-gray-500">Must be at least 1 hour from now, Pacific Time</p>
               }
             </div>
             <div className="flex flex-col gap-1">
@@ -1906,7 +1907,9 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League & 
             {league.draftTime && (
               <div className="flex justify-between">
                 <span className="text-gray-500">Draft Time</span>
-                <span className="text-white">{new Date(league.draftTime).toLocaleString()}</span>
+                <span className="text-white">
+                  {formatPacific(league.draftTime, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                </span>
               </div>
             )}
             {!isCommissioner && <p className="text-xs text-gray-600">Only the commissioner can edit settings</p>}
@@ -2003,7 +2006,9 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League & 
           {league.draftTime && (
             <p className="text-sm text-gray-400 mb-4">
               Scheduled for{' '}
-              <span className="text-white font-medium">{new Date(league.draftTime).toLocaleString()}</span>
+              <span className="text-white font-medium">
+                {formatPacific(league.draftTime, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+              </span>
               . Will start automatically if you don't start it early.
             </p>
           )}
@@ -2264,7 +2269,7 @@ function SeasonCompleteBanner({ leagueId, league, isCommissioner }: {
 
   const renewMutation = useMutation({
     mutationFn: () =>
-      api.post(`/leagues/${leagueId}/renew`, { draftTime: new Date(draftTime).toISOString() }),
+      api.post(`/leagues/${leagueId}/renew`, { draftTime: pacificInputValueToUtcIso(draftTime) }),
     onSuccess: () => {
       posthog.capture('season_renewed', { leagueId });
       setRenewOpen(false);
@@ -2297,7 +2302,7 @@ function SeasonCompleteBanner({ leagueId, league, isCommissioner }: {
       {isCommissioner && renewOpen && (
         <div className="mt-4 pt-4 border-t border-white/10">
           <label className="block text-xs text-gray-400 mb-1.5">
-            Draft time for the {league.seasonYear + 1} season (at least 1 hour from now)
+            Draft time for the {league.seasonYear + 1} season (at least 1 hour from now, Pacific Time)
           </label>
           <div className="flex flex-col sm:flex-row gap-2">
             <input
@@ -2339,7 +2344,6 @@ function LeagueIntroTab({ leagueId, league, isCommissioner }: {
 }) {
   const navigate = useNavigate();
   const isPreDraft = league.status === 'pre_draft';
-  const draftDate = league.draftTime ? new Date(league.draftTime) : null;
   const teams = league.teams ?? [];
 
   return (
@@ -2357,12 +2361,12 @@ function LeagueIntroTab({ leagueId, league, isCommissioner }: {
       <Card className="p-5">
         <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
           <AlarmClock className="w-4 h-4" />
-          Draft Time
+          Draft Time (Pacific)
         </h3>
-        {draftDate ? (
+        {league.draftTime ? (
           <>
             <p className="text-lg font-semibold text-white">
-              {draftDate.toLocaleString(undefined, { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+              {formatPacific(league.draftTime, { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
             </p>
             {isPreDraft ? (
               <Button size="sm" className="mt-3 animate-pulse" onClick={() => navigate(`/leagues/${leagueId}/draft`)}>
