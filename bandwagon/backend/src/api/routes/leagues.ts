@@ -19,6 +19,7 @@ import { firstScoringTuesdayPT } from '../../jobs/finalizePipeline';
 import { submitWaiverClaim, cancelWaiverClaim, reorderWaiverClaims } from '../../waivers/engine';
 import { renewLeague } from '../../season/rollover';
 import { transferCommissioner } from '../../leagues/transfer';
+import { minDraftTime } from '../../utils/draftTime';
 
 const router = Router();
 
@@ -119,8 +120,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res, next) => {
 router.post('/', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const data = CreateLeagueSchema.parse(req.body);
-    const minAllowed = new Date(Date.now() + 60 * 60_000);
-    if (new Date(data.draftTime) < minAllowed) {
+    if (new Date(data.draftTime) < minDraftTime()) {
       res.status(400).json({ error: 'Draft time must be at least 1 hour from now' });
       return;
     }
@@ -239,8 +239,7 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res, next) => {
     }
 
     if (data.draftTime) {
-      const minAllowed = new Date(Date.now() + 60 * 60_000);
-      if (new Date(data.draftTime) < minAllowed) {
+      if (new Date(data.draftTime) < minDraftTime()) {
         res.status(400).json({ error: 'Draft time must be at least 1 hour from now' });
         return;
       }

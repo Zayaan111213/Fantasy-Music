@@ -16,6 +16,7 @@ import type { ActivityFeed, ActivityItem, Bracket, BracketMatchup, League, Leagu
 import { SlotPill, GenreLabel } from '../components/SlotPill';
 import { timeAgo } from '../utils/timeAgo';
 import { posthog } from '../lib/posthog';
+import { minDraftTime, minDraftTimeInputValue } from '../utils/draftTime';
 
 type Tab = 'overview' | 'myteam' | 'matchup' | 'standings' | 'players' | 'notifications' | 'settings';
 
@@ -1786,12 +1787,9 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League & 
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    if (draftTime) {
-      const minAllowed = new Date(Date.now() + 60 * 60_000);
-      if (new Date(draftTime) < minAllowed) {
-        setError('Draft time must be at least 1 hour from now');
-        return;
-      }
+    if (draftTime && new Date(draftTime) < minDraftTime()) {
+      setError('Draft time must be at least 1 hour from now');
+      return;
     }
     setSaving(true);
     setError('');
@@ -1871,7 +1869,7 @@ function SettingsTab({ leagueId, league }: { leagueId: string; league: League & 
               <input
                 type="datetime-local"
                 value={draftTime}
-                min={new Date(Date.now() + 60 * 60_000).toISOString().slice(0, 16)}
+                min={minDraftTimeInputValue()}
                 disabled={isDraftTimeLocked}
                 onChange={(e) => setDraftTime(e.target.value)}
                 className="w-full min-w-0 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -2305,6 +2303,7 @@ function SeasonCompleteBanner({ leagueId, league, isCommissioner }: {
             <input
               type="datetime-local"
               value={draftTime}
+              min={minDraftTimeInputValue()}
               onChange={(e) => setDraftTime(e.target.value)}
               className="flex-1 min-w-0 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />

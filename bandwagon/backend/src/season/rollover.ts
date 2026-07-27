@@ -1,5 +1,6 @@
 import { prisma } from '../db/prisma';
 import { logLeagueEvent } from '../events/leagueEvents';
+import { minDraftTime } from '../utils/draftTime';
 
 // Season rollover: once a season is complete the commissioner can renew the
 // league for another year. Renewal keeps the league, its members, teams
@@ -31,7 +32,7 @@ export async function renewLeague(
   if (Number.isNaN(draftTime.getTime())) {
     return { error: 'Invalid draft time', status: 400 };
   }
-  if (draftTime.getTime() - Date.now() < 60 * 60_000) {
+  if (draftTime < minDraftTime()) {
     return { error: 'Draft time must be at least 1 hour from now', status: 400 };
   }
 
