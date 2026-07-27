@@ -16,6 +16,7 @@ interface ItunesResponse {
 const GENRE_MAP: Record<string, string> = {
   // R&B / Hip-Hop
   'Hip-Hop/Rap':       'R&B/Hip-Hop',
+  'Rap':               'R&B/Hip-Hop',
   'R&B/Soul':          'R&B/Hip-Hop',
   // Pop
   'Pop':               'Pop',
@@ -38,6 +39,7 @@ const GENRE_MAP: Record<string, string> = {
   // Latin
   'Latin':             'Latin',
   'Regional Mexicano': 'Latin',
+  'Música Mexicana':   'Latin',
   'Salsa y Tropical':  'Latin',
   'Tropical':          'Latin',
   'Banda':             'Latin',
@@ -50,6 +52,7 @@ const GENRE_MAP: Record<string, string> = {
   'Ranchera':          'Latin',
   'Tejano':            'Latin',
   'Brazilian':         'Latin',
+  'Urbano latino':     'Latin',
   // Dance / Electronic
   'Dance':             'Dance',
   'Electronic':        'Dance',
@@ -60,6 +63,16 @@ const GENRE_MAP: Record<string, string> = {
   // Afrobeats
   'Afrobeats':         'Afrobeats',
   'African':           'Afrobeats',
+  // Soundtrack (film/show/cast recordings — not one of the 5 core slots,
+  // but a real classification; must not collapse into the generic 'Other'
+  // bucket or it gets stuck on the ingest-time "Music" placeholder)
+  'Soundtrack':        'Soundtrack',
+  'Musicals':          'Soundtrack',
+  // Other real, granular genres that must stay distinct rather than
+  // collapsing into 'Other' (which is treated as "preserve existing value")
+  'New Age':           'New Age',
+  'Jazz':              'Jazz',
+  'Classical':         'Classical',
 };
 
 function sleep(ms: number): Promise<void> {

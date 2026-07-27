@@ -7,11 +7,30 @@ function sleep(ms: number): Promise<void> {
 interface ItunesTrackResult {
   wrapperType?: string;
   artworkUrl100?: string;
+  artistName?: string;
 }
 
 interface ItunesResponse {
   resultCount: number;
   results: ItunesTrackResult[];
+}
+
+// Name-search results are often joint-credit tracks ("A, B & Original Cast of
+// X") — picking the bare top hit gives unrelated co-credited artists the same
+// artwork. Prefer a track where the queried artist is the sole or first-billed
+// credit; only fall back to the raw top hit if nothing better-attributed exists.
+function pickBestTrack(tracks: ItunesTrackResult[], artistName: string): ItunesTrackResult | undefined {
+  const target = artistName.trim().toLowerCase();
+  const solo = tracks.find((t) => t.artistName?.trim().toLowerCase() === target);
+  if (solo) return solo;
+  const firstBilled = tracks.find((t) => {
+    const credited = t.artistName?.trim().toLowerCase() ?? '';
+    if (!credited.startsWith(target)) return false;
+    const rest = credited.slice(target.length);
+    return rest === '' || /^[\s,&]/.test(rest);
+  });
+  if (firstBilled) return firstBilled;
+  return tracks[0];
 }
 
 export async function runImageBackfill(): Promise<void> {
@@ -33,7 +52,7 @@ export async function runImageBackfill(): Promise<void> {
     const artist = artists[i];
     const url = artist.appleArtistId
       ? `https://itunes.apple.com/lookup?id=${artist.appleArtistId}&entity=musicTrack&limit=1`
-      : `https://itunes.apple.com/search?term=${encodeURIComponent(artist.name)}&entity=musicTrack&limit=1&media=music`;
+      : `https://itunes.apple.com/search?term=${encodeURIComponent(artist.name)}&entity=musicTrack&limit=10&media=music`;
 
     try {
       const res = await fetch(url);
@@ -44,7 +63,8 @@ export async function runImageBackfill(): Promise<void> {
       }
 
       const data = (await res.json()) as ItunesResponse;
-      const track = data.results?.find((r) => r.wrapperType === 'track') ?? data.results?.[0];
+      const tracks = data.results?.filter((r) => r.wrapperType === 'track') ?? data.results ?? [];
+      const track = artist.appleArtistId ? tracks[0] : pickBestTrack(tracks, artist.name);
       if (!track?.artworkUrl100) {
         console.log(`[images] [${i + 1}/${artists.length}] ${artist.name} — no artwork found`);
         await sleep(1000);
