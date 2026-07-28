@@ -219,10 +219,13 @@ async function scheduledDraftStart(io: Server, leagueId: string) {
     pickOrder.push(...roundTeams);
   }
 
-  const countdownEndsAt = new Date(Date.now() + 10 * 60_000);
+  // Picking begins at the originally scheduled draftTime — don't push it out.
+  // The lobby (pre_draft) just opens early (see startDraftScheduler's 15-min window)
+  // so members can join before the clock starts.
+  const countdownEndsAt = league.draftTime!;
 
   await prisma.$transaction([
-    prisma.league.update({ where: { id: leagueId }, data: { status: 'pre_draft', draftTime: countdownEndsAt } }),
+    prisma.league.update({ where: { id: leagueId }, data: { status: 'pre_draft' } }),
     prisma.draftState.upsert({
       where: { leagueId },
       create: { leagueId, currentPick: 0, pickOrder, timerEndsAt: null },
@@ -256,19 +259,24 @@ async function scheduledDraftStart(io: Server, leagueId: string) {
   });
 
   if (!countdownTimers.has(leagueId)) {
+    const msRemaining = Math.max(0, countdownEndsAt.getTime() - Date.now());
     const timeout = setTimeout(() => {
       countdownTimers.delete(leagueId);
       transitionToLiveDraft(io, leagueId).catch((err) => console.error('[draft] countdown transition failed:', err));
-    }, 10 * 60_000);
+    }, msRemaining);
     countdownTimers.set(leagueId, timeout);
   }
 }
 
+const PRE_DRAFT_LOBBY_MS = 15 * 60_000;
+
 export function startDraftScheduler(io: Server) {
   setInterval(async () => {
     try {
+      // Open the lobby (pre_draft) up to 15 min before draftTime; picking itself
+      // still starts exactly at draftTime (see scheduledDraftStart).
       const overdue = await prisma.league.findMany({
-        where: { status: 'pending', draftTime: { not: null, lte: new Date() } },
+        where: { status: 'pending', draftTime: { not: null, lte: new Date(Date.now() + PRE_DRAFT_LOBBY_MS) } },
         select: { id: true },
       });
       for (const { id } of overdue) {

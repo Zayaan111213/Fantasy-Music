@@ -30,6 +30,20 @@ export function generateInviteCode(): string {
   return code;
 }
 
+// Inserts a new team into a uniformly random draft slot among the league's existing teams
+// (join order should not determine draft order — see draftPosition usage in sockets/draft.ts).
+async function assignRandomDraftPosition(tx: Prisma.TransactionClient, leagueId: string): Promise<number> {
+  const existingCount = await tx.team.count({ where: { leagueId } });
+  const slot = Math.floor(Math.random() * (existingCount + 1)) + 1;
+  if (slot <= existingCount) {
+    await tx.team.updateMany({
+      where: { leagueId, draftPosition: { gte: slot } },
+      data: { draftPosition: { increment: 1 } },
+    });
+  }
+  return slot;
+}
+
 export const MAIN_GENRES = new Set(['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country']);
 
 // "Other" in a genre filter means the Other-slot bucket (any non-main genre),
@@ -430,14 +444,17 @@ router.post('/join/:code', requireAuth, async (req: AuthRequest, res, next) => {
     if (already) { res.json({ league, team: already }); return; }
 
     const user = await prisma.user.findUnique({ where: { id: req.userId! } });
-    const team = await prisma.team.create({
-      data: {
-        leagueId: league.id,
-        userId: req.userId!,
-        name: `${user?.username ?? 'Team'}'s Squad`,
-        draftPosition: league.teams.length + 1,
-        waiverPriority: league.teams.length + 1,
-      },
+    const team = await prisma.$transaction(async (tx) => {
+      const draftPosition = await assignRandomDraftPosition(tx, league.id);
+      return tx.team.create({
+        data: {
+          leagueId: league.id,
+          userId: req.userId!,
+          name: `${user?.username ?? 'Team'}'s Squad`,
+          draftPosition,
+          waiverPriority: league.teams.length + 1,
+        },
+      });
     });
 
     await logLeagueEvent(

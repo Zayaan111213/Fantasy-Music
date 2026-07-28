@@ -49,7 +49,7 @@ function TimerRing({ seconds, total = 60 }: { seconds: number; total?: number })
   );
 }
 
-function CountdownRing({ seconds, total = 600 }: { seconds: number; total?: number }) {
+function CountdownRing({ seconds, total = 900 }: { seconds: number; total?: number }) {
   const pct = Math.max(0, seconds / total);
   const r = 36;
   const circ = 2 * Math.PI * r;
@@ -85,7 +85,7 @@ export function DraftRoom() {
   const socketRef = useRef<Socket | null>(null);
   const [state, setState] = useState<DraftState | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(60);
-  const [countdownSeconds, setCountdownSeconds] = useState(600);
+  const [countdownSeconds, setCountdownSeconds] = useState(900);
   const [search, setSearch] = useState('');
   const [genreFilter, setGenreFilter] = useState('');
   const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([]);
