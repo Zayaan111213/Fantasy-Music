@@ -1,15 +1,18 @@
 import { useState } from 'react';
 import { View, Text, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import type { User } from '@bandwagon/shared';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 
-// Phase-0 smoke test port of frontend/src/pages/Auth.tsx — login/signup only,
-// no invite-code redirect handling or How-It-Works modal yet (those depend on
-// screens/flows not built in this phase).
+// Ported from frontend/src/pages/Auth.tsx — login/signup only, no invite-code
+// redirect handling or How-It-Works modal (those depend on flows not built
+// in this phase; invite deep-linking also needs the scheme/universal-link
+// infra flagged in ResetPasswordScreen).
 export function LoginScreen() {
+  const navigation = useNavigation<any>();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -68,6 +71,11 @@ export function LoginScreen() {
               value={password}
               onChangeText={setPassword}
             />
+            {mode === 'login' && (
+              <Pressable onPress={() => navigation.navigate('ForgotPassword')} className="items-end -mt-2">
+                <Text className="text-xs text-indigo-400">Forgot password?</Text>
+              </Pressable>
+            )}
 
             {error !== '' && (
               <View className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
