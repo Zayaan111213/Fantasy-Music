@@ -1,4 +1,5 @@
 import { View, Pressable, Text } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { ChevronLeft } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
@@ -20,9 +21,13 @@ interface HeaderProps {
 export function Header({ showBack = true, title, actions, showWordmark = false }: HeaderProps) {
   const navigation = useNavigation<any>();
   const { user, logout } = useAuth();
+  const insets = useSafeAreaInsets();
 
   return (
-    <View className="flex-row items-center gap-3 px-4 py-3 border-b border-white/10 bg-gray-950">
+    <View
+      className="flex-row items-center gap-3 px-4 pb-3 border-b border-white/10 bg-gray-950"
+      style={{ paddingTop: insets.top + 12 }}
+    >
       {showBack && navigation.canGoBack() && (
         <Pressable onPress={() => navigation.goBack()} hitSlop={8}>
           <ChevronLeft color="#A88F70" size={20} />
