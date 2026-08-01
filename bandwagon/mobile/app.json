@@ -13,7 +13,7 @@
     "android": {
       "package": "com.bandwagoner.app",
       "adaptiveIcon": {
-        "backgroundColor": "#241811",
+        "backgroundColor": "#F3E7CE",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
