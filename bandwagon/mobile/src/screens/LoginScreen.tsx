@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import { View, Text, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ChevronLeft } from 'lucide-react-native';
 import type { User } from '@bandwagon/shared';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { WagonMark, Wordmark } from '../components/Logo';
 
 // Ported from frontend/src/pages/Auth.tsx — login/signup only, no invite-code
 // redirect handling or How-It-Works modal (those depend on flows not built
@@ -13,7 +16,9 @@ import { Input } from '../components/ui/Input';
 // infra flagged in ResetPasswordScreen).
 export function LoginScreen() {
   const navigation = useNavigation<any>();
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const route = useRoute<any>();
+  const insets = useSafeAreaInsets();
+  const [mode, setMode] = useState<'login' | 'signup'>(route.params?.mode === 'signup' ? 'signup' : 'login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -39,9 +44,17 @@ export function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       className="flex-1 bg-gray-950 items-center justify-center px-4"
     >
+      {navigation.canGoBack() && (
+        <Pressable onPress={() => navigation.goBack()} hitSlop={8} className="absolute left-4" style={{ top: insets.top + 12 }}>
+          <ChevronLeft color="#A88F70" size={22} />
+        </Pressable>
+      )}
       <View className="w-full max-w-md">
         <View className="items-center mb-8">
-          <Text className="text-3xl font-bold text-indigo-400">Bandwagoner</Text>
+          <WagonMark size={56} />
+          <View className="mt-3">
+            <Wordmark className="text-3xl" />
+          </View>
           <Text className="text-gray-400 mt-1">Fantasy sports for music fans</Text>
         </View>
 

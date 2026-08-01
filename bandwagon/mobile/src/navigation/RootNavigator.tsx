@@ -2,6 +2,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
 import { FullPageSpinner } from '../components/ui/Spinner';
+import { IntroScreen } from '../screens/IntroScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { ForgotPasswordScreen } from '../screens/ForgotPasswordScreen';
 import { ResetPasswordScreen } from '../screens/ResetPasswordScreen';
@@ -31,6 +32,7 @@ export function RootNavigator() {
     <NavigationContainer>
       {!user ? (
         <AuthStack.Navigator screenOptions={{ headerShown: false }}>
+          <AuthStack.Screen name="Intro" component={IntroScreen} />
           <AuthStack.Screen name="Login" component={LoginScreen} />
           <AuthStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
           <AuthStack.Screen name="ResetPassword" component={ResetPasswordScreen} />

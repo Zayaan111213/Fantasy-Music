@@ -12,13 +12,18 @@ interface HeaderProps {
   title?: string;
   actions?: React.ReactNode;
   showWordmark?: boolean;
+  // Overrides the default goBack() action — for screens that need a back
+  // chevron even though they're a tab root (navigation.canGoBack() is
+  // false there), e.g. Charts linking back to Home.
+  onBackPress?: () => void;
 }
 
 // Ported from frontend/src/components/Header.tsx. The web version's backTo
 // (named route) / onBack (handler) split collapses to a single goBack() —
 // all authenticated RN screens are stack siblings (see RootNavigator), so
-// "back" always means the native stack's back action.
-export function Header({ showBack = true, title, actions, showWordmark = false }: HeaderProps) {
+// "back" always means the native stack's back action, unless onBackPress
+// overrides it.
+export function Header({ showBack = true, title, actions, showWordmark = false, onBackPress }: HeaderProps) {
   const navigation = useNavigation<any>();
   const { user, logout } = useAuth();
   const insets = useSafeAreaInsets();
@@ -28,8 +33,8 @@ export function Header({ showBack = true, title, actions, showWordmark = false }
       className="flex-row items-center gap-3 px-4 pb-3 border-b border-white/10 bg-gray-950"
       style={{ paddingTop: insets.top + 12 }}
     >
-      {showBack && navigation.canGoBack() && (
-        <Pressable onPress={() => navigation.goBack()} hitSlop={8}>
+      {showBack && (onBackPress || navigation.canGoBack()) && (
+        <Pressable onPress={() => (onBackPress ? onBackPress() : navigation.goBack())} hitSlop={8}>
           <ChevronLeft color="#A88F70" size={20} />
         </Pressable>
       )}

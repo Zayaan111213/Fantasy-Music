@@ -71,6 +71,7 @@ function ChartTable({ rows }: { rows: ChartRow[] }) {
 }
 
 export function ChartsScreen() {
+  const navigation = useNavigation<any>();
   const [tab, setTab] = useState<'songs' | 'albums'>('songs');
 
   const { data, isLoading } = useQuery({
@@ -84,7 +85,7 @@ export function ChartsScreen() {
 
   return (
     <View className="flex-1 bg-gray-950">
-      <Header showWordmark showBack={false} />
+      <Header showWordmark onBackPress={() => navigation.navigate('Main', { screen: 'Home' })} />
       <ScrollView contentContainerClassName="px-4 py-6 gap-4">
         <View>
           <Text className="font-serif font-bold text-white text-lg">Apple Music Charts</Text>
