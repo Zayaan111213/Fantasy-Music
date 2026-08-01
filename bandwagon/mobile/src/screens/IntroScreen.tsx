@@ -1,4 +1,5 @@
 import { View, Text, Pressable, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import { Plus, Users, TrendingUp, Trophy, Music, Disc3 } from 'lucide-react-native';
@@ -14,6 +15,7 @@ import { WagonMark, Wordmark } from '../components/Logo';
 // into Login.
 export function IntroScreen() {
   const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
 
   const { data: movers } = useQuery({
     queryKey: ['chartMovers'],
@@ -22,7 +24,10 @@ export function IntroScreen() {
 
   return (
     <View className="flex-1 bg-gray-950">
-      <View className="flex-row items-center justify-between px-4 py-4 border-b border-white/10">
+      <View
+        className="flex-row items-center justify-between px-4 pb-4 border-b border-white/10"
+        style={{ paddingTop: insets.top + 16 }}
+      >
         <View className="flex-row items-center gap-2">
           <WagonMark size={32} />
           <Wordmark className="text-lg" />
