@@ -58,9 +58,15 @@ export function H2HRoster({ leftTitle, rightTitle, leftRoster, rightRoster, leag
 
   return (
     <Card className="px-4 py-1.5">
-      <View className="flex-row items-center py-3 border-b border-gray-700">
+      {/* Mirrors the body rows' 5-column layout (name, score, slot, score,
+          name) exactly, so "Slot" lines up with the pills beneath it —
+          previously this header only had 3 columns (name, slot, name),
+          shifting it off-center relative to the actual pill column. */}
+      <View className="flex-row items-center gap-1.5 py-3 border-b border-gray-700">
         <Text className="flex-1 text-[11px] font-bold uppercase tracking-widest text-gray-400" numberOfLines={1}>{leftTitle}</Text>
+        <View className="w-10" />
         <Text className="w-16 text-[11px] font-bold uppercase tracking-widest text-gray-400 text-center">Slot</Text>
+        <View className="w-10" />
         <Text className="flex-1 text-[11px] font-bold uppercase tracking-widest text-gray-400 text-right" numberOfLines={1}>{rightTitle}</Text>
       </View>
       {ALL_STARTER_SLOTS.map((slot, i) => renderRow(slot, i === ALL_STARTER_SLOTS.length - 1))}
