@@ -1,3 +1,4 @@
+import { Children, isValidElement } from 'react';
 import { Pressable, Text, type PressableProps } from 'react-native';
 import type { ReactNode } from 'react';
 
@@ -35,17 +36,23 @@ const textSizes = {
 };
 
 export function Button({ variant = 'primary', size = 'md', className = '', children, disabled, ...props }: Props) {
+  const textClassName = `font-medium ${textVariants[variant]} ${textSizes[size]}`;
+  // React Native requires every bare string to be inside a <Text> — a call
+  // like <Button><Icon/> Create a League</Button> has children as
+  // [<Icon/>, " Create a League"], and the trailing string previously
+  // rendered as an unwrapped text node, which RN silently drops. Wrap any
+  // non-element child (strings/numbers) in <Text>; leave icons as-is.
+  const content = Children.map(children, (child) =>
+    isValidElement(child) ? child : <Text className={textClassName}>{child}</Text>,
+  );
+
   return (
     <Pressable
       disabled={disabled}
       className={`flex-row items-center justify-center gap-2 rounded-lg ${variants[variant]} ${sizes[size]} ${disabled ? 'opacity-50' : ''} ${className}`}
       {...props}
     >
-      {typeof children === 'string' ? (
-        <Text className={`font-medium ${textVariants[variant]} ${textSizes[size]}`}>{children}</Text>
-      ) : (
-        children
-      )}
+      {content}
     </Pressable>
   );
 }
