@@ -76,22 +76,34 @@ export function LeagueHubScreen() {
         }
       />
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} className="border-b border-white/10" contentContainerClassName="px-2">
+      {/* All 6 tabs are icon+label pairs that don't fit a phone's width in
+          a single row, so — unlike the web version's horizontal-scroll bar —
+          each tab is icon-on-top/label-below and evenly distributed
+          (flex-1) so nothing scrolls or gets clipped at the screen edge. */}
+      <View className="flex-row border-b border-white/10">
         {tabs.map((t) => {
           const active = activeTab === t.id;
           return (
-            <Pressable key={t.id} onPress={() => setTab(t.id)} className={`flex-row items-center gap-1.5 px-3 py-3 border-b-2 ${active ? 'border-indigo-500' : 'border-transparent'}`}>
-              <t.Icon color={active ? '#D9A02C' : '#7C6650'} size={16} />
-              <Text className={`text-sm font-medium ${active ? 'text-indigo-400' : 'text-gray-500'}`}>{t.label}</Text>
-              {t.id === 'notifications' && unseenCount > 0 && (
-                <View className="min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-500 items-center justify-center">
-                  <Text className="text-gray-950 text-[11px] font-semibold">{unseenCount}</Text>
-                </View>
-              )}
+            <Pressable
+              key={t.id}
+              onPress={() => setTab(t.id)}
+              className={`flex-1 items-center gap-1 py-2.5 border-b-2 ${active ? 'border-indigo-500' : 'border-transparent'}`}
+            >
+              <View>
+                <t.Icon color={active ? '#D9A02C' : '#7C6650'} size={18} />
+                {t.id === 'notifications' && unseenCount > 0 && (
+                  <View className="absolute -top-1 -right-2 min-w-[14px] h-[14px] px-0.5 rounded-full bg-indigo-500 items-center justify-center">
+                    <Text className="text-gray-950 text-[9px] font-semibold">{unseenCount}</Text>
+                  </View>
+                )}
+              </View>
+              <Text className={`text-[10px] font-medium ${active ? 'text-indigo-400' : 'text-gray-500'}`} numberOfLines={1}>
+                {t.label}
+              </Text>
             </Pressable>
           );
         })}
-      </ScrollView>
+      </View>
 
       <ScrollView contentContainerClassName="px-4 py-6">
         {league.status === 'complete' && <SeasonCompleteBanner leagueId={leagueId} league={league} isCommissioner={isCommissioner} />}
