@@ -27,7 +27,7 @@ export function RosterRow({ spot, onSwapSelect, selectedSlot, readOnly = false, 
       onPress={readOnly ? undefined : () => onSwapSelect?.(spot.slot)}
       className={`flex-row items-center gap-3 rounded-lg p-3 ${isSelected ? 'bg-indigo-500/20 border border-indigo-500/50' : 'border border-transparent'}`}
     >
-      <View className="w-20 shrink-0">
+      <View className="w-20 shrink-0 items-center">
         <SlotPill slot={spot.slot} />
       </View>
       {spot.artist ? (

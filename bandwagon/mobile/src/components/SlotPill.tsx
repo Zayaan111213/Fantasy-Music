@@ -31,7 +31,7 @@ export function genreLabel(genre: string): string {
   return GENRE_SHORT[genre] ?? genre;
 }
 
-const SLOT_SHORT: Record<string, string> = { 'R&B/Hip-Hop': 'Rap', 'Rock & Alternative': 'Rock' };
+const SLOT_SHORT: Record<string, string> = { 'R&B/Hip-Hop': 'Hip-Hop', 'Rock & Alternative': 'Rock' };
 
 export function SlotPill({ slot }: { slot: string }) {
   const isBench = slot.startsWith('Bench');
