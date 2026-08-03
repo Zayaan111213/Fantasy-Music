@@ -40,10 +40,10 @@ export function SlotPill({ slot }: { slot: string }) {
   const tint = tintStyle(rgb);
   return (
     <View
-      className="px-1.5 py-0.5 rounded-full border self-start"
+      className="px-1 py-0.5 rounded-full border self-center"
       style={{ backgroundColor: tint.backgroundColor, borderColor: tint.borderColor }}
     >
-      <Text className="text-[9.5px] font-bold uppercase tracking-wider" style={{ color: tint.color }}>
+      <Text className="text-[9px] font-bold uppercase" style={{ color: tint.color }} numberOfLines={1}>
         {display}
       </Text>
     </View>

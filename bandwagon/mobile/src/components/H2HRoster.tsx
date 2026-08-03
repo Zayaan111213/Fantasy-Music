@@ -49,7 +49,7 @@ export function H2HRoster({ leftTitle, rightTitle, leftRoster, rightRoster, leag
       <View key={slot} className={`flex-row items-center gap-1.5 py-2.5 ${last ? '' : 'border-b border-gray-900'}`}>
         <H2HArtistCell spot={l} leagueId={leagueId} />
         <Text className={`w-10 text-center font-serif text-sm ${lHi ? 'text-indigo-400 font-bold' : 'text-gray-500'}`}>{ls != null ? ls.toFixed(1) : '–'}</Text>
-        <View className="w-16 items-center"><SlotPill slot={slot} /></View>
+        <View className="w-[68px] items-center"><SlotPill slot={slot} /></View>
         <Text className={`w-10 text-center font-serif text-sm ${rHi ? 'text-indigo-400 font-bold' : 'text-gray-500'}`}>{rs != null ? rs.toFixed(1) : '–'}</Text>
         <H2HArtistCell spot={r} right leagueId={leagueId} />
       </View>
@@ -65,7 +65,7 @@ export function H2HRoster({ leftTitle, rightTitle, leftRoster, rightRoster, leag
       <View className="flex-row items-center gap-1.5 py-3 border-b border-gray-700">
         <Text className="flex-1 text-[11px] font-bold uppercase tracking-widest text-gray-400" numberOfLines={1}>{leftTitle}</Text>
         <View className="w-10" />
-        <Text className="w-16 text-[11px] font-bold uppercase tracking-widest text-gray-400 text-center">Slot</Text>
+        <Text className="w-[68px] text-[11px] font-bold uppercase tracking-widest text-gray-400 text-center">Slot</Text>
         <View className="w-10" />
         <Text className="flex-1 text-[11px] font-bold uppercase tracking-widest text-gray-400 text-right" numberOfLines={1}>{rightTitle}</Text>
       </View>
