@@ -9,6 +9,7 @@ vi.mock('../../db/prisma', () => ({
     draftState: { deleteMany: vi.fn() },
     waiverClaim: { deleteMany: vi.fn() },
     trade: { deleteMany: vi.fn() },
+    lineupSnapshot: { deleteMany: vi.fn() },
     rosterSpot: { updateMany: vi.fn() },
     notification: { createMany: vi.fn() },
     leagueEvent: { create: vi.fn() },

@@ -21,19 +21,10 @@ function priorWeek(weekDate: Date): Date {
   return new Date(weekDate.getTime() - 7 * 24 * 60 * 60 * 1000);
 }
 
-// Translates a league's week number to the real chart week (the Tuesday it
-// started). WeeklyScore rows are keyed by calendar weekDate — league week
-// numbers are per-league counters, and two leagues that started on different
-// dates give the same number to different calendar weeks. Anchored on the
-// current chart week (exactly how the daily pipeline writes: currentWeek is
-// always scored against getCurrentWeekDate()), counting back 7 days per week.
-export function weekDateForLeagueWeek(
-  currentWeek: number,
-  week: number,
-  currentWeekDate: Date = getCurrentWeekDate(),
-): Date {
-  return new Date(currentWeekDate.getTime() - (currentWeek - week) * 7 * 24 * 60 * 60 * 1000);
-}
+// League-week → chart-week translation now lives in scoring/weeks.ts (pure,
+// prisma-free). Re-exported here so existing import sites keep working.
+export { weekDateForLeagueWeek, firstScoringTuesdayDate, firstScoringTuesdayPT } from './weeks';
+export type { LeagueWeekAnchor } from './weeks';
 
 export interface ChartScoreBreakdown {
   songRank: number | null;

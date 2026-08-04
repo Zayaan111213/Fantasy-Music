@@ -1,5 +1,8 @@
 import { prisma } from '../db/prisma';
 import { getCurrentWeekDate } from './ingestCharts';
+import { firstScoringTuesdayPT, weekDateForLeagueWeek } from '../scoring/weeks';
+import { captureLineupSnapshot } from '../roster/snapshot';
+export { firstScoringTuesdayPT };
 import {
   ensurePlayoffMatchups,
   PLAYOFF_FINALS_WEEK,
@@ -70,6 +73,12 @@ export async function finalizeLeagueWeek(
     if (week >= REGULAR_SEASON_WEEKS) await advanceSeason(leagueId, week);
     return;
   }
+
+  // Fallback lineup freeze, for a week the daily pipeline never got to capture
+  // (it normally freezes on the first locked day). Must run BEFORE the trade and
+  // waiver steps below, which mutate rosters — and it's write-once, so a week
+  // the daily pipeline already froze is untouched.
+  await captureLineupSnapshot(prisma, leagueId, week);
 
   // winnerId varies per matchup so loop after the bulk isFinalized flip.
   // Scores are frozen at this point; same inputs → same winner on any retry of this block.
@@ -193,31 +202,10 @@ async function advanceSeason(leagueId: string, week: number): Promise<void> {
   }
 }
 
-// Returns the PT calendar date (YYYY-MM-DD) of the first scoring Tuesday after the draft.
-// Also used by isLineupLocked() in leagues.ts.
-//
-// Computed entirely in PT-calendar-date space (extract Y/M/D, then Date.UTC
-// arithmetic) rather than draftTime.getDate()/.setDate(), which operate in
-// the process's local timezone. Adding N days that way and re-projecting
-// through timeZone: 'America/Los_Angeles' breaks across a DST transition:
-// a 7-UTC-day jump shifts PT wall-clock time by an hour, which can roll a
-// near-midnight-PT draft time onto the wrong calendar date (verified: a
-// 2026-10-27T07:30:00Z draft — Tue 12:30am PDT — landed on 2026-11-02
-// instead of the correct 2026-11-03, since PT flips to PST on Nov 1).
-export function firstScoringTuesdayPT(draftTime: Date): string {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Los_Angeles',
-    year: 'numeric', month: 'numeric', day: 'numeric',
-  }).formatToParts(draftTime);
-  const ptYear = parseInt(parts.find((p) => p.type === 'year')!.value);
-  const ptMonth = parseInt(parts.find((p) => p.type === 'month')!.value) - 1;
-  const ptDay = parseInt(parts.find((p) => p.type === 'day')!.value);
-  const draftDow = new Date(Date.UTC(ptYear, ptMonth, ptDay)).getUTCDay(); // 0 = Sun … 6 = Sat
-  // If draft is on Tuesday, next scoring Tuesday is 7 days later (week-1 exception).
-  const daysToTuesday = draftDow === 2 ? 7 : (2 - draftDow + 7) % 7;
-  const firstTuesday = new Date(Date.UTC(ptYear, ptMonth, ptDay + daysToTuesday));
-  return firstTuesday.toISOString().slice(0, 10);
-}
+// firstScoringTuesdayPT moved to scoring/weeks.ts (shared with the league-week →
+// chart-week mapping) and is re-exported from the import block at the top of
+// this file, so existing import sites — isLineupLocked() in leagues.ts, tests —
+// keep working.
 
 export async function runFinalizePipeline(options: { force?: boolean } = {}): Promise<void> {
   // Single-source week boundary: same Pacific Tue function used by dailyPipeline.
@@ -261,7 +249,11 @@ export async function runFinalizePipeline(options: { force?: boolean } = {}): Pr
     }
 
     try {
-      await finalizeLeagueWeek(leagueId, week, weekDate);
+      // Anchor on the league's own schedule rather than the global chart week.
+      // They agree for a league in lockstep, but the league anchor stays correct
+      // for one that drafted mid-week or had a finalize skipped — where
+      // getCurrentWeekDate() would settle the week against the wrong charts.
+      await finalizeLeagueWeek(leagueId, week, weekDateForLeagueWeek({ draftTime, currentWeek: week }, week));
       await prisma.league.update({ where: { id: leagueId }, data: { lastFinalizedDatePT: todayPT } });
     } catch (err) {
       // One league's failure must not block every other league in this run —
