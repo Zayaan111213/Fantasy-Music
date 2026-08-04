@@ -55,20 +55,50 @@ beforeEach(() => {
 });
 
 describe('weekDateForLeagueWeek', () => {
-  const CURRENT = new Date('2026-07-14T00:00:00Z'); // a Tuesday
+  // Drafted Wed 2026-06-03 PT → first scoring Tuesday is 2026-06-09, so
+  // league week 1 = 2026-06-09 and week 6 = 2026-07-14.
+  const LEAGUE = { draftTime: new Date('2026-06-04T02:00:00Z'), currentWeek: 6 };
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
 
-  it('maps the current league week to the current chart week', () => {
-    expect(weekDateForLeagueWeek(6, 6, CURRENT).toISOString().slice(0, 10)).toBe('2026-07-14');
+  it('maps week 1 to the first scoring Tuesday after the draft', () => {
+    expect(iso(weekDateForLeagueWeek(LEAGUE, 1))).toBe('2026-06-09');
   });
 
-  it('counts back 7 days per league week', () => {
-    expect(weekDateForLeagueWeek(6, 5, CURRENT).toISOString().slice(0, 10)).toBe('2026-07-07');
-    expect(weekDateForLeagueWeek(6, 1, CURRENT).toISOString().slice(0, 10)).toBe('2026-06-09');
+  it('advances 7 days per league week', () => {
+    expect(iso(weekDateForLeagueWeek(LEAGUE, 5))).toBe('2026-07-07');
+    expect(iso(weekDateForLeagueWeek(LEAGUE, 6))).toBe('2026-07-14');
   });
 
-  it('two leagues at different weeks resolve the same calendar week from different numbers', () => {
-    // demo league week 3 and user league week 1 are the same real week
-    expect(weekDateForLeagueWeek(4, 3, CURRENT).getTime()).toBe(weekDateForLeagueWeek(2, 1, CURRENT).getTime());
+  it('a draft on a Tuesday pushes week 1 to the following Tuesday', () => {
+    // Week-1 exception: no game between the draft and the next scoring Tuesday.
+    const drafted = { draftTime: new Date('2026-06-09T19:00:00Z'), currentWeek: 1 };
+    expect(iso(weekDateForLeagueWeek(drafted, 1))).toBe('2026-06-16');
+  });
+
+  it('two leagues at different week numbers resolve the same calendar week', () => {
+    // A league drafted 4 weeks later gives week 2 the same chart week that
+    // the older league calls week 6.
+    const later = { draftTime: new Date('2026-07-02T02:00:00Z'), currentWeek: 2 };
+    expect(iso(weekDateForLeagueWeek(later, 2))).toBe('2026-07-14');
+    expect(weekDateForLeagueWeek(later, 2).getTime()).toBe(weekDateForLeagueWeek(LEAGUE, 6).getTime());
+  });
+
+  it('does not shift on Mondays, when currentWeek has advanced past the chart week', () => {
+    // The bug this replaced: finalize advances currentWeek at Mon 00:01 PT but
+    // getCurrentWeekDate() stays on the just-ended Tuesday until Tuesday, so a
+    // today-anchored mapping resolved every week one chart week too early for a
+    // full day. Anchoring on the league's own schedule is time-independent.
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-07-20T12:00:00Z')); // Monday PT
+      const onMonday = weekDateForLeagueWeek({ ...LEAGUE, currentWeek: 7 }, 7);
+      vi.setSystemTime(new Date('2026-07-22T12:00:00Z')); // Wednesday PT
+      const onWednesday = weekDateForLeagueWeek({ ...LEAGUE, currentWeek: 7 }, 7);
+      expect(iso(onMonday)).toBe('2026-07-21');
+      expect(onMonday.getTime()).toBe(onWednesday.getTime());
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

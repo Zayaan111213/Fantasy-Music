@@ -80,6 +80,7 @@ model League {
   trades       Trade[]
   events       LeagueEvent[]
   waiverClaims WaiverClaim[]
+  lineupSnapshots LineupSnapshot[]
 }
 
 model WaiverClaim {
@@ -138,8 +139,32 @@ model Team {
   receivedTrades Trade[]       @relation("ReceivedTrades")
   tradeVetoes    TradeVeto[]   @relation("TradeVetoes")
   waiverClaims   WaiverClaim[]
+  lineupSnapshots LineupSnapshot[]
 
   @@unique([leagueId, userId])
+}
+
+// Frozen copy of a team's roster for one league week. RosterSpot is mutable and
+// always reflects TODAY's lineup, so rendering a past matchup from it showed
+// players acquired after that week and let a lineup swap retroactively rewrite
+// history. Captured once per team per week while the lineup is locked (the
+// daily pipeline's first run of the scoring week, with the finalize as a
+// fallback) and never updated after — reads fall back to live RosterSpot rows
+// for weeks with no snapshot.
+model LineupSnapshot {
+  id       String  @id @default(cuid())
+  leagueId String
+  teamId   String
+  week     Int
+  slot     String
+  artistId String?
+
+  league League  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  team   Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  artist Artist? @relation(fields: [artistId], references: [id])
+
+  @@unique([teamId, week, slot])
+  @@index([leagueId, week])
 }
 
 model Artist {
@@ -161,6 +186,7 @@ model Artist {
   albumChartEntries AlbumChartEntry[]
   tradeItems        TradeItem[]
   waiverClaims      WaiverClaim[]
+  lineupSnapshots   LineupSnapshot[]
 }
 
 model ChartEntry {

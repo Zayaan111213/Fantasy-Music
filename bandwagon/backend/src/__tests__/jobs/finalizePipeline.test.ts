@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../../db/prisma', () => ({
   prisma: {
     rosterSpot:  { findMany: vi.fn() },
+    lineupSnapshot: { createMany: vi.fn() },
     trade:       { findMany: vi.fn().mockResolvedValue([]), updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
     tradeItem:   { findMany: vi.fn().mockResolvedValue([]) },
     weeklyScore: { findUnique: vi.fn() },
@@ -49,6 +50,11 @@ beforeEach(() => {
   // Do NOT resetAllMocks() — that would wipe the factory defaults needed by main().
   vi.mocked(prisma.rosterSpot.findMany).mockReset();
   vi.mocked(prisma.weeklyScore.findUnique).mockReset();
+  // Default so the lineup-snapshot capture at the top of finalizeLeagueWeek has
+  // something to read; tests that care queue their own mockResolvedValueOnce
+  // for the bestArtistScore lookups that follow it.
+  vi.mocked(prisma.rosterSpot.findMany).mockResolvedValue([] as never);
+  vi.mocked(prisma.lineupSnapshot.createMany).mockResolvedValue({ count: 0 } as never);
 });
 
 describe('resolveWinner', () => {

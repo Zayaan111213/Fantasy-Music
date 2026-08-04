@@ -11,6 +11,9 @@ import { applyCustomScoringToWeeklyScore } from '../../scoring/engine';
 import { buildWeek11Matchups } from '../../playoffs/bracket';
 import { logLeagueEvent } from '../../events/leagueEvents';
 import { weekDateForLeagueWeek } from '../../scoring/engine';
+import { isLineupLocked } from '../../scoring/weeks';
+import { applyLineupSnapshot } from '../../roster/snapshot';
+export { isLineupLocked };
 import { getCurrentWeekDate } from '../../jobs/ingestCharts';
 import { firstScoringTuesdayPT } from '../../jobs/finalizePipeline';
 // Circular with waivers/engine (which imports artistEligibleForSlot from here,
@@ -672,7 +675,7 @@ router.get('/:id/matchups/week/:week', requireAuth, async (req: AuthRequest, res
                 artist: {
                   include: {
                     weeklyScores: {
-                      where: { weekDate: weekDateForLeagueWeek(league.currentWeek, week) },
+                      where: { weekDate: weekDateForLeagueWeek(league, week) },
                     },
                   },
                 },
@@ -688,7 +691,7 @@ router.get('/:id/matchups/week/:week', requireAuth, async (req: AuthRequest, res
                 artist: {
                   include: {
                     weeklyScores: {
-                      where: { weekDate: weekDateForLeagueWeek(league.currentWeek, week) },
+                      where: { weekDate: weekDateForLeagueWeek(league, week) },
                     },
                   },
                 },
@@ -700,7 +703,7 @@ router.get('/:id/matchups/week/:week', requireAuth, async (req: AuthRequest, res
     });
 
     if (!matchup) { res.json(null); return; }
-    res.json(matchup);
+    res.json(await applyLineupSnapshot(matchup, league));
   } catch (err) {
     next(err);
   }
@@ -732,7 +735,7 @@ router.get('/:id/matchups/current', requireAuth, async (req: AuthRequest, res, n
                 artist: {
                   include: {
                     weeklyScores: {
-                      where: { weekDate: getCurrentWeekDate() },
+                      where: { weekDate: weekDateForLeagueWeek(league, league.currentWeek) },
                     },
                   },
                 },
@@ -748,7 +751,7 @@ router.get('/:id/matchups/current', requireAuth, async (req: AuthRequest, res, n
                 artist: {
                   include: {
                     weeklyScores: {
-                      where: { weekDate: getCurrentWeekDate() },
+                      where: { weekDate: weekDateForLeagueWeek(league, league.currentWeek) },
                     },
                   },
                 },
@@ -794,7 +797,7 @@ router.get('/:id/matchups/previous', requireAuth, async (req: AuthRequest, res, 
                 artist: {
                   include: {
                     weeklyScores: {
-                      where: { weekDate: weekDateForLeagueWeek(league.currentWeek, prevWeek) },
+                      where: { weekDate: weekDateForLeagueWeek(league, prevWeek) },
                     },
                   },
                 },
@@ -810,7 +813,7 @@ router.get('/:id/matchups/previous', requireAuth, async (req: AuthRequest, res, 
                 artist: {
                   include: {
                     weeklyScores: {
-                      where: { weekDate: weekDateForLeagueWeek(league.currentWeek, prevWeek) },
+                      where: { weekDate: weekDateForLeagueWeek(league, prevWeek) },
                     },
                   },
                 },
@@ -821,7 +824,7 @@ router.get('/:id/matchups/previous', requireAuth, async (req: AuthRequest, res, 
       },
     });
 
-    res.json(matchup ?? null);
+    res.json(matchup ? await applyLineupSnapshot(matchup, league) : null);
   } catch (err) {
     next(err);
   }
@@ -854,7 +857,7 @@ router.get('/:id/matchups/:matchupId', requireAuth, async (req: AuthRequest, res
           artist: {
             include: {
               weeklyScores: {
-                where: { weekDate: weekDateForLeagueWeek(league.currentWeek, base.week) },
+                where: { weekDate: weekDateForLeagueWeek(league, base.week) },
               },
             },
           },
@@ -865,7 +868,7 @@ router.get('/:id/matchups/:matchupId', requireAuth, async (req: AuthRequest, res
       where: { id: base.id },
       include: { homeTeam: { include: rosterInclude }, awayTeam: { include: rosterInclude } },
     });
-    res.json(matchup);
+    res.json(matchup ? await applyLineupSnapshot(matchup, league) : null);
   } catch (err) {
     next(err);
   }
@@ -987,7 +990,7 @@ router.get('/:id/roster', requireAuth, async (req: AuthRequest, res, next) => {
           include: {
             artist: {
               include: {
-                weeklyScores: { where: { weekDate: getCurrentWeekDate() } },
+                weeklyScores: { where: { weekDate: weekDateForLeagueWeek(league, league.currentWeek) } },
               },
             },
           },
@@ -1036,24 +1039,10 @@ router.put('/:id/team', requireAuth, uploadTeamLogo, async (req: AuthRequest, re
   }
 });
 
-// Returns true if lineup edits are forbidden right now.
-// dayPT: day-of-week name in Pacific time (e.g. 'Monday').
-// todayPT: Pacific date string in 'YYYY-MM-DD' format.
-export function isLineupLocked(
-  dayPT: string,
-  currentWeek: number,
-  draftTime: Date | null,
-  todayPT: string,
-): boolean {
-  if (dayPT === 'Monday') return false;
-
-  // Week-1 exception: lineup stays open until the first scoring Tuesday after the draft.
-  if (currentWeek === 1 && draftTime) {
-    if (todayPT < firstScoringTuesdayPT(draftTime)) return false;
-  }
-
-  return true;
-}
+// isLineupLocked moved to scoring/weeks.ts (pure PT-week math, no prisma) so the
+// daily pipeline can gate lineup-snapshot capture on the same rule instead of
+// duplicating it. Imported + re-exported at the top of this file for the
+// existing import sites (waivers/engine.ts, tests).
 
 // Roster: swap lineup (starter ↔ bench)
 router.put('/:id/roster/lineup', requireAuth, async (req: AuthRequest, res, next) => {

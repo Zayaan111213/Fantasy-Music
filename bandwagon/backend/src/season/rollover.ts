@@ -55,6 +55,9 @@ export async function renewLeague(
     await tx.draftState.deleteMany({ where: { leagueId } });
     await tx.waiverClaim.deleteMany({ where: { leagueId } });
     await tx.trade.deleteMany({ where: { leagueId } }); // cascades items + vetoes
+    // Snapshots are keyed by league week number, which restarts at 1 next
+    // season — last season's would be served as the new season's lineups.
+    await tx.lineupSnapshot.deleteMany({ where: { leagueId } });
     await tx.rosterSpot.updateMany({
       where: { team: { leagueId } },
       data: { artistId: null },
