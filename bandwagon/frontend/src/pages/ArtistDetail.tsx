@@ -236,7 +236,10 @@ export function ArtistDetail() {
               <ScoreBar
                 label="Longevity"
                 value={activeScore.longevityPoints ?? 0}
-                max={12}
+                // Longevity caps at +10 (6+ consecutive weeks on chart), so 10
+                // must fill the bar — matching the other bars, whose max is the
+                // most that signal can score (position 25, movement 15).
+                max={10}
                 color="bg-amber-500"
               />
               </>
