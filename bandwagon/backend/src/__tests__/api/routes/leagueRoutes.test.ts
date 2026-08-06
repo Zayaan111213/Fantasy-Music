@@ -4,11 +4,11 @@ import request from 'supertest';
 
 // All mocks hoisted before any import that might trigger module execution
 
-vi.mock('../../../db/prisma', () => ({
-  prisma: {
+vi.mock('../../../db/prisma', () => {
+  const prisma = {
     league: { findUnique: vi.fn() },
     team: { findMany: vi.fn(), findFirst: vi.fn(), delete: vi.fn() },
-    matchup: { findFirst: vi.fn(), findUnique: vi.fn() },
+    matchup: { findFirst: vi.fn(), findUnique: vi.fn(), findMany: vi.fn() },
     artist: { findUnique: vi.fn(), findMany: vi.fn() },
     genreStreamingTier: { findMany: vi.fn() },
     rosterSpot: { findUnique: vi.fn(), update: vi.fn() },
@@ -16,8 +16,11 @@ vi.mock('../../../db/prisma', () => ({
     notification: { create: vi.fn() },
     leagueEvent: { create: vi.fn() },
     $transaction: vi.fn(),
-  },
-}));
+  };
+  // readSnapshot only pins an isolation level; hand the callback the same mock
+  // client so assertions still see the calls on `prisma.*`.
+  return { prisma, readSnapshot: (fn: (tx: typeof prisma) => unknown) => fn(prisma) };
+});
 
 vi.mock('../../../api/middleware/auth', () => ({
   requireAuth: (req: any, _res: any, next: any) => {
