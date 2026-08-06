@@ -4,6 +4,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Trophy } from 'lucide-react-native';
 import { api } from '../../api/client';
+import { posthog } from '../../lib/posthog';
 import type { Bracket, League } from '@bandwagon/shared';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -31,6 +32,7 @@ export function SeasonCompleteBanner({ leagueId, league, isCommissioner }: { lea
   const renewMutation = useMutation({
     mutationFn: () => api.post(`/leagues/${leagueId}/renew`, { draftTime: pacificInputValueToUtcIso(dateToPacificInputValue(draftTime!)) }),
     onSuccess: () => {
+      posthog.capture('season_renewed', { leagueId });
       setRenewOpen(false);
       setRenewError('');
       queryClient.invalidateQueries();

@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, Pressable, ScrollView, Image, Linking } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import { ExternalLink, Music2, BarChart2, TrendingUp, Radio, ArrowLeftRight } from 'lucide-react-native';
 import { api } from '../api/client';
+import { posthog } from '../lib/posthog';
 import { Badge } from '../components/ui/Badge';
 import { Card } from '../components/ui/Card';
 import { Spinner } from '../components/ui/Spinner';
@@ -72,6 +73,17 @@ export function ArtistDetailScreen() {
   });
 
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (artist) {
+      posthog.capture('artist_viewed', {
+        artistId: artist.id,
+        artistName: artist.name,
+        genre: artist.primaryGenre,
+        leagueId,
+      });
+    }
+  }, [artist?.id]);
 
   if (isLoading) {
     return (

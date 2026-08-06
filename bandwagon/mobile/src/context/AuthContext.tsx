@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import type { User } from '@bandwagon/shared';
 import { api, TOKEN_KEY } from '../api/client';
 import { queryClient } from '../lib/queryClient';
+import { identifyPostHogUser, resetPostHog } from '../lib/posthog';
 
 interface AuthContextType {
   user: User | null;
@@ -35,7 +36,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(t);
       try {
         const u = await api.get<User>('/auth/me');
-        if (!cancelled) setUser(u);
+        if (!cancelled) {
+          setUser(u);
+          identifyPostHogUser(u);
+        }
       } catch {
         if (!cancelled) {
           await SecureStore.deleteItemAsync(TOKEN_KEY);
@@ -54,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await SecureStore.setItemAsync(TOKEN_KEY, t);
     setToken(t);
     setUser(u);
+    identifyPostHogUser(u);
   }
 
   async function logout() {
@@ -61,10 +66,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null);
     setUser(null);
     queryClient.clear();
+    // A shared device must not inherit the previous person's identity.
+    resetPostHog();
   }
 
   function updateUser(u: User) {
     setUser(u);
+    // Onboarding sets the username after signup, so re-identify to keep the
+    // person profile current.
+    identifyPostHogUser(u);
   }
 
   return (

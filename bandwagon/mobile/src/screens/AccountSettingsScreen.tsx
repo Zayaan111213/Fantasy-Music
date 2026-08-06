@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, Pressable, Linking } from 'react-native';
+import { View, Text, ScrollView, Pressable, Linking, Switch } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Check, X } from 'lucide-react-native';
 import { api, WEB_URL } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { getConsentStatus, isPostHogConfigured, setAnalyticsConsent } from '../lib/posthog';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
@@ -32,7 +33,25 @@ export function AccountSettingsScreen() {
   const [deletePassword, setDeletePassword] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [analyticsOn, setAnalyticsOn] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Reflects the stored answer. Someone who never answered the banner, or
+  // declined it, sees this off.
+  useEffect(() => {
+    let cancelled = false;
+    void getConsentStatus().then((s) => {
+      if (!cancelled) setAnalyticsOn(s === 'accepted');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function handleAnalyticsToggle(next: boolean) {
+    setAnalyticsOn(next);
+    void setAnalyticsConsent(next ? 'accepted' : 'declined');
+  }
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -160,6 +179,26 @@ export function AccountSettingsScreen() {
             </Button>
           </View>
         </Card>
+
+        {isPostHogConfigured() && (
+          <Card className="p-6">
+            <Text className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Privacy</Text>
+            <View className="flex-row items-center justify-between gap-4">
+              <View className="flex-1">
+                <Text className="text-sm text-white mb-1">Share usage analytics</Text>
+                <Text className="text-xs text-gray-500">
+                  Helps us see which features get used and where people get stuck. Turn this off
+                  and we won't track you.
+                </Text>
+              </View>
+              <Switch
+                value={analyticsOn}
+                onValueChange={handleAnalyticsToggle}
+                trackColor={{ false: '#3F3F46', true: '#6366F1' }}
+              />
+            </View>
+          </Card>
+        )}
 
         <Card className="p-6">
           <Text className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">About</Text>

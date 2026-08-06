@@ -3,6 +3,7 @@ import { View, Text, Pressable, TextInput, Modal, ScrollView } from 'react-nativ
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Search, X, Check, Plus, ArrowLeftRight } from 'lucide-react-native';
 import { api } from '../../api/client';
+import { posthog } from '../../lib/posthog';
 import type { League, PlayerEntry, RosterSpot, Team, WaiversResponse } from '@bandwagon/shared';
 import { Card } from '../../components/ui/Card';
 import { Avatar } from '../../components/ui/Avatar';
@@ -69,7 +70,8 @@ export function PlayersTab({ leagueId, league, onProposeTrade }: {
   const claimMutation = useMutation({
     mutationFn: ({ artistId, dropSlot }: { artistId: string; dropSlot: string }) =>
       api.post(`/leagues/${leagueId}/roster/claim`, { artistId, dropSlot }),
-    onSuccess: () => {
+    onSuccess: (_, { artistId, dropSlot }) => {
+      posthog.capture('artist_claimed', { leagueId, artistId, dropSlot, is_free_agency: freeAgency });
       queryClient.invalidateQueries({ queryKey: ['waivers', leagueId] });
       queryClient.invalidateQueries({ queryKey: ['players', leagueId] });
       queryClient.invalidateQueries({ queryKey: ['myTeam', leagueId] });

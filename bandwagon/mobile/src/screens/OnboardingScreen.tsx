@@ -4,6 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Check, X } from 'lucide-react-native';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { posthog } from '../lib/posthog';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Avatar } from '../components/ui/Avatar';
@@ -76,6 +77,7 @@ export function OnboardingScreen() {
 
       const { user: updated } = await api.post<{ user: User }>('/auth/complete-onboarding', formData);
       updateUser(updated);
+      posthog.capture('onboarding_completed', { has_avatar: !!avatarUri });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {

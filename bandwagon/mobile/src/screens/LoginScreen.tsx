@@ -6,6 +6,7 @@ import { ChevronLeft } from 'lucide-react-native';
 import type { User } from '@bandwagon/shared';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { posthog } from '../lib/posthog';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { WagonMark, Wordmark } from '../components/Logo';
@@ -32,6 +33,8 @@ export function LoginScreen() {
       const path = mode === 'login' ? '/auth/login' : '/auth/signup';
       const { token, user } = await api.post<{ token: string; user: User }>(path, { email, password });
       await login(token, user);
+      // After login(), so the event is attributed to the identified person.
+      if (mode === 'signup') posthog.capture('user_signed_up');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {

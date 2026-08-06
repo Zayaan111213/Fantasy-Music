@@ -1,6 +1,8 @@
-import { NavigationContainer } from '@react-navigation/native';
+import { useRef } from 'react';
+import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
+import { posthog } from '../lib/posthog';
 import { FullPageSpinner } from '../components/ui/Spinner';
 import { IntroScreen } from '../screens/IntroScreen';
 import { LoginScreen } from '../screens/LoginScreen';
@@ -25,11 +27,25 @@ const AppStack = createNativeStackNavigator();
 // of per-route redirects.
 export function RootNavigator() {
   const { user, isLoading } = useAuth();
+  // The web app fires a manual $pageview on every route change because
+  // autocapture can't see client-side navigation. Same problem here: the
+  // native equivalent is $screen, fired from the navigation container rather
+  // than a useLocation() effect.
+  // <any> matches how the rest of the app types navigation: there is no
+  // central ParamList, screens use useNavigation<any>().
+  const navigationRef = useNavigationContainerRef<any>();
+  const routeNameRef = useRef<string | undefined>(undefined);
+
+  function captureScreen() {
+    const current = navigationRef.getCurrentRoute()?.name;
+    if (current && current !== routeNameRef.current) posthog.screen(current);
+    routeNameRef.current = current;
+  }
 
   if (isLoading) return <FullPageSpinner />;
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef} onReady={captureScreen} onStateChange={captureScreen}>
       {!user ? (
         <AuthStack.Navigator screenOptions={{ headerShown: false }}>
           <AuthStack.Screen name="Intro" component={IntroScreen} />

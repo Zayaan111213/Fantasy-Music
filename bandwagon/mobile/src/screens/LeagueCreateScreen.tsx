@@ -6,6 +6,7 @@ import * as Clipboard from 'expo-clipboard';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Copy, Check } from 'lucide-react-native';
 import { api } from '../api/client';
+import { posthog } from '../lib/posthog';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -93,6 +94,7 @@ export function LeagueCreateScreen() {
         }
       }
 
+      posthog.capture('league_created', { leagueId: league.id, teamCount, isPrivate });
       setStep('success');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create league');
