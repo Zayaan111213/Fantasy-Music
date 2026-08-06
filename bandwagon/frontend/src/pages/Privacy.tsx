@@ -66,14 +66,17 @@ export function Privacy() {
               leaves your browser. Session replay masks the contents of all input fields.
             </>,
             <>
-              <strong className="text-white">The iOS app uses PostHog</strong> for the same
-              product analytics, and only if you press Accept on the prompt shown when you first
-              open the app. If you decline, or never answer, nothing is collected and no
-              analytics data leaves your device. You can change your answer at any time under
-              Privacy in Account Settings. The app records which screens you open and actions
-              such as creating a league or making a draft pick. There is no session recording in
-              the app, there is no advertising identifier, and we do not track you across other
-              companies' apps or websites.
+              <strong className="text-white">The iOS app also uses PostHog</strong>, for product
+              analytics only. It records which screens you open and actions such as creating a
+              league or making a draft pick. It runs only if you press Accept on the prompt shown
+              the first time you open the app. If you decline, or never answer, nothing is
+              collected and no analytics data leaves your device. You can change your answer at
+              any time under Privacy in Account Settings.
+            </>,
+            <>
+              <strong className="text-white">Nothing here follows you elsewhere.</strong> The app
+              has no session recording and no advertising identifier, and neither the app nor the
+              website tracks you across other companies' apps or websites.
             </>,
             <>
               <strong className="text-white">We use Sentry</strong> on the website and our
