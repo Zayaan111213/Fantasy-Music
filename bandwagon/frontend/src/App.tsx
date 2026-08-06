@@ -7,6 +7,8 @@ import { Landing } from './pages/Landing';
 import { Auth } from './pages/Auth';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { ResetPassword } from './pages/ResetPassword';
+import { Privacy } from './pages/Privacy';
+import { Terms } from './pages/Terms';
 import { Onboarding } from './pages/Onboarding';
 import { AccountSettings } from './pages/AccountSettings';
 import { Home } from './pages/Home';
@@ -70,6 +72,9 @@ export function App() {
       <Route path="/auth" element={<Auth />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      {/* Public on purpose: App Store review fetches the privacy policy logged out. */}
+      <Route path="/privacy" element={<Privacy />} />
+      <Route path="/terms" element={<Terms />} />
       <Route path="/onboarding" element={<RequireAuth><Onboarding /></RequireAuth>} />
       <Route path="/" element={<LandingOrHome />} />
       <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />

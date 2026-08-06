@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
+import { View, Text, ScrollView, Pressable, Linking } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Check, X } from 'lucide-react-native';
-import { api } from '../api/client';
+import { api, WEB_URL } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -158,6 +158,21 @@ export function AccountSettingsScreen() {
             <Button onPress={handleSubmit} disabled={saving || usernameBlocksSave || !hasChanges}>
               {saving ? 'Saving…' : saved ? 'Saved!' : 'Save Changes'}
             </Button>
+          </View>
+        </Card>
+
+        <Card className="p-6">
+          <Text className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">About</Text>
+          <View className="gap-3">
+            <Pressable onPress={() => Linking.openURL(`${WEB_URL}/privacy`)}>
+              <Text className="text-sm text-indigo-400">Privacy Policy</Text>
+            </Pressable>
+            <Pressable onPress={() => Linking.openURL(`${WEB_URL}/terms`)}>
+              <Text className="text-sm text-indigo-400">Terms of Service</Text>
+            </Pressable>
+            <Text className="text-xs text-gray-500">
+              Bandwagoner is free to play. No entry fees, no prizes.
+            </Text>
           </View>
         </Card>
 
