@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeftRight, Check } from 'lucide-react-native';
 import { api } from '../api/client';
+import { posthog } from '../lib/posthog';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Avatar } from '../components/ui/Avatar';
@@ -124,6 +125,7 @@ export function TradeProposeScreen() {
   const proposeMutation = useMutation({
     mutationFn: () => api.post(`/leagues/${leagueId}/trades`, { toTeamId: targetTeamId, give: [...give], receive: [...receive], drops: [...effectiveDrops] }),
     onSuccess: () => {
+      posthog.capture('trade_proposed', { leagueId, giveCount: give.size, receiveCount: receive.size });
       AsyncStorage.removeItem(draftKey(leagueId));
       queryClient.invalidateQueries({ queryKey: ['trades', leagueId] });
       navigation.replace('LeagueHub', { leagueId });

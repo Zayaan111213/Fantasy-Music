@@ -59,12 +59,6 @@ export function Privacy() {
         <Bullets
           items={[
             <>
-              <strong className="text-white">The iOS app contains no analytics or tracking
-              software.</strong> There is no advertising identifier, no session recording, and
-              no third-party analytics package in the app. We do not track you across other
-              companies' apps or websites.
-            </>,
-            <>
               <strong className="text-white">The website uses PostHog</strong> for product
               analytics and session replay, so we can see which features get used and where
               people get stuck. This only runs if you press Accept on the cookie banner. If you
@@ -72,9 +66,23 @@ export function Privacy() {
               leaves your browser. Session replay masks the contents of all input fields.
             </>,
             <>
-              <strong className="text-white">We use Sentry</strong> to capture crashes and
-              errors so we can fix them. Sentry is configured not to attach personal
-              information to error reports.
+              <strong className="text-white">The iOS app also uses PostHog</strong>, for product
+              analytics only. It records which screens you open and actions such as creating a
+              league or making a draft pick. It runs only if you press Accept on the prompt shown
+              the first time you open the app. If you decline, or never answer, nothing is
+              collected and no analytics data leaves your device. You can change your answer at
+              any time under Privacy in Account Settings.
+            </>,
+            <>
+              <strong className="text-white">Nothing here follows you elsewhere.</strong> The app
+              has no session recording and no advertising identifier, and neither the app nor the
+              website tracks you across other companies' apps or websites.
+            </>,
+            <>
+              <strong className="text-white">We use Sentry</strong> on the website and our
+              servers to capture crashes and errors so we can fix them. Sentry is configured not
+              to attach personal information to error reports. The iOS app does not include
+              Sentry.
             </>,
           ]}
         />
@@ -117,8 +125,8 @@ export function Privacy() {
               <strong className="text-white">Resend</strong> delivers our transactional email.
             </>,
             <>
-              <strong className="text-white">PostHog</strong> provides website analytics, only
-              after you consent.
+              <strong className="text-white">PostHog</strong> provides product analytics on the
+              website and in the app, only after you consent.
             </>,
             <>
               <strong className="text-white">Sentry</strong> provides error and crash reporting.
@@ -144,7 +152,9 @@ export function Privacy() {
         </p>
         <p>
           Analytics cookies are set by PostHog on the website only, and only if you press Accept
-          on the cookie banner.
+          on the cookie banner. The app does not use cookies. It stores your analytics answer on
+          the device, and if you accepted, PostHog keeps a randomly generated identifier there so
+          repeat visits can be counted.
         </p>
       </Section>
 

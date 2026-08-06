@@ -15,6 +15,7 @@ import { SlotPill, genreLabel } from '../components/SlotPill';
 import { TimerRing, CountdownRing } from '../components/draft/Rings';
 import type { DraftState, DraftPick, Artist } from '@bandwagon/shared';
 import { api, SOCKET_URL, TOKEN_KEY } from '../api/client';
+import { posthog } from '../lib/posthog';
 
 const ALL_SLOTS = ['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country', 'Other', 'Flex', 'Bench-1', 'Bench-2', 'Bench-3'];
 const MAIN_GENRES_DRAFT = new Set(['R&B/Hip-Hop', 'Pop', 'Rock & Alternative', 'Country']);
@@ -89,6 +90,7 @@ export function DraftRoomScreen() {
 
     socket.on('draft:complete', () => {
       addToast('Draft complete! Loading scores…');
+      posthog.capture('draft_completed', { leagueId });
       setTimeout(() => navigation.replace('LeagueHub', { leagueId }), 5000);
     });
 
@@ -124,6 +126,7 @@ export function DraftRoomScreen() {
   useEffect(() => { fetchArtists(); }, [fetchArtists]);
 
   function makePick(artistId: string) {
+    posthog.capture('draft_pick_made', { leagueId, artistId });
     socketRef.current?.emit('draft:pick', { leagueId, artistId, token: tokenRef.current });
   }
 

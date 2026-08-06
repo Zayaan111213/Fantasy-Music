@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import { ChevronDown, Pencil, Check, X, Trophy, Lock, ArrowUpDown } from 'lucide-react-native';
 import { api } from '../../api/client';
+import { posthog } from '../../lib/posthog';
 import type { League, RosterSpot, Team, TeamWithRoster } from '@bandwagon/shared';
 import { Card } from '../../components/ui/Card';
 import { Avatar } from '../../components/ui/Avatar';
@@ -41,7 +42,10 @@ export function MyTeamTab({ leagueId, league, phase }: { leagueId: string; leagu
   const swapMutation = useMutation({
     mutationFn: ({ slotA, slotB }: { slotA: string; slotB: string }) =>
       api.put(`/leagues/${leagueId}/roster/lineup`, { slotA, slotB }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['myTeam', leagueId] }),
+    onSuccess: (_, { slotA, slotB }) => {
+      posthog.capture('lineup_updated', { leagueId, slotA, slotB });
+      queryClient.invalidateQueries({ queryKey: ['myTeam', leagueId] });
+    },
   });
 
   if (isLoading) return <View className="py-12 items-center"><Spinner size="large" /></View>;
