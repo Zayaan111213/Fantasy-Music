@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 
 vi.mock('../../lib/posthog', () => ({
   initPostHog: vi.fn(),
@@ -21,32 +22,42 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+// The banner links to the privacy policy, so it needs router context. In the
+// app it always renders inside BrowserRouter (see main.tsx).
+function renderBanner() {
+  return render(
+    <MemoryRouter>
+      <CookieConsentBanner />
+    </MemoryRouter>
+  );
+}
+
 describe('CookieConsentBanner', () => {
   it('renders nothing when PostHog is not configured, even with no consent decision yet', () => {
     isPostHogConfiguredMock.mockReturnValue(false);
     getConsentStatusMock.mockReturnValue(null);
-    render(<CookieConsentBanner />);
+    renderBanner();
     expect(screen.queryByText(/We use cookies/)).not.toBeInTheDocument();
   });
 
   it('renders nothing when a consent decision was already made', () => {
     isPostHogConfiguredMock.mockReturnValue(true);
     getConsentStatusMock.mockReturnValue('accepted');
-    render(<CookieConsentBanner />);
+    renderBanner();
     expect(screen.queryByText(/We use cookies/)).not.toBeInTheDocument();
   });
 
   it('renders the banner when configured and no decision has been made', () => {
     isPostHogConfiguredMock.mockReturnValue(true);
     getConsentStatusMock.mockReturnValue(null);
-    render(<CookieConsentBanner />);
+    renderBanner();
     expect(screen.getByText(/We use cookies/)).toBeInTheDocument();
   });
 
   it('accepting records consent, initializes PostHog, and hides the banner', async () => {
     isPostHogConfiguredMock.mockReturnValue(true);
     getConsentStatusMock.mockReturnValue(null);
-    render(<CookieConsentBanner />);
+    renderBanner();
 
     await userEvent.click(screen.getByText('Accept'));
 
@@ -58,7 +69,7 @@ describe('CookieConsentBanner', () => {
   it('declining records consent, never initializes PostHog, and hides the banner', async () => {
     isPostHogConfiguredMock.mockReturnValue(true);
     getConsentStatusMock.mockReturnValue(null);
-    render(<CookieConsentBanner />);
+    renderBanner();
 
     await userEvent.click(screen.getByText('Decline'));
 

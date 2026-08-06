@@ -130,7 +130,7 @@ export function Landing() {
           <MoversCard label="Albums" icon={Disc3} data={movers?.albums} />
         </div>
 
-        <div className="pb-16 flex items-center justify-center gap-2 text-sm text-gray-500">
+        <div className="pb-10 flex items-center justify-center gap-2 text-sm text-gray-500">
           <CalendarDays className="w-4 h-4" />
           Already have an account?
           <Link to="/auth" className="text-indigo-400 hover:text-indigo-300 transition-colors font-medium">
@@ -138,6 +138,20 @@ export function Landing() {
           </Link>
         </div>
       </main>
+
+      <footer className="border-t border-white/10">
+        <div className="max-w-5xl mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-gray-500">
+          <p>Free to play. No entry fees, no prizes.</p>
+          <div className="flex gap-4">
+            <Link to="/privacy" className="hover:text-gray-300 transition-colors">
+              Privacy Policy
+            </Link>
+            <Link to="/terms" className="hover:text-gray-300 transition-colors">
+              Terms of Service
+            </Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
