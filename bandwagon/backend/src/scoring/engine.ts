@@ -1,4 +1,4 @@
-import { prisma } from '../db/prisma';
+import { prisma, readSnapshot } from '../db/prisma';
 import { getCurrentWeekDate } from '../jobs/ingestCharts';
 import {
   scoreChartPosition,
@@ -235,16 +235,19 @@ const rosterInclude = {
 // week identifies the league's matchups; weekDate identifies the calendar
 // chart week whose WeeklyScore rows feed the totals.
 export async function updateMatchupScores(leagueId: string, week: number, weekDate: Date): Promise<void> {
-  const [matchups, leagueRow] = await Promise.all([
-    prisma.matchup.findMany({
+  // One snapshot for both reads. A pipeline run can be long, so a league
+  // deleted partway through would otherwise strand these matchups' required
+  // team relations between Prisma's separate include queries.
+  const [matchups, leagueRow] = await readSnapshot((tx) => Promise.all([
+    tx.matchup.findMany({
       where: { leagueId, week },
       include: {
         homeTeam: { include: rosterInclude },
         awayTeam: { include: rosterInclude },
       },
     }),
-    prisma.league.findUnique({ where: { id: leagueId }, select: { scoringConfig: true } }),
-  ]);
+    tx.league.findUnique({ where: { id: leagueId }, select: { scoringConfig: true } }),
+  ]));
   if (!matchups.length) return;
 
   const cfg = ScoringConfigSchema.safeParse(leagueRow?.scoringConfig).data ?? null;

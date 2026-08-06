@@ -1,13 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../../db/prisma', () => ({
-  prisma: {
+vi.mock('../../db/prisma', () => {
+  const prisma = {
     matchup: { findMany: vi.fn(), update: vi.fn() },
     league: { findUnique: vi.fn() },
     weeklyScore: { findUnique: vi.fn() },
     genreStreamingTier: { findMany: vi.fn() },
-  },
-}));
+  };
+  // readSnapshot only pins an isolation level; hand the callback the same mock
+  // client so assertions still see the calls on `prisma.*`.
+  return { prisma, readSnapshot: (fn: (tx: typeof prisma) => unknown) => fn(prisma) };
+});
 
 import { prisma } from '../../db/prisma';
 import { updateMatchupScores } from '../../scoring/engine';

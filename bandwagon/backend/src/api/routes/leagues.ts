@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
-import { prisma } from '../../db/prisma';
+import { prisma, readSnapshot } from '../../db/prisma';
 import { requireAuth, type AuthRequest } from '../middleware/auth';
 import { uploadTeamLogo } from '../middleware/upload';
 import { ScoringConfigSchema } from '../../scoring/tiers';
@@ -71,61 +71,66 @@ const CreateLeagueSchema = z.object({
 // Get user's leagues
 router.get('/', requireAuth, async (req: AuthRequest, res, next) => {
   try {
-    const teams = await prisma.team.findMany({
-      where: { userId: req.userId! },
-      include: {
-        league: {
-          include: {
-            teams: {
-              include: { user: { select: { username: true, avatarUrl: true } } },
+    // One snapshot: this walks team -> league -> teams -> user and then reads a
+    // matchup per league, all of them required relations that a concurrent
+    // league delete could pull out from under the later queries.
+    const leagues = await readSnapshot(async (tx) => {
+      const teams = await tx.team.findMany({
+        where: { userId: req.userId! },
+        include: {
+          league: {
+            include: {
+              teams: {
+                include: { user: { select: { username: true, avatarUrl: true } } },
+              },
             },
           },
         },
-      },
+      });
+
+      return Promise.all(
+        teams.map(async (team) => {
+          const currentWeek = team.league.currentWeek;
+          const matchup = await tx.matchup.findFirst({
+            where: {
+              leagueId: team.leagueId,
+              week: currentWeek,
+              OR: [{ homeTeamId: team.id }, { awayTeamId: team.id }],
+            },
+            include: {
+              homeTeam: { select: { id: true, name: true, logoUrl: true } },
+              awayTeam: { select: { id: true, name: true, logoUrl: true } },
+            },
+          });
+
+          let opponent = null;
+          let myScore = 0;
+          let opponentScore = 0;
+          if (matchup) {
+            const iHome = matchup.homeTeamId === team.id;
+            opponent = iHome ? matchup.awayTeam : matchup.homeTeam;
+            myScore = iHome ? matchup.homeScore : matchup.awayScore;
+            opponentScore = iHome ? matchup.awayScore : matchup.homeScore;
+          }
+
+          return {
+            id: team.league.id,
+            name: team.league.name,
+            status: team.league.status,
+            currentWeek,
+            isPrivate: team.league.isPrivate,
+            teamCount: team.league.teamCount,
+            draftTime: team.league.draftTime,
+            isCommissioner: team.league.commissionerId === req.userId,
+            myTeam: { id: team.id, name: team.name, logoUrl: team.logoUrl, wins: team.wins, losses: team.losses },
+            opponent,
+            myScore,
+            opponentScore,
+            memberCount: team.league.teams.length,
+          };
+        })
+      );
     });
-
-    const leagues = await Promise.all(
-      teams.map(async (team) => {
-        const currentWeek = team.league.currentWeek;
-        const matchup = await prisma.matchup.findFirst({
-          where: {
-            leagueId: team.leagueId,
-            week: currentWeek,
-            OR: [{ homeTeamId: team.id }, { awayTeamId: team.id }],
-          },
-          include: {
-            homeTeam: { select: { id: true, name: true, logoUrl: true } },
-            awayTeam: { select: { id: true, name: true, logoUrl: true } },
-          },
-        });
-
-        let opponent = null;
-        let myScore = 0;
-        let opponentScore = 0;
-        if (matchup) {
-          const iHome = matchup.homeTeamId === team.id;
-          opponent = iHome ? matchup.awayTeam : matchup.homeTeam;
-          myScore = iHome ? matchup.homeScore : matchup.awayScore;
-          opponentScore = iHome ? matchup.awayScore : matchup.homeScore;
-        }
-
-        return {
-          id: team.league.id,
-          name: team.league.name,
-          status: team.league.status,
-          currentWeek,
-          isPrivate: team.league.isPrivate,
-          teamCount: team.league.teamCount,
-          draftTime: team.league.draftTime,
-          isCommissioner: team.league.commissionerId === req.userId,
-          myTeam: { id: team.id, name: team.name, logoUrl: team.logoUrl, wins: team.wins, losses: team.losses },
-          opponent,
-          myScore,
-          opponentScore,
-          memberCount: team.league.teams.length,
-        };
-      })
-    );
 
     res.json(leagues);
   } catch (err) {
@@ -605,11 +610,11 @@ router.get('/:id/bracket', requireAuth, async (req: AuthRequest, res, next) => {
     if (!league) { res.status(404).json({ error: 'League not found' }); return; }
 
     const teamInclude = { select: { id: true, name: true, wins: true, losses: true } };
-    const actual = await prisma.matchup.findMany({
+    const actual = await readSnapshot((tx) => tx.matchup.findMany({
       where: { leagueId, week: { gt: 10 }, matchupType: { not: 'regular' } },
       include: { homeTeam: teamInclude, awayTeam: teamInclude },
       orderBy: [{ week: 'asc' }, { homeSeed: 'asc' }],
-    });
+    }));
     if (actual.length > 0) {
       res.json({ projected: false, matchups: actual });
       return;
@@ -660,7 +665,7 @@ router.get('/:id/matchups/week/:week', requireAuth, async (req: AuthRequest, res
     });
     if (!myTeam) { res.status(403).json({ error: 'Not a member' }); return; }
 
-    const matchup = await prisma.matchup.findFirst({
+    const matchup = await readSnapshot((tx) => tx.matchup.findFirst({
       where: {
         leagueId: req.params.id,
         week,
@@ -700,7 +705,7 @@ router.get('/:id/matchups/week/:week', requireAuth, async (req: AuthRequest, res
           },
         },
       },
-    });
+    }));
 
     if (!matchup) { res.json(null); return; }
     res.json(await applyLineupSnapshot(matchup, league));
@@ -720,7 +725,7 @@ router.get('/:id/matchups/current', requireAuth, async (req: AuthRequest, res, n
     });
     if (!myTeam) { res.status(403).json({ error: 'Not a member' }); return; }
 
-    const matchup = await prisma.matchup.findFirst({
+    const matchup = await readSnapshot((tx) => tx.matchup.findFirst({
       where: {
         leagueId: req.params.id,
         week: league.currentWeek,
@@ -760,7 +765,7 @@ router.get('/:id/matchups/current', requireAuth, async (req: AuthRequest, res, n
           },
         },
       },
-    });
+    }));
 
     if (!matchup) { res.json(null); return; }
     res.json(matchup);
@@ -782,7 +787,7 @@ router.get('/:id/matchups/previous', requireAuth, async (req: AuthRequest, res, 
     if (!myTeam) { res.status(403).json({ error: 'Not a member' }); return; }
 
     const prevWeek = league.currentWeek - 1;
-    const matchup = await prisma.matchup.findFirst({
+    const matchup = await readSnapshot((tx) => tx.matchup.findFirst({
       where: {
         leagueId: req.params.id,
         week: prevWeek,
@@ -822,7 +827,7 @@ router.get('/:id/matchups/previous', requireAuth, async (req: AuthRequest, res, 
           },
         },
       },
-    });
+    }));
 
     res.json(matchup ? await applyLineupSnapshot(matchup, league) : null);
   } catch (err) {
@@ -864,10 +869,10 @@ router.get('/:id/matchups/:matchupId', requireAuth, async (req: AuthRequest, res
         },
       },
     };
-    const matchup = await prisma.matchup.findUnique({
+    const matchup = await readSnapshot((tx) => tx.matchup.findUnique({
       where: { id: base.id },
       include: { homeTeam: { include: rosterInclude }, awayTeam: { include: rosterInclude } },
-    });
+    }));
     res.json(matchup ? await applyLineupSnapshot(matchup, league) : null);
   } catch (err) {
     next(err);
@@ -878,7 +883,7 @@ router.get('/:id/matchups/:matchupId', requireAuth, async (req: AuthRequest, res
 router.get('/:id/matchups', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const week = req.query.week ? parseInt(req.query.week as string, 10) : undefined;
-    const matchups = await prisma.matchup.findMany({
+    const matchups = await readSnapshot((tx) => tx.matchup.findMany({
       where: {
         leagueId: req.params.id,
         ...(week !== undefined && !isNaN(week) && { week }),
@@ -888,7 +893,7 @@ router.get('/:id/matchups', requireAuth, async (req: AuthRequest, res, next) => 
         awayTeam: { select: { id: true, name: true, logoUrl: true } },
       },
       orderBy: [{ week: 'asc' }, { homeSeed: 'asc' }],
-    });
+    }));
     res.json(matchups);
   } catch (err) {
     next(err);

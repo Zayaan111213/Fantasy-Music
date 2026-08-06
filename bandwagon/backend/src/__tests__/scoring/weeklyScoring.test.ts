@@ -3,8 +3,8 @@ import { describe, it, expect, vi, beforeAll } from 'vitest';
 // vi.mock is hoisted — factory runs before imports, providing defaults so that
 // main() in finalizePipeline (called at module load) finds an empty league list
 // and exits cleanly instead of throwing.
-vi.mock('../../db/prisma', () => ({
-  prisma: {
+vi.mock('../../db/prisma', () => {
+  const prisma = {
     chartEntry:      { findMany: vi.fn(), findFirst: vi.fn(), count: vi.fn() },
     albumChartEntry: { findMany: vi.fn().mockResolvedValue([]), findFirst: vi.fn().mockResolvedValue(null), count: vi.fn().mockResolvedValue(0) },
     weeklyScore:     { upsert: vi.fn(), findUnique: vi.fn() },
@@ -28,8 +28,11 @@ vi.mock('../../db/prisma', () => ({
     waiverClaim: { findMany: vi.fn().mockResolvedValue([]) },
     tradeItem:   { findMany: vi.fn().mockResolvedValue([]) },
     $disconnect: vi.fn().mockResolvedValue(undefined),
-  },
-}));
+  };
+  // readSnapshot only pins an isolation level; hand the callback the same mock
+  // client so assertions still see the calls on `prisma.*`.
+  return { prisma, readSnapshot: (fn: (tx: typeof prisma) => unknown) => fn(prisma) };
+});
 
 vi.mock('../../jobs/ingestCharts', () => ({
   getCurrentWeekDate: vi.fn().mockReturnValue(new Date('2026-06-17T07:00:00Z')),
