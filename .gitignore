@@ -9,3 +9,7 @@ bandwagon/backend/uploads/
 bandwagon/.env.test
 bandwagon/e2e-report/
 bandwagon/test-results/
+# The repo root is not an npm package; these only appear when npm install is
+# run from here by mistake instead of from bandwagon/.
+/package.json
+/package-lock.json
