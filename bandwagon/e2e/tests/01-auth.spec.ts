@@ -16,7 +16,9 @@ test.describe('Authentication', () => {
     await page.getByLabel('Password').fill(password);
     await page.getByRole('button', { name: 'Create Account' }).click();
 
-    await page.waitForURL('**/onboarding', { timeout: 10_000 });
+    // Match on pathname only: Auth forwards a `?redirect=` param through signup
+    // so the invite-link flow can return here, and a glob would not match it.
+    await page.waitForURL(url => new URL(url).pathname === '/onboarding', { timeout: 10_000 });
     await expect(page.getByText('Set up your profile')).toBeVisible();
 
     // Random suffix: the fast and full projects run this spec concurrently, so
@@ -33,7 +35,9 @@ test.describe('Authentication', () => {
     await page.getByRole('button', { name: /Got it/ }).click();
     await expect(page.getByText('How Bandwagoner Works')).not.toBeVisible();
 
-    await expect(page.getByText('Bandwagoner')).toBeVisible();
+    // Scope to the header wordmark. A bare text match is ambiguous: signup
+    // also writes a welcome notification whose banner copy names the app.
+    await expect(page.getByRole('banner').getByRole('link', { name: /bandwagoner/i })).toBeVisible();
   });
 
   test('login flow — existing user lands on home', async ({ page }) => {
@@ -46,7 +50,7 @@ test.describe('Authentication', () => {
     await page.locator('form').getByRole('button', { name: 'Log In' }).click();
 
     await page.waitForURL('**/home', { timeout: 10_000 });
-    await expect(page.getByText('Bandwagoner')).toBeVisible();
+    await expect(page.getByRole('banner').getByRole('link', { name: /bandwagoner/i })).toBeVisible();
   });
 
   test('wrong password — shows error banner', async ({ page }) => {

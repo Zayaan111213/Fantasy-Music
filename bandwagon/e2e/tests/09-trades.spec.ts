@@ -49,7 +49,10 @@ test.describe('Trades', () => {
     await tradeIcon.click();
 
     await expect(page).toHaveURL(new RegExp(`/leagues/${fx.leagueId}/trade`));
-    await expect(page.getByRole('heading', { name: 'Propose Trade' })).toBeVisible({ timeout: 10_000 });
+    // The page title lives in the shared Header, which renders it as a span
+    // rather than a heading. Scope to the banner so this does not also match
+    // the "Propose Trade" submit button further down the page.
+    await expect(page.getByRole('banner').getByText('Propose Trade')).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText('You receive (1)')).toBeVisible({ timeout: 10_000 });
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     // Cancel goes back through history, and the hub tab lives in the URL —

@@ -44,11 +44,14 @@ test.describe('Account deletion', () => {
     await page.getByLabel('Confirm your password').fill(PASSWORD);
     await page.getByRole('button', { name: 'Permanently delete' }).click();
 
-    // Logged out and bounced to the auth page.
-    await page.waitForURL('**/auth', { timeout: 10_000 });
+    // Logged out and bounced to the root, which renders the public landing
+    // page now that a logged-out visitor has somewhere to land other than the
+    // login form.
+    await page.waitForURL(url => new URL(url).pathname === '/', { timeout: 10_000 });
     expect(await page.evaluate(() => localStorage.getItem('bw_token'))).toBeNull();
 
     // The credentials are dead.
+    await page.goto('/auth');
     await page.getByLabel('Email').fill(user.email);
     await page.getByLabel('Password').fill(PASSWORD);
     await page.locator('form').getByRole('button', { name: 'Log In' }).click();
