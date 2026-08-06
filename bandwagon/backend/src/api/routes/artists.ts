@@ -144,10 +144,21 @@ router.get('/:id', requireAuth, async (req, res, next) => {
         }
       : null;
 
+    // Who owns this artist in the league we're being viewed from — lets the
+    // artist page offer Claim for a free agent instead of a Trade button that
+    // would open a trade against nobody.
+    const rosterSpot = leagueId
+      ? await prisma.rosterSpot.findFirst({
+          where: { artistId: artist.id, team: { leagueId } },
+          select: { team: { select: { id: true, name: true, userId: true } } },
+        })
+      : null;
+    const rosteredBy = rosterSpot?.team ?? null;
+
     const cfg = leagueRow ? ScoringConfigSchema.safeParse(leagueRow.scoringConfig).data ?? null : null;
 
     if (!cfg) {
-      res.json({ ...artist, weeklyScores, chartBreakdown });
+      res.json({ ...artist, weeklyScores, chartBreakdown, rosteredBy });
       return;
     }
 
@@ -161,7 +172,7 @@ router.get('/:id', requireAuth, async (req, res, next) => {
       return { ...ws, ...adjusted };
     });
 
-    res.json({ ...artist, weeklyScores: adjustedWeeklyScores, chartBreakdown });
+    res.json({ ...artist, weeklyScores: adjustedWeeklyScores, chartBreakdown, rosteredBy });
   } catch (err) {
     next(err);
   }

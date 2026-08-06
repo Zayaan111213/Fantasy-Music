@@ -1,16 +1,24 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ExternalLink, Music2, BarChart2, TrendingUp, Radio, ArrowLeftRight } from 'lucide-react';
+import { ExternalLink, Music2, BarChart2, TrendingUp, Radio, ArrowLeftRight, Plus } from 'lucide-react';
 import { api } from '../api/client';
 import { Badge } from '../components/ui/Badge';
 import { Card } from '../components/ui/Card';
 import { Spinner } from '../components/ui/Spinner';
 import { Header } from '../components/Header';
-import type { Artist, WeeklyScore, ChartBreakdown } from '../api/types';
+import type { Artist, WeeklyScore, ChartBreakdown, League } from '../api/types';
 import { posthog } from '../lib/posthog';
+import { ClaimArtistModal } from '../components/ClaimArtistModal';
+import { getWeekPhase } from '../utils/weekPhase';
+import { useAuth } from '../context/AuthContext';
 
-type ArtistWithScores = Artist & { weeklyScores: WeeklyScore[]; chartBreakdown?: ChartBreakdown | null };
+type ArtistWithScores = Artist & {
+  weeklyScores: WeeklyScore[];
+  chartBreakdown?: ChartBreakdown | null;
+  // Only present when the page was opened from a league (?leagueId=). null = free agent.
+  rosteredBy?: { id: string; name: string; userId: string } | null;
+};
 
 // Reconstruct the breakdown for a past week from the fields persisted at scoring
 // time. Rows scored before this per-signal tracking existed have null song/album
@@ -76,12 +84,23 @@ export function ArtistDetail() {
   const [searchParams] = useSearchParams();
   const leagueId = searchParams.get('leagueId');
 
+  const { user } = useAuth();
+  const [claimOpen, setClaimOpen] = useState(false);
+
   const { data: artist, isLoading } = useQuery({
     queryKey: ['artist', id, leagueId],
     queryFn: () => api.get<ArtistWithScores>(`/artists/${id}${leagueId ? `?leagueId=${leagueId}` : ''}`),
   });
 
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
+
+  // Needed only to tell waiver claims from instant free-agency adds in the
+  // claim dialog's wording; shares the LeagueHub cache entry.
+  const { data: league } = useQuery({
+    queryKey: ['league', leagueId],
+    queryFn: () => api.get<League>(`/leagues/${leagueId}`),
+    enabled: !!leagueId,
+  });
 
   useEffect(() => {
     if (artist) {
@@ -110,11 +129,24 @@ export function ArtistDetail() {
     : null;
   const activeIsLegacy = !!activeScore && !isViewingLatest && isLegacyRow(activeScore);
   const activeIsOffChart = !activeIsLegacy && !activeBreakdown?.song && !activeBreakdown?.album;
+  // rosteredBy is only sent when the page was opened from a league, so treat a
+  // missing value as "unknown" rather than free agent.
+  const isFreeAgent = !!leagueId && artist.rosteredBy === null;
+  const isOnMyTeam = !!artist.rosteredBy && artist.rosteredBy.userId === user?.id;
 
   return (
     <div className="min-h-screen bg-gray-950">
 
       <Header onBack={() => navigate(-1)} />
+
+      {claimOpen && leagueId && league && (
+        <ClaimArtistModal
+          artist={artist}
+          leagueId={leagueId}
+          freeAgency={getWeekPhase(league) === 'adjustment'}
+          onClose={() => setClaimOpen(false)}
+        />
+      )}
 
       <main className="relative max-w-3xl mx-auto px-4 py-6 space-y-6">
         {/* Artist header */}
@@ -130,7 +162,18 @@ export function ArtistDetail() {
               <Badge genre={artist.primaryGenre}>{artist.primaryGenre}</Badge>
             </div>
             <div className="flex flex-wrap gap-2">
-              {leagueId && (
+              {/* A free agent can't be traded for — offer the same claim flow
+                  the Players tab uses. An artist on your own team gets neither. */}
+              {leagueId && isFreeAgent && league?.status === 'active' && (
+                <button
+                  onClick={() => setClaimOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600/20 border border-green-600/30 rounded-lg text-green-400 text-xs font-medium hover:bg-green-600/30 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Claim
+                </button>
+              )}
+              {leagueId && !isFreeAgent && !isOnMyTeam && (
                 <Link
                   to={`/leagues/${leagueId}/trade?artistId=${artist.id}`}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-500/20 border border-indigo-500/30 rounded-lg text-indigo-400 text-xs font-medium hover:bg-indigo-500/30 transition-colors"
