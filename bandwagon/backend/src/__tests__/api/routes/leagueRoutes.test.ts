@@ -13,6 +13,7 @@ vi.mock('../../../db/prisma', () => {
     genreStreamingTier: { findMany: vi.fn() },
     rosterSpot: { findUnique: vi.fn(), update: vi.fn() },
     lineupSnapshot: { findMany: vi.fn() },
+    userBlock: { findMany: vi.fn() },
     notification: { create: vi.fn() },
     leagueEvent: { create: vi.fn() },
     $transaction: vi.fn(),
@@ -46,6 +47,7 @@ const pm = prisma as unknown as {
   genreStreamingTier: { findMany: ReturnType<typeof vi.fn> };
   rosterSpot: { findUnique: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
   lineupSnapshot: { findMany: ReturnType<typeof vi.fn> };
+  userBlock: { findMany: ReturnType<typeof vi.fn> };
   notification: { create: ReturnType<typeof vi.fn> };
   leagueEvent: { create: ReturnType<typeof vi.fn> };
   $transaction: ReturnType<typeof vi.fn>;
@@ -60,6 +62,8 @@ beforeEach(() => {
   // Default: no frozen lineup for the week, so routes fall back to the live
   // roster the matchup query already included.
   pm.lineupSnapshot.findMany.mockResolvedValue([]);
+  // Default: the viewer has blocked nobody, so redaction is a no-op.
+  pm.userBlock.findMany.mockResolvedValue([]);
 });
 
 // ---------------------------------------------------------------------------

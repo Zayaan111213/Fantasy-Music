@@ -23,6 +23,8 @@ import { submitWaiverClaim, cancelWaiverClaim, reorderWaiverClaims } from '../..
 import { renewLeague } from '../../season/rollover';
 import { transferCommissioner } from '../../leagues/transfer';
 import { minDraftTime } from '../../utils/draftTime';
+import { containsBlockedTerm, BLOCKED_NAME_MESSAGE } from '../../moderation/wordlist';
+import { blockedUserIds, redactRow } from '../../moderation/blocks';
 
 const router = Router();
 
@@ -61,8 +63,14 @@ export function artistEligibleForSlot(genre: string | null, slot: string): boole
   return genre === slot;
 }
 
+// League and team names are visible to other members, and league names also
+// appear in the public league browser, so both run through the same name
+// filter as usernames (App Store guideline 1.2).
+const CleanName = (max: number) =>
+  z.string().trim().min(1).max(max).refine((v) => !containsBlockedTerm(v), BLOCKED_NAME_MESSAGE);
+
 const CreateLeagueSchema = z.object({
-  name: z.string().min(1).max(50),
+  name: CleanName(50),
   teamCount: z.number().int().min(4).max(12).default(8),
   isPrivate: z.boolean().default(true),
   draftTime: z.string().datetime(),
@@ -189,13 +197,19 @@ router.get('/public', requireAuth, async (req: AuthRequest, res, next) => {
       where: { isPrivate: false, status: 'pending' },
       include: {
         teams: { select: { id: true } },
-        commissioner: { select: { username: true } },
+        commissioner: { select: { id: true, username: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
 
+    // The one place you see a stranger's name, so a blocked commissioner's
+    // league drops out of the browser entirely rather than being redacted:
+    // there is no reason to offer you a league run by someone you blocked.
+    const blocked = await blockedUserIds(req.userId);
+
     const open = leagues
       .filter((l) => l.teams.length < l.teamCount)
+      .filter((l) => !blocked.has(l.commissioner.id))
       .map((l) => ({
         id: l.id,
         name: l.name,
@@ -244,7 +258,7 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res, next) => {
     if (league.commissionerId !== req.userId) { res.status(403).json({ error: 'Only the commissioner can edit settings' }); return; }
 
     const schema = z.object({
-      name: z.string().min(1).max(50).optional(),
+      name: CleanName(50).optional(),
       teamCount: z.number().int().min(4).max(12).optional(),
       isPrivate: z.boolean().optional(),
       draftTime: z.string().datetime().optional().nullable(),
@@ -512,7 +526,13 @@ router.get('/:id/standings', requireAuth, async (req: AuthRequest, res, next) =>
       orderBy: [{ wins: 'desc' }, { pointsFor: 'desc' }, { createdAt: 'asc' }, { id: 'asc' }],
     });
 
-    res.json(teams.map((t, i) => ({
+    // Standings is where you see every other member of your league, so it's
+    // both the place a block has to take effect and where the report entry
+    // point lives in the app. Ranks and scores are untouched: blocking hides a
+    // person's name and pictures, it does not remove them from your season.
+    const blocked = await blockedUserIds(req.userId);
+
+    res.json(teams.map((t, i) => redactRow({
       rank: i + 1,
       teamId: t.id,
       teamName: t.name,
@@ -524,7 +544,7 @@ router.get('/:id/standings', requireAuth, async (req: AuthRequest, res, next) =>
       losses: t.losses,
       pointsFor: t.pointsFor,
       waiverPriority: t.waiverPriority,
-    })));
+    }, blocked, req.userId)));
   } catch (err) {
     next(err);
   }
@@ -1014,7 +1034,7 @@ router.get('/:id/roster', requireAuth, async (req: AuthRequest, res, next) => {
 router.put('/:id/team', requireAuth, uploadTeamLogo, async (req: AuthRequest, res, next) => {
   try {
     const data = z.object({
-      name: z.string().trim().min(1).max(30).optional(),
+      name: CleanName(30).optional(),
     }).parse(req.body);
 
     const myTeam = await prisma.team.findFirst({ where: { leagueId: req.params.id, userId: req.userId! } });

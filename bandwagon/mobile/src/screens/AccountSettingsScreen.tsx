@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, Pressable, Linking, Switch } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, X } from 'lucide-react-native';
 import { api, WEB_URL } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -13,6 +14,17 @@ import { Header } from '../components/Header';
 import type { User } from '@bandwagon/shared';
 
 const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,20}$/;
+
+// Must match CONTACT_EMAIL in frontend/src/lib/legal.ts, which is what the
+// published Privacy Policy and Terms give out.
+const SUPPORT_EMAIL = 'support@bandwagoner.com';
+
+interface BlockedUser {
+  id: string;
+  username: string | null;
+  avatarUrl: string | null;
+  blockedAt: string;
+}
 
 type UsernameStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid';
 
@@ -47,6 +59,20 @@ export function AccountSettingsScreen() {
       cancelled = true;
     };
   }, []);
+
+  const queryClient = useQueryClient();
+
+  const { data: blocks } = useQuery({
+    queryKey: ['blocks'],
+    queryFn: () => api.get<BlockedUser[]>('/users/blocks'),
+  });
+
+  async function unblock(userId: string) {
+    await api.del(`/users/${userId}/block`);
+    queryClient.invalidateQueries({ queryKey: ['blocks'] });
+    // Their name and pictures come back in standings.
+    queryClient.invalidateQueries({ queryKey: ['standings'] });
+  }
 
   function handleAnalyticsToggle(next: boolean) {
     setAnalyticsOn(next);
@@ -180,6 +206,28 @@ export function AccountSettingsScreen() {
           </View>
         </Card>
 
+        {blocks && blocks.length > 0 && (
+          <Card className="p-6">
+            <Text className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Blocked</Text>
+            <View className="gap-3">
+              {blocks.map((b) => (
+                <View key={b.id} className="flex-row items-center justify-between gap-3">
+                  <Text className="text-sm text-white flex-1" numberOfLines={1}>
+                    {b.username ?? 'Unknown user'}
+                  </Text>
+                  <Button variant="secondary" size="sm" onPress={() => unblock(b.id)}>
+                    Unblock
+                  </Button>
+                </View>
+              ))}
+              <Text className="text-xs text-gray-500">
+                You don't see blocked members' names or pictures. They stay in any league you share,
+                because the season's schedule depends on their team.
+              </Text>
+            </View>
+          </Card>
+        )}
+
         {isPostHogConfigured() && (
           <Card className="p-6">
             <Text className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Privacy</Text>
@@ -208,6 +256,13 @@ export function AccountSettingsScreen() {
             </Pressable>
             <Pressable onPress={() => Linking.openURL(`${WEB_URL}/terms`)}>
               <Text className="text-sm text-indigo-400">Terms of Service</Text>
+            </Pressable>
+            {/*
+              Guideline 1.2 expects published contact info alongside the report
+              and block flows. This address must actually receive mail.
+            */}
+            <Pressable onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)}>
+              <Text className="text-sm text-indigo-400">Contact support</Text>
             </Pressable>
             <Text className="text-xs text-gray-500">
               Bandwagoner is free to play. No entry fees, no prizes.

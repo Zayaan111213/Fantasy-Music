@@ -22,6 +22,7 @@ import draftRoutes from './api/routes/draft';
 import tradeRoutes from './api/routes/trades';
 import notificationRoutes from './api/routes/notifications';
 import chartRoutes from './api/routes/charts';
+import moderationRoutes from './api/routes/moderation';
 import { errorHandler, notFound, shouldReportToSentry } from './api/middleware/errorHandler';
 import { registerDraftSocket, startDraftScheduler } from './sockets/draft';
 import { startPipelineScheduler } from './jobs/scheduler';
@@ -52,6 +53,9 @@ app.use('/api/leagues', draftRoutes);
 app.use('/api/leagues', tradeRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/charts', chartRoutes);
+// Mounted at /api rather than a prefix: it owns /api/reports and /api/users/*.
+// Registered last so it can never shadow a more specific router above.
+app.use('/api', moderationRoutes);
 
 if (process.env.NODE_ENV === 'test') {
   // eslint-disable-next-line @typescript-eslint/no-require-imports

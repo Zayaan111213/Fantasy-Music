@@ -1,14 +1,22 @@
-import { View, Text } from 'react-native';
+import { useState } from 'react';
+import { View, Text, Pressable } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
+import { MoreVertical } from 'lucide-react-native';
 import { api } from '../../api/client';
 import type { Bracket, League, StandingsEntry } from '@bandwagon/shared';
 import { Card } from '../../components/ui/Card';
 import { Avatar } from '../../components/ui/Avatar';
 import { Spinner } from '../../components/ui/Spinner';
 import { BracketCard } from '../../components/BracketCard';
+import { ReportBlockSheet } from '../../components/ReportBlockSheet';
+import { useAuth } from '../../context/AuthContext';
 import { REGULAR_SEASON_WEEKS } from '../../utils/weekPhase';
 
 export function StandingsTab({ leagueId, league }: { leagueId: string; league: League }) {
+  const { user } = useAuth();
+  const myUserId = user?.id;
+  const [reportTarget, setReportTarget] = useState<StandingsEntry | null>(null);
+
   const { data, isLoading } = useQuery({
     queryKey: ['standings', leagueId],
     queryFn: () => api.get<StandingsEntry[]>(`/leagues/${leagueId}/standings`),
@@ -57,11 +65,36 @@ export function StandingsTab({ leagueId, league }: { leagueId: string; league: L
               </View>
               <Text className="w-14 text-center text-sm font-semibold text-white">{entry.wins}-{entry.losses}</Text>
               <Text className="w-16 text-right text-sm text-gray-300 font-mono">{entry.pointsFor.toFixed(1)}</Text>
+              {/*
+                Report/block entry point. Standings is the one screen listing
+                every other member, so it's where guideline 1.2's affordances
+                belong. Hidden on your own row.
+              */}
+              {entry.userId !== myUserId && (
+                <Pressable
+                  onPress={() => setReportTarget(entry)}
+                  hitSlop={8}
+                  className="w-6 items-end"
+                  accessibilityLabel={`Report or block ${entry.username ?? entry.teamName}`}
+                >
+                  <MoreVertical color="#6B7280" size={16} />
+                </Pressable>
+              )}
             </View>
           </View>
         ))}
       </Card>
       {bracket && <BracketCard bracket={bracket} />}
+      {reportTarget && (
+        <ReportBlockSheet
+          visible
+          onClose={() => setReportTarget(null)}
+          targetType="team"
+          targetId={reportTarget.teamId}
+          targetName={reportTarget.username ?? reportTarget.teamName}
+          userId={reportTarget.userId}
+        />
+      )}
     </View>
   );
 }
