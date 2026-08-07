@@ -7,6 +7,7 @@ import { queryClient } from './src/lib/queryClient';
 import { AuthProvider } from './src/context/AuthContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { AnalyticsConsentBanner } from './src/components/AnalyticsConsentBanner';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { initPostHog } from './src/lib/posthog';
 
 export default function App() {
@@ -19,15 +20,20 @@ export default function App() {
     void initPostHog();
   }, []);
 
+  // ErrorBoundary sits inside SafeAreaProvider so its fallback respects the
+  // notch, but outside everything else, so a throw in any provider or screen
+  // still lands on a recoverable screen rather than a white one.
   return (
     <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <RootNavigator />
-          <AnalyticsConsentBanner />
-          <StatusBar style="light" />
-        </AuthProvider>
-      </QueryClientProvider>
+      <ErrorBoundary>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <RootNavigator />
+            <AnalyticsConsentBanner />
+            <StatusBar style="light" />
+          </AuthProvider>
+        </QueryClientProvider>
+      </ErrorBoundary>
     </SafeAreaProvider>
   );
 }
