@@ -3,6 +3,7 @@
     "name": "Bandwagoner",
     "slug": "bandwagoner",
     "version": "1.0.0",
+    "scheme": "bandwagoner",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
