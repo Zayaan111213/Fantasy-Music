@@ -4,6 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeftRight, Check, X } from 'lucide-react-native';
 import { api } from '../api/client';
+import { posthog } from '../lib/posthog';
 import { Card } from './ui/Card';
 import { Badge } from './ui/Badge';
 import { Avatar } from './ui/Avatar';
@@ -121,6 +122,7 @@ function AcceptTradeModal({ leagueId, trade, myTeamId, onClose }: { leagueId: st
   const acceptMutation = useMutation({
     mutationFn: () => api.post(`/leagues/${leagueId}/trades/${trade.id}/accept`, { drops: [...drops] }),
     onSuccess: () => {
+      posthog.capture('trade_accepted', { leagueId, tradeId: trade.id });
       queryClient.invalidateQueries({ queryKey: ['trades', leagueId] });
       onClose();
     },
@@ -210,7 +212,9 @@ export function TradesSection({ leagueId, league }: { leagueId: string; league: 
   const actionMutation = useMutation({
     mutationFn: ({ tradeId, action }: { tradeId: string; action: 'reject' | 'cancel' | 'veto' }) =>
       api.post(`/leagues/${leagueId}/trades/${tradeId}/${action}`, {}),
-    onSuccess: () => {
+    onSuccess: (_, { tradeId, action }) => {
+      const eventName = action === 'cancel' ? 'trade_cancelled' : action === 'reject' ? 'trade_rejected' : 'trade_vetoed';
+      posthog.capture(eventName, { leagueId, tradeId });
       setActionError('');
       queryClient.invalidateQueries({ queryKey: ['trades', leagueId] });
     },

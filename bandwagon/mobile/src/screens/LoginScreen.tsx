@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { View, Text, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, Pressable, KeyboardAvoidingView, Platform, Linking } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
 import type { User } from '@bandwagon/shared';
-import { api } from '../api/client';
+import { api, WEB_URL } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { posthog } from '../lib/posthog';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { WagonMark, Wordmark } from '../components/Logo';
@@ -32,6 +33,8 @@ export function LoginScreen() {
       const path = mode === 'login' ? '/auth/login' : '/auth/signup';
       const { token, user } = await api.post<{ token: string; user: User }>(path, { email, password });
       await login(token, user);
+      // After login(), so the event is attributed to the identified person.
+      if (mode === 'signup') posthog.capture('user_signed_up');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
@@ -99,6 +102,32 @@ export function LoginScreen() {
             <Button onPress={handleSubmit} disabled={loading || !email || !password} size="lg" className="mt-2">
               {loading ? 'Loading…' : mode === 'login' ? 'Log In' : 'Create Account'}
             </Button>
+
+            {/*
+              Signup only. The Terms claim a 13+ minimum that nothing else in the
+              app surfaces, and this was the only account-creation form with no
+              link to the Terms or Privacy Policy at all. The free-to-play line
+              matches IntroScreen and the Account Settings About card.
+            */}
+            {mode === 'signup' && (
+              <View className="gap-2 mt-1">
+                <Text className="text-xs text-gray-500 text-center leading-5">
+                  You must be 13 or older to use Bandwagoner. By creating an account you agree to
+                  the{' '}
+                  <Text className="text-indigo-400" onPress={() => Linking.openURL(`${WEB_URL}/terms`)}>
+                    Terms of Service
+                  </Text>{' '}
+                  and{' '}
+                  <Text className="text-indigo-400" onPress={() => Linking.openURL(`${WEB_URL}/privacy`)}>
+                    Privacy Policy
+                  </Text>
+                  .
+                </Text>
+                <Text className="text-xs text-gray-500 text-center">
+                  Free to play. No entry fees, no prizes, no real money wagering.
+                </Text>
+              </View>
+            )}
           </View>
         </View>
       </View>

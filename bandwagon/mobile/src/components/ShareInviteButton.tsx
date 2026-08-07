@@ -1,5 +1,6 @@
 import { Share, Pressable, Text } from 'react-native';
 import { Share2 } from 'lucide-react-native';
+import { posthog } from '../lib/posthog';
 
 interface Props {
   leagueName: string;
@@ -13,10 +14,14 @@ interface Props {
 // opens the native OS share sheet, so no fallback is needed.
 export function ShareInviteButton({ leagueName, inviteUrl, className = '', variant = 'secondary' }: Props) {
   async function handleShare() {
-    await Share.share({
+    const result = await Share.share({
       message: `Join my league "${leagueName}" on Bandwagoner! ${inviteUrl}`,
       url: inviteUrl,
     });
+    // The web fires this with method 'native' | 'fallback_modal' | 'copy_link'.
+    // RN only ever opens the OS sheet, but unlike navigator.share it tells us
+    // whether the sheet was actually used, so a dismissal isn't logged as a share.
+    if (result.action === 'sharedAction') posthog.capture('invite_shared', { method: 'native' });
   }
 
   return (

@@ -10,6 +10,7 @@ import { uploadAvatar } from '../middleware/upload';
 import { deleteAccount } from '../../account/deleteAccount';
 import { sendEmail } from '../../email/mailer';
 import { renderEmail } from '../../email/templates';
+import { containsBlockedTerm, BLOCKED_NAME_MESSAGE } from '../../moderation/wordlist';
 
 const router = Router();
 
@@ -34,7 +35,10 @@ const LoginSchema = z.object({
 
 const UsernameSchema = z
   .string()
-  .regex(/^[a-zA-Z0-9_]{3,20}$/, 'Username must be 3-20 characters: letters, numbers, and underscores only');
+  .regex(/^[a-zA-Z0-9_]{3,20}$/, 'Username must be 3-20 characters: letters, numbers, and underscores only')
+  // Usernames are visible to everyone in your leagues, so they go through the
+  // same name filter as league and team names (App Store guideline 1.2).
+  .refine((v) => !containsBlockedTerm(v), BLOCKED_NAME_MESSAGE);
 
 function usernameTaken(username: string, excludeUserId: string) {
   return prisma.user.findFirst({

@@ -8,13 +8,13 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
+  id           String    @id @default(cuid())
+  email        String    @unique
   passwordHash String
-  username     String?  @unique
+  username     String?   @unique
   avatarUrl    String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
   // Soft-delete marker: set when the account is deleted but teams in started
   // seasons force us to keep the (anonymized) row for FK integrity.
   deletedAt    DateTime?
@@ -23,6 +23,49 @@ model User {
   commissionedLeagues League[]             @relation("Commissioner")
   notifications       Notification[]
   passwordResetTokens PasswordResetToken[]
+  reportsFiled        ContentReport[]      @relation("ReportsFiled")
+  blocksMade          UserBlock[]          @relation("BlocksMade")
+  blocksReceived      UserBlock[]          @relation("BlocksReceived")
+}
+
+// App Store guideline 1.2: apps with user-generated content need a way for
+// people to report it. The UGC surface here is names and images (username,
+// avatar, league name, team name, team logo) — there is no chat.
+//
+// There is deliberately no admin UI. A report emails the support address on
+// creation, because the bar is acting on reports promptly and an unread
+// `status: open` row in a table nobody opens does not meet it.
+model ContentReport {
+  id         String    @id @default(cuid())
+  reporterId String
+  targetType String // "user" | "team" | "league"
+  targetId   String
+  reason     String // "offensive_name" | "offensive_image" | "harassment" | "spam" | "other"
+  details    String?
+  status     String    @default("open") // open | actioned | dismissed
+  createdAt  DateTime  @default(now())
+  reviewedAt DateTime?
+
+  reporter User @relation("ReportsFiled", fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([reporterId, targetType, targetId])
+}
+
+// The blocking half of guideline 1.2. Leagues are fixed rosters for a season,
+// so a block can't remove someone from your game — it redacts their name and
+// images everywhere you'd otherwise see them (see src/moderation/blocks.ts).
+model UserBlock {
+  id        String   @id @default(cuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker User @relation("BlocksMade", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("BlocksReceived", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
 }
 
 model PasswordResetToken {
@@ -54,32 +97,32 @@ model Notification {
 }
 
 model League {
-  id             String    @id @default(cuid())
-  name           String
-  commissionerId String
-  commissioner   User      @relation("Commissioner", fields: [commissionerId], references: [id])
-  teamCount      Int       @default(8)
-  isPrivate      Boolean   @default(true)
-  draftTime      DateTime?
-  status         String    @default("pending")
-  inviteCode     String    @unique
-  currentWeek    Int       @default(1)
-  seasonYear     Int       @default(2026)
-  scoringConfig  Json?
+  id                  String    @id @default(cuid())
+  name                String
+  commissionerId      String
+  commissioner        User      @relation("Commissioner", fields: [commissionerId], references: [id])
+  teamCount           Int       @default(8)
+  isPrivate           Boolean   @default(true)
+  draftTime           DateTime?
+  status              String    @default("pending")
+  inviteCode          String    @unique
+  currentWeek         Int       @default(1)
+  seasonYear          Int       @default(2026)
+  scoringConfig       Json?
   // PT calendar date (YYYY-MM-DD) of this league's last finalize. DB-persisted
   // guard so finalize runs at most once per PT date per league — process
   // restarts (deploys) on a Monday used to re-trigger it and skip whole weeks.
   lastFinalizedDatePT String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  teams        Team[]
-  matchups     Matchup[]
-  draftPicks   DraftPick[]
-  draftState   DraftState?
-  trades       Trade[]
-  events       LeagueEvent[]
-  waiverClaims WaiverClaim[]
+  teams           Team[]
+  matchups        Matchup[]
+  draftPicks      DraftPick[]
+  draftState      DraftState?
+  trades          Trade[]
+  events          LeagueEvent[]
+  waiverClaims    WaiverClaim[]
   lineupSnapshots LineupSnapshot[]
 }
 
@@ -129,16 +172,16 @@ model Team {
   draftPosition  Int?
   createdAt      DateTime @default(now())
 
-  league         League       @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  user           User         @relation(fields: [userId], references: [id])
-  rosterSpots    RosterSpot[]
-  homeMatchups   Matchup[]    @relation("HomeTeam")
-  awayMatchups   Matchup[]    @relation("AwayTeam")
-  draftPicks     DraftPick[]
-  proposedTrades Trade[]       @relation("ProposedTrades")
-  receivedTrades Trade[]       @relation("ReceivedTrades")
-  tradeVetoes    TradeVeto[]   @relation("TradeVetoes")
-  waiverClaims   WaiverClaim[]
+  league          League           @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user            User             @relation(fields: [userId], references: [id])
+  rosterSpots     RosterSpot[]
+  homeMatchups    Matchup[]        @relation("HomeTeam")
+  awayMatchups    Matchup[]        @relation("AwayTeam")
+  draftPicks      DraftPick[]
+  proposedTrades  Trade[]          @relation("ProposedTrades")
+  receivedTrades  Trade[]          @relation("ReceivedTrades")
+  tradeVetoes     TradeVeto[]      @relation("TradeVetoes")
+  waiverClaims    WaiverClaim[]
   lineupSnapshots LineupSnapshot[]
 
   @@unique([leagueId, userId])
@@ -236,23 +279,23 @@ model RosterSpot {
 }
 
 model WeeklyScore {
-  id       String   @id @default(cuid())
-  artistId String
+  id                  String   @id @default(cuid())
+  artistId            String
   // Real chart week (the Tuesday it started, PT — same value as
   // ChartEntry.weekDate). Scores are keyed by CALENDAR week, never by a
   // league's week number: league weeks are per-league counters translated to
   // weekDate at read time (weekDateForLeagueWeek). Keying on week numbers let
   // leagues with different start dates overwrite each other's history.
   weekDate            DateTime @db.Date
-  streamingPoints     Float   @default(0)
-  chartPositionPoints Float   @default(0)
-  chartMovementPoints Float   @default(0)
-  longevityPoints     Float   @default(0)
-  totalPoints         Float   @default(0)
+  streamingPoints     Float    @default(0)
+  chartPositionPoints Float    @default(0)
+  chartMovementPoints Float    @default(0)
+  longevityPoints     Float    @default(0)
+  totalPoints         Float    @default(0)
   weeklyStreams       BigInt?
   bestChartPosition   Int?
   chartMovement       Int?
-  isFinalized         Boolean @default(false)
+  isFinalized         Boolean  @default(false)
   dataMissing         String?
 
   // Per-signal breakdown, captured at scoring time so past weeks can show

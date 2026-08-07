@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
-    "@bandwagon/shared": "file:../packages/shared",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "9.1.0",
     "@react-navigation/bottom-tabs": "^7.18.14",
@@ -12,11 +11,15 @@
     "@tanstack/react-query": "^5.101.4",
     "expo": "~57.0.9",
     "expo-clipboard": "~57.0.1",
+    "expo-dev-client": "~57.0.10",
     "expo-image-picker": "~57.0.7",
     "expo-secure-store": "~57.0.1",
+    "expo-splash-screen": "~57.0.5",
     "expo-status-bar": "~57.0.1",
+    "expo-updates": "~57.0.12",
     "lucide-react-native": "^1.28.0",
     "nativewind": "^4.2.6",
+    "posthog-react-native": "^4.62.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.2",
@@ -37,7 +40,8 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit"
   },
   "private": true
 }

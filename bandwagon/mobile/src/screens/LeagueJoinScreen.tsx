@@ -4,6 +4,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { Users } from 'lucide-react-native';
 import { api } from '../api/client';
+import { posthog } from '../lib/posthog';
 import { useAuth } from '../context/AuthContext';
 import { Avatar } from '../components/ui/Avatar';
 import { Button } from '../components/ui/Button';
@@ -78,6 +79,7 @@ export function LeagueJoinScreen() {
       const { league } = await api.post<{ league: { id: string } }>(`/leagues/join/${c}`, {});
       setTeamName(user?.username ? `${user.username}'s Squad` : '');
       setJoinedLeagueId(league.id);
+      posthog.capture('league_joined', { leagueId: league.id });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to join league');
     } finally {

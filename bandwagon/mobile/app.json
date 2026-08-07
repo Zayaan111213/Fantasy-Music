@@ -3,7 +3,11 @@
     "name": "Bandwagoner",
     "slug": "bandwagoner",
     "version": "1.0.0",
+    "scheme": "bandwagoner",
     "orientation": "portrait",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
@@ -34,6 +38,15 @@
           "photosPermission": "Bandwagoner uses your photo library so you can pick a profile picture and a logo for your team.",
           "cameraPermission": false,
           "microphonePermission": false
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#140D09"
         }
       ]
     ]
