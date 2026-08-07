@@ -89,6 +89,15 @@ export function IntroScreen() {
             <Text className="text-sm text-indigo-400 font-medium">Log in</Text>
           </Pressable>
         </View>
+
+        {/*
+          This is the first screen App Review sees, and "fantasy sports" without
+          a visible disclaimer invites a gambling question under guideline 5.3.
+          Same wording as the Account Settings About card and the web landing page.
+        */}
+        <Text className="text-xs text-gray-500 text-center mt-4">
+          Bandwagoner is free to play. No entry fees, no prizes, no real money wagering.
+        </Text>
       </ScrollView>
     </View>
   );

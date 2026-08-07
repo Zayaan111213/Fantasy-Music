@@ -43,8 +43,16 @@ export function ForgotPasswordScreen() {
                 <MailCheck color="#6FA595" size={24} />
               </View>
               <Text className="text-white font-medium">Check your inbox</Text>
+              {/*
+                The emailed link is an https://bandwagoner.com URL and opens the
+                web reset page, not this app (universal links aren't set up yet).
+                Say so, rather than letting someone tap it and wonder why they
+                ended up in Safari.
+              */}
               <Text className="text-sm text-gray-400 text-center">
-                We sent a reset link to <Text className="text-white">{email}</Text>. It expires in 1 hour.
+                We sent a reset link to <Text className="text-white">{email}</Text>. Opening it takes
+                you to bandwagoner.com to choose a new password, then you can come back here and log
+                in. The link expires in 1 hour.
               </Text>
             </View>
           ) : (

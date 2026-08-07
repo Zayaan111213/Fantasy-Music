@@ -7,7 +7,6 @@ import { FullPageSpinner } from '../components/ui/Spinner';
 import { IntroScreen } from '../screens/IntroScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { ForgotPasswordScreen } from '../screens/ForgotPasswordScreen';
-import { ResetPasswordScreen } from '../screens/ResetPasswordScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { MainTabs } from './MainTabs';
 import { ArtistDetailScreen } from '../screens/ArtistDetailScreen';
@@ -51,7 +50,14 @@ export function RootNavigator() {
           <AuthStack.Screen name="Intro" component={IntroScreen} />
           <AuthStack.Screen name="Login" component={LoginScreen} />
           <AuthStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-          <AuthStack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+          {/*
+            ResetPassword is deliberately not registered. Its token comes from
+            route params that only a universal link can populate, and that infra
+            isn't set up, so the only state it can currently reach is the
+            "This reset link is invalid" dead end. Reset happens on the web until
+            associatedDomains + a linking config land; the screen is kept on disk
+            for that, and re-registering it is step one of wiring it up.
+          */}
         </AuthStack.Navigator>
       ) : user.username === null ? (
         <OnboardingStack.Navigator screenOptions={{ headerShown: false }}>
