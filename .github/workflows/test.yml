@@ -37,3 +37,43 @@ jobs:
       - name: Frontend tests
         run: npm test
         working-directory: bandwagon/frontend
+
+  # Mobile has no test suite, so this job exists to catch the two failures that
+  # otherwise surface only during an EAS build — the slowest and most expensive
+  # place to find out.
+  #
+  # `npm ci` is the important one: a dependency the builder can't resolve (as
+  # `file:../packages/shared` was, before it moved into mobile/src/shared) fails
+  # here in seconds instead of minutes into a build slot.
+  #
+  # typecheck and export fail independently and both are needed. The
+  # `@bandwagon/shared` alias is declared twice, in mobile/tsconfig.json `paths`
+  # and mobile/metro.config.js `resolver.alias`, because Metro doesn't read
+  # tsconfig. Change one without the other and only one of these two steps goes
+  # red.
+  mobile:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: bandwagon/mobile/package-lock.json
+
+      - name: Upgrade npm (fixes optional-deps EBADPLATFORM on npm ci)
+        run: npm install -g npm@latest
+
+      - name: Install mobile deps
+        run: npm ci
+        working-directory: bandwagon/mobile
+
+      - name: Mobile typecheck
+        run: npm run typecheck
+        working-directory: bandwagon/mobile
+
+      - name: Mobile bundle smoke check
+        run: npx expo export --platform ios --output-dir /tmp/expo-export
+        working-directory: bandwagon/mobile
