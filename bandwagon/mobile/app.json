@@ -13,6 +13,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.bandwagoner.app",
+      "associatedDomains": ["applinks:bandwagoner.com"],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
