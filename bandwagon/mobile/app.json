@@ -36,6 +36,18 @@
           "microphonePermission": false
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e79f1e7e-20fd-41d0-a352-12ca021ddd80"
+      }
+    },
+    "owner": "bandwagoner",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/e79f1e7e-20fd-41d0-a352-12ca021ddd80"
+    }
   }
 }

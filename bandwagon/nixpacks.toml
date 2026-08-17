@@ -1,0 +1,7 @@
+# Railway builds the backend + frontend only. The npm workspaces at the root of
+# this package.json exist for the Expo app (mobile + packages/shared), and a
+# plain `npm ci` here would pull ~580M of React Native into every deploy image.
+# `npm run build` installs frontend/ and backend/ explicitly, so the root install
+# only needs the root's own devDependencies.
+[phases.install]
+cmds = ["npm ci --no-workspaces"]
