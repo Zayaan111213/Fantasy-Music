@@ -44,15 +44,14 @@ export function ForgotPasswordScreen() {
               </View>
               <Text className="text-white font-medium">Check your inbox</Text>
               {/*
-                The emailed link is an https://bandwagoner.com URL and opens the
-                web reset page, not this app (universal links aren't set up yet).
-                Say so, rather than letting someone tap it and wonder why they
-                ended up in Safari.
+                Stays neutral about where the link opens. On this phone the
+                universal link opens the app; on a desktop, or before iOS has
+                fetched the AASA for a fresh install, the same URL opens the web
+                reset page. Both work, so the copy shouldn't promise either.
               */}
               <Text className="text-sm text-gray-400 text-center">
-                We sent a reset link to <Text className="text-white">{email}</Text>. Opening it takes
-                you to bandwagoner.com to choose a new password, then you can come back here and log
-                in. The link expires in 1 hour.
+                We sent a reset link to <Text className="text-white">{email}</Text>. Open it to
+                choose a new password. The link expires in 1 hour.
               </Text>
             </View>
           ) : (

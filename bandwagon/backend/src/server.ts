@@ -65,6 +65,43 @@ if (process.env.NODE_ENV === 'test') {
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 
+// Universal Links. iOS fetches this file to learn which URLs on this domain
+// the app is allowed to open, which is what makes the emailed password-reset
+// link (an https:// URL) open the app instead of Safari.
+//
+// This MUST stay above the SPA catch-all below. Without it the catch-all
+// answers with index.html as text/html and Apple's CDN rejects the file
+// outright, silently — universal links just never work and there's nothing in
+// the app to debug.
+//
+// `components` is the important part. `applinks:bandwagoner.com` in app.json
+// claims the WHOLE domain by default, so without narrowing it here, tapping
+// any bandwagoner.com link on a phone with the app installed would open the
+// app — including the Privacy Policy and Terms links that Account Settings
+// deliberately opens in a browser. Only /reset-password is claimed.
+//
+// League invite links are deliberately NOT claimed: an invite opened while
+// logged out targets a screen that doesn't exist in the logged-out navigator,
+// so the code would be dropped. LeagueJoinScreen's manual code entry covers
+// that case until the pending-invite handoff is built.
+//
+// The Team ID is not a secret; this file is public by design and the same
+// value is embedded in every copy of the app. It must match `bundleIdentifier`
+// in mobile/app.json.
+const APPLE_APP_ID = '64YY39ABUD.com.bandwagoner.app';
+app.get('/.well-known/apple-app-site-association', (_req, res) => {
+  res.type('application/json').json({
+    applinks: {
+      details: [
+        {
+          appIDs: [APPLE_APP_ID],
+          components: [{ '/': '/reset-password', comment: 'password reset link from email' }],
+        },
+      ],
+    },
+  });
+});
+
 const frontendDist = path.join(__dirname, '../../frontend/dist');
 if (fs.existsSync(frontendDist)) {
   app.use(express.static(frontendDist));

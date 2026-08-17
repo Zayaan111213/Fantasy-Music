@@ -7,6 +7,7 @@ import { FullPageSpinner } from '../components/ui/Spinner';
 import { IntroScreen } from '../screens/IntroScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { ForgotPasswordScreen } from '../screens/ForgotPasswordScreen';
+import { ResetPasswordScreen } from '../screens/ResetPasswordScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { MainTabs } from './MainTabs';
 import { ArtistDetailScreen } from '../screens/ArtistDetailScreen';
@@ -19,6 +20,26 @@ import { TradeProposeScreen } from '../screens/TradeProposeScreen';
 const AuthStack = createNativeStackNavigator();
 const OnboardingStack = createNativeStackNavigator();
 const AppStack = createNativeStackNavigator();
+
+// Only the emailed password-reset link is handled. The backend already sends
+// an https://bandwagoner.com/reset-password?token=... URL, and the AASA file
+// served from backend/src/server.ts claims exactly that one path, so nothing
+// else on the domain gets pulled into the app.
+//
+// React Navigation parses `?token=` into route.params automatically, which is
+// why ResetPasswordScreen needs no changes to receive it.
+//
+// ResetPassword lives in the logged-out stack, so a link tapped while logged
+// in doesn't resolve and the app just opens normally. That's the right
+// trade-off: you reset a password precisely because you can't get in.
+const linking = {
+  prefixes: ['bandwagoner://', 'https://bandwagoner.com'],
+  config: {
+    screens: {
+      ResetPassword: 'reset-password',
+    },
+  },
+};
 
 // Auth-state-conditional navigator swap, replacing the web app's per-route
 // RequireAuth/RequireOnboarded guard components (see migration plan §4) —
@@ -44,20 +65,18 @@ export function RootNavigator() {
   if (isLoading) return <FullPageSpinner />;
 
   return (
-    <NavigationContainer ref={navigationRef} onReady={captureScreen} onStateChange={captureScreen}>
+    <NavigationContainer
+      ref={navigationRef}
+      linking={linking}
+      onReady={captureScreen}
+      onStateChange={captureScreen}
+    >
       {!user ? (
         <AuthStack.Navigator screenOptions={{ headerShown: false }}>
           <AuthStack.Screen name="Intro" component={IntroScreen} />
           <AuthStack.Screen name="Login" component={LoginScreen} />
           <AuthStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-          {/*
-            ResetPassword is deliberately not registered. Its token comes from
-            route params that only a universal link can populate, and that infra
-            isn't set up, so the only state it can currently reach is the
-            "This reset link is invalid" dead end. Reset happens on the web until
-            associatedDomains + a linking config land; the screen is kept on disk
-            for that, and re-registering it is step one of wiring it up.
-          */}
+          <AuthStack.Screen name="ResetPassword" component={ResetPasswordScreen} />
         </AuthStack.Navigator>
       ) : user.username === null ? (
         <OnboardingStack.Navigator screenOptions={{ headerShown: false }}>

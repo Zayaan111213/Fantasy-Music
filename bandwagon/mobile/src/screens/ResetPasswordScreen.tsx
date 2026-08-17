@@ -9,11 +9,15 @@ import type { User } from '@bandwagon/shared';
 import { passwordPolicyError } from '../utils/passwordPolicy';
 import { WagonMark } from '../components/Logo';
 
-// The web version reads `token` from the URL query string of an emailed
-// link. On mobile this route param would come from a deep link
-// (bandwagoner://reset-password?token=...) — deep-link scheme registration
-// (app.json `scheme` + universal links) is separate infra not wired up in
-// this phase, so `token` is undefined until that's done.
+// The web version reads `token` from the URL query string of an emailed link.
+// Here it arrives as a route param: the universal link
+// https://bandwagoner.com/reset-password?token=... is claimed by the AASA file
+// (backend/src/server.ts) and mapped to this screen by the `linking` config in
+// RootNavigator, and React Navigation parses the query string into params.
+//
+// `token` is still optional. Opening this screen any other way, or tapping the
+// link before iOS has fetched the AASA for a fresh install, leaves it
+// undefined, which is what the invalid-link state below is for.
 export function ResetPasswordScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
