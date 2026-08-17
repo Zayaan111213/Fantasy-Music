@@ -6,6 +6,7 @@ vi.mock('../../db/prisma', () => {
     league: { findUnique: vi.fn() },
     weeklyScore: { findUnique: vi.fn() },
     genreStreamingTier: { findMany: vi.fn() },
+    lineupSnapshot: { findMany: vi.fn() },
   };
   // readSnapshot only pins an isolation level; hand the callback the same mock
   // client so assertions still see the calls on `prisma.*`.
@@ -20,6 +21,7 @@ const pm = prisma as unknown as {
   league: { findUnique: ReturnType<typeof vi.fn> };
   weeklyScore: { findUnique: ReturnType<typeof vi.fn> };
   genreStreamingTier: { findMany: ReturnType<typeof vi.fn> };
+  lineupSnapshot: { findMany: ReturnType<typeof vi.fn> };
 };
 
 // ScoringConfig with custom chart position: rank 1 = 100 pts (default is 25)
@@ -46,9 +48,16 @@ function rosterSpot(artistId: string, genre: string) {
 function matchupFixture(homeSpots: ReturnType<typeof rosterSpot>[], awaySpots: ReturnType<typeof rosterSpot>[]) {
   return {
     id: 'matchup-1',
+    homeTeamId: 'team-home',
+    awayTeamId: 'team-away',
     homeTeam: { rosterSpots: homeSpots },
     awayTeam: { rosterSpots: awaySpots },
   };
+}
+
+// A LineupSnapshot row as stored: the lineup of record for the week.
+function frozenSpot(teamId: string, artistId: string | null, genre: string) {
+  return { teamId, artistId, artist: artistId ? { primaryGenre: genre } : null };
 }
 
 // Genre tier row (points don't matter since weeklyStreams is null throughout)
@@ -64,6 +73,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   pm.matchup.update.mockResolvedValue({});
   pm.genreStreamingTier.findMany.mockResolvedValue([GENRE_TIER]);
+  // Default: week was never frozen, so scoring reads the live roster.
+  pm.lineupSnapshot.findMany.mockResolvedValue([]);
 });
 
 describe('updateMatchupScores — custom scoring', () => {
@@ -182,5 +193,77 @@ describe('updateMatchupScores — custom scoring', () => {
     expect(pm.matchup.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ homeScore: 214, awayScore: 107 }) })
     );
+  });
+});
+
+// RosterSpot always reflects TODAY's roster. Once a week's lineup is frozen,
+// the matchup routes render the LineupSnapshot — so the score has to come from
+// the same rows, or a mid-week roster change moves the score while the
+// displayed lineup stays put.
+describe('updateMatchupScores — scores the frozen lineup, not the live roster', () => {
+  it('uses the snapshot when the week was frozen, ignoring a mid-week pickup', async () => {
+    // Live roster: home team has picked up a second artist since the freeze.
+    pm.matchup.findMany.mockResolvedValue([
+      matchupFixture(
+        [rosterSpot('a1', 'Pop'), rosterSpot('mid-week-pickup', 'Pop')],
+        [rosterSpot('b1', 'Pop')],
+      ),
+    ]);
+    // Frozen lineup: only the artist who actually played that week.
+    pm.lineupSnapshot.findMany.mockResolvedValue([
+      frozenSpot('team-home', 'a1', 'Pop'),
+      frozenSpot('team-away', 'b1', 'Pop'),
+    ]);
+    pm.league.findUnique.mockResolvedValue({ scoringConfig: CUSTOM_CONFIG });
+    pm.weeklyScore.findUnique.mockResolvedValue(WS_RANK1);
+
+    await updateMatchupScores('league-1', 2, 2026);
+
+    // 107 each — the pickup does not count, matching what the matchup view shows.
+    expect(pm.matchup.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ homeScore: 107, awayScore: 107 }) })
+    );
+  });
+
+  it('falls back to the live roster for a week with no snapshot', async () => {
+    pm.matchup.findMany.mockResolvedValue([
+      matchupFixture([rosterSpot('a1', 'Pop'), rosterSpot('a2', 'Pop')], [rosterSpot('b1', 'Pop')]),
+    ]);
+    pm.lineupSnapshot.findMany.mockResolvedValue([]);
+    pm.league.findUnique.mockResolvedValue({ scoringConfig: CUSTOM_CONFIG });
+    pm.weeklyScore.findUnique.mockResolvedValue(WS_RANK1);
+
+    await updateMatchupScores('league-1', 2, 2026);
+
+    expect(pm.matchup.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ homeScore: 214, awayScore: 107 }) })
+    );
+  });
+
+  it('only one team frozen: the other still scores off its live roster', async () => {
+    pm.matchup.findMany.mockResolvedValue([
+      matchupFixture([rosterSpot('a1', 'Pop'), rosterSpot('a2', 'Pop')], [rosterSpot('b1', 'Pop')]),
+    ]);
+    pm.lineupSnapshot.findMany.mockResolvedValue([frozenSpot('team-home', 'a1', 'Pop')]);
+    pm.league.findUnique.mockResolvedValue({ scoringConfig: CUSTOM_CONFIG });
+    pm.weeklyScore.findUnique.mockResolvedValue(WS_RANK1);
+
+    await updateMatchupScores('league-1', 2, 2026);
+
+    expect(pm.matchup.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ homeScore: 107, awayScore: 107 }) })
+    );
+  });
+
+  it('never rewrites a finalized week: the query excludes isFinalized rows', async () => {
+    pm.matchup.findMany.mockResolvedValue([]);
+    pm.league.findUnique.mockResolvedValue({ scoringConfig: null });
+
+    await updateMatchupScores('league-1', 2, 2026);
+
+    expect(pm.matchup.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ isFinalized: false }) })
+    );
+    expect(pm.matchup.update).not.toHaveBeenCalled();
   });
 });

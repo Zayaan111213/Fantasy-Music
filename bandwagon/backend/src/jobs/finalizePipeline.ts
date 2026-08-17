@@ -70,7 +70,12 @@ export async function finalizeLeagueWeek(
     // can't get stranded mid-boundary.
     await runTradeFinalizeSteps(leagueId, week);
     await resolveWaivers(leagueId);
-    if (week >= REGULAR_SEASON_WEEKS) await advanceSeason(leagueId, week);
+    // Unconditional: advanceSeason is idempotent (monotonic currentWeek update,
+    // bracket creation no-ops when next week's matchups exist). Gating it on the
+    // playoff weeks left a mid-season crash-recovery stranded on a finalized
+    // week — currentWeek never moved, so every later run re-entered here and
+    // resolved that league's pending waiver claims again, mid-week.
+    await advanceSeason(leagueId, week);
     return;
   }
 

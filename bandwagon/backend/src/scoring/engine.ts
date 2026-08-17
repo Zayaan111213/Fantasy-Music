@@ -232,23 +232,49 @@ const rosterInclude = {
   },
 } as const;
 
+// A team's starters for `week`, as frozen by LineupSnapshot. Same shape the
+// live rosterInclude produces, so teamScore() can take either.
+type ScoredSpot = { artistId: string | null; artist: { primaryGenre: string } | null };
+
 // week identifies the league's matchups; weekDate identifies the calendar
 // chart week whose WeeklyScore rows feed the totals.
 export async function updateMatchupScores(leagueId: string, week: number, weekDate: Date): Promise<void> {
   // One snapshot for both reads. A pipeline run can be long, so a league
   // deleted partway through would otherwise strand these matchups' required
   // team relations between Prisma's separate include queries.
-  const [matchups, leagueRow] = await readSnapshot((tx) => Promise.all([
+  const [matchups, leagueRow, frozenSpots] = await readSnapshot((tx) => Promise.all([
+    // Finalized weeks are settled: their scores were already banked into
+    // team.pointsFor and decided winnerId. Re-scoring one silently desyncs the
+    // standings from the matchup it came from, so leave it alone.
     tx.matchup.findMany({
-      where: { leagueId, week },
+      where: { leagueId, week, isFinalized: false },
       include: {
         homeTeam: { include: rosterInclude },
         awayTeam: { include: rosterInclude },
       },
     }),
     tx.league.findUnique({ where: { id: leagueId }, select: { scoringConfig: true } }),
+    // The lineup of record for this week. RosterSpot always reflects TODAY, so
+    // scoring it lets any mid-week roster change (a free-agency pickup, a
+    // waiver resolution, an artist split) move a week's score while the matchup
+    // view — which renders this same snapshot via applyLineupSnapshot — keeps
+    // showing the lineup that actually played. Score what's displayed.
+    tx.lineupSnapshot.findMany({
+      where: { leagueId, week, slot: { not: { startsWith: 'Bench' } } },
+      select: { teamId: true, artistId: true, artist: { select: { primaryGenre: true } } },
+    }),
   ]));
   if (!matchups.length) return;
+
+  // No snapshot means the week was never frozen — Monday, the week-1 pre-game
+  // window, or a week that predates snapshotting. Fall back to the live roster,
+  // exactly as applyLineupSnapshot does on the read side.
+  const frozenByTeam = new Map<string, ScoredSpot[]>();
+  for (const row of frozenSpots) {
+    const list = frozenByTeam.get(row.teamId) ?? [];
+    list.push({ artistId: row.artistId, artist: row.artist });
+    frozenByTeam.set(row.teamId, list);
+  }
 
   const cfg = ScoringConfigSchema.safeParse(leagueRow?.scoringConfig).data ?? null;
   const genreTierCache = new Map<string, Awaited<ReturnType<typeof prisma.genreStreamingTier.findMany>>>();
@@ -269,7 +295,7 @@ export async function updateMatchupScores(leagueId: string, week: number, weekDa
     return applyCustomScoringToWeeklyScore(ws, g, genreTierCache.get(g)!, cfg).totalPoints;
   }
 
-  async function teamScore(spots: { artistId: string | null; artist: { primaryGenre: string } | null }[]): Promise<number> {
+  async function teamScore(spots: ScoredSpot[]): Promise<number> {
     let total = 0;
     for (const spot of spots) total += await spotScore(spot.artistId, spot.artist?.primaryGenre ?? null);
     return total;
@@ -278,8 +304,8 @@ export async function updateMatchupScores(leagueId: string, week: number, weekDa
   await Promise.all(
     matchups.map(async (matchup) => {
       const [homeScore, awayScore] = await Promise.all([
-        teamScore(matchup.homeTeam.rosterSpots),
-        teamScore(matchup.awayTeam.rosterSpots),
+        teamScore(frozenByTeam.get(matchup.homeTeamId) ?? matchup.homeTeam.rosterSpots),
+        teamScore(frozenByTeam.get(matchup.awayTeamId) ?? matchup.awayTeam.rosterSpots),
       ]);
       await prisma.matchup.update({ where: { id: matchup.id }, data: { homeScore, awayScore } });
     })
