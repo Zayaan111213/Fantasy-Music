@@ -169,6 +169,23 @@ describe('finalizeLeagueWeek', () => {
     expect(prisma.team.update).not.toHaveBeenCalled();
   });
 
+  // The recovery branch used to advance only on the playoff weeks, so a
+  // mid-season crash-recovery left currentWeek pinned to an already-finalized
+  // week. Every later run then re-entered here and resolved that league's
+  // pending waiver claims again — mid-week, long after the boundary.
+  it('already-finalized re-entry still advances a mid-season week', async () => {
+    vi.mocked(prisma.league.updateMany).mockClear();
+
+    await finalizeLeagueWeek('league1', 3, 2026);
+
+    expect(prisma.league.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'league1', currentWeek: { lt: 4 } },
+        data: { currentWeek: 4 },
+      }),
+    );
+  });
+
   it('playoff dead tie falls back to the higher seed and skips team stat updates', async () => {
     vi.mocked(prisma.team.update).mockClear();
     vi.mocked(prisma.matchup.updateMany).mockResolvedValueOnce({ count: 1 } as never);
