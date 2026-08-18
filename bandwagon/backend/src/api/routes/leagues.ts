@@ -685,6 +685,14 @@ router.get('/:id/matchups/week/:week', requireAuth, async (req: AuthRequest, res
     });
     if (!myTeam) { res.status(403).json({ error: 'Not a member' }); return; }
 
+    // Optional ?scoresFromWeek=N scores both rosters against a different league
+    // week than the one the matchup belongs to. The Monday adjustment view uses
+    // it to show last week's points beside TODAY's rosters for BOTH teams —
+    // /matchups/previous only covers the previous opponent, so the new week's
+    // opponent column rendered as all dashes.
+    const scoresFromWeekRaw = parseInt(req.query.scoresFromWeek as string, 10);
+    const scoresWeek = !isNaN(scoresFromWeekRaw) && scoresFromWeekRaw >= 1 ? scoresFromWeekRaw : week;
+
     const matchup = await readSnapshot((tx) => tx.matchup.findFirst({
       where: {
         leagueId: req.params.id,
@@ -700,7 +708,7 @@ router.get('/:id/matchups/week/:week', requireAuth, async (req: AuthRequest, res
                 artist: {
                   include: {
                     weeklyScores: {
-                      where: { weekDate: weekDateForLeagueWeek(league, week) },
+                      where: { weekDate: weekDateForLeagueWeek(league, scoresWeek) },
                     },
                   },
                 },
@@ -716,7 +724,7 @@ router.get('/:id/matchups/week/:week', requireAuth, async (req: AuthRequest, res
                 artist: {
                   include: {
                     weeklyScores: {
-                      where: { weekDate: weekDateForLeagueWeek(league, week) },
+                      where: { weekDate: weekDateForLeagueWeek(league, scoresWeek) },
                     },
                   },
                 },
@@ -875,6 +883,11 @@ router.get('/:id/matchups/:matchupId', requireAuth, async (req: AuthRequest, res
     });
     if (!base) { res.status(404).json({ error: 'Matchup not found' }); return; }
 
+    // Same ?scoresFromWeek=N escape hatch as /matchups/week/:week — the Monday
+    // adjustment view scores today's rosters against last week for reference.
+    const scoresFromWeekRaw = parseInt(req.query.scoresFromWeek as string, 10);
+    const scoresWeek = !isNaN(scoresFromWeekRaw) && scoresFromWeekRaw >= 1 ? scoresFromWeekRaw : base.week;
+
     const rosterInclude = {
       user: { select: { username: true, avatarUrl: true } },
       rosterSpots: {
@@ -882,7 +895,7 @@ router.get('/:id/matchups/:matchupId', requireAuth, async (req: AuthRequest, res
           artist: {
             include: {
               weeklyScores: {
-                where: { weekDate: weekDateForLeagueWeek(league, base.week) },
+                where: { weekDate: weekDateForLeagueWeek(league, scoresWeek) },
               },
             },
           },
