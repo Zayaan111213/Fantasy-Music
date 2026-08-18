@@ -58,7 +58,7 @@ export function LeagueHubScreen() {
     isPreDraftPhase ? { id: 'overview', label: 'Overview', Icon: Sparkles } : { id: 'myteam', label: 'My Team', Icon: User },
     { id: 'matchup', label: 'Matchup', Icon: Swords },
     { id: 'standings', label: 'Standings', Icon: Trophy },
-    { id: 'players', label: 'Players', Icon: Users },
+    { id: 'players', label: 'Artists', Icon: Users },
     { id: 'notifications', label: 'Notifications', Icon: Bell },
     { id: 'settings', label: 'Settings', Icon: Settings },
   ];

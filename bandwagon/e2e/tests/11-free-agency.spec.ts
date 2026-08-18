@@ -23,7 +23,7 @@ test.describe('Free agency while the lineup is adjustable', () => {
     const page = await ctx.newPage();
 
     await page.goto(`/leagues/${fx.leagueId}`);
-    await page.getByRole('button', { name: 'Players' }).click();
+    await page.getByRole('button', { name: 'Artists' }).click();
     await expect(page.getByText('Free Agents Only')).toBeVisible({ timeout: 10_000 });
     await page.getByText('Free Agents Only').click();
 

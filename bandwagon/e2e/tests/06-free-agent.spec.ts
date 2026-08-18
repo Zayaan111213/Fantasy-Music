@@ -15,7 +15,7 @@ test.describe('Waiver claims', () => {
     ]);
   });
 
-  test('waiver claim from the Players tab: queued, then resolved at finalize', async ({ browser: b }) => {
+  test('waiver claim from the Artists tab: queued, then resolved at finalize', async ({ browser: b }) => {
     const ctx = await b.newContext();
     await injectAuth(ctx, fixture.user1.token);
     const page = await ctx.newPage();
@@ -31,8 +31,8 @@ test.describe('Waiver claims', () => {
 
     await page.goto(`/leagues/${fixture.leagueId}`);
 
-    // Navigate to the Players tab
-    await page.getByRole('button', { name: 'Players' }).click();
+    // Navigate to the Artists tab
+    await page.getByRole('button', { name: 'Artists' }).click();
     await expect(page.getByText('Free Agents Only')).toBeVisible({ timeout: 10_000 });
 
     // Filter to free agents so we know the first "Claim" button is for an unclaimed artist
@@ -86,7 +86,7 @@ test.describe('Waiver claims', () => {
     await apiPost('', '/api/test/finalize-week', { leagueId: fixture.leagueId });
 
     await page.reload();
-    await page.getByRole('button', { name: 'Players' }).click();
+    await page.getByRole('button', { name: 'Artists' }).click();
     await expect(page.getByText('Free Agents Only')).toBeVisible({ timeout: 10_000 });
     await page.getByText('Free Agents Only').click();
 

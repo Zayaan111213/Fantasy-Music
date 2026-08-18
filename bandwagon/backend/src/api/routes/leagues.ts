@@ -736,7 +736,13 @@ router.get('/:id/matchups/week/:week', requireAuth, async (req: AuthRequest, res
     }));
 
     if (!matchup) { res.json(null); return; }
-    res.json(await applyLineupSnapshot(matchup, league));
+    // A reference week means the caller is rendering the Monday view, where the
+    // lineup is editable again and the LIVE roster is the lineup of record. The
+    // snapshot is a frozen record of the week that just played, and it carries
+    // its own weeklyScores include keyed to the matchup's week — overlaying it
+    // here would both contradict My Team's roster and silently discard the
+    // reference scores that were just loaded.
+    res.json(scoresWeek === week ? await applyLineupSnapshot(matchup, league) : matchup);
   } catch (err) {
     next(err);
   }
@@ -906,7 +912,9 @@ router.get('/:id/matchups/:matchupId', requireAuth, async (req: AuthRequest, res
       where: { id: base.id },
       include: { homeTeam: { include: rosterInclude }, awayTeam: { include: rosterInclude } },
     }));
-    res.json(matchup ? await applyLineupSnapshot(matchup, league) : null);
+    // Same reasoning as /matchups/week/:week — a reference week means the live
+    // roster is the lineup of record, not the frozen snapshot.
+    res.json(matchup ? (scoresWeek === base.week ? await applyLineupSnapshot(matchup, league) : matchup) : null);
   } catch (err) {
     next(err);
   }

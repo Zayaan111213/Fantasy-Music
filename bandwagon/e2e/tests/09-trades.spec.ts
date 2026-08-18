@@ -33,13 +33,13 @@ test.describe('Trades', () => {
     await teardownLeague(fx.leagueId, [fx.user1.id, fx.user2.id, fx.user3.id, fx.user4.id]);
   });
 
-  test('players-tab icon and artist profile both open the pre-targeted trade page', async ({ browser }) => {
+  test('artists-tab icon and artist profile both open the pre-targeted trade page', async ({ browser }) => {
     const ctx = await browser.newContext();
     await injectAuth(ctx, fx.user1.token);
     const page = await ctx.newPage();
 
     await page.goto(`/leagues/${fx.leagueId}`);
-    await page.getByRole('button', { name: 'Players' }).click();
+    await page.getByRole('button', { name: 'Artists' }).click();
     await expect(page.getByText('Free Agents Only')).toBeVisible({ timeout: 10_000 });
 
     // Icon appears only on artists rostered by other teams; it navigates to
@@ -56,7 +56,7 @@ test.describe('Trades', () => {
     await expect(page.getByText('You receive (1)')).toBeVisible({ timeout: 10_000 });
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     // Cancel goes back through history, and the hub tab lives in the URL —
-    // so we land back on the Players tab we came from, not My Team.
+    // so we land back on the Artists tab we came from, not My Team.
     await expect(page).toHaveURL(/tab=players/);
     await expect(page.getByText('Free Agents Only')).toBeVisible({ timeout: 10_000 });
 
