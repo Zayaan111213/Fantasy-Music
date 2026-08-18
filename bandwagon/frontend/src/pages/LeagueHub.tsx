@@ -319,28 +319,34 @@ function H2HArtistCell({ spot, right = false, leagueId }: { spot: RosterSpot; ri
   );
 }
 
-function h2hScoreOf(spot: RosterSpot, prevScoreMap?: Record<string, number>): number | null {
-  if (prevScoreMap) return spot.artistId ? prevScoreMap[spot.artistId] ?? null : null;
+function h2hScoreOf(spot: RosterSpot): number | null {
   const s = spot.artist?.weeklyScores?.[0];
   return s ? s.totalPoints : null;
 }
 
+// Reference total for the Monday view: starters only, scored against whatever
+// week the matchup query was asked for.
+function startersTotal(spots?: RosterSpot[]): number {
+  return (spots ?? [])
+    .filter((s) => !s.slot.startsWith('Bench'))
+    .reduce((total, s) => total + (s.artist?.weeklyScores?.[0]?.totalPoints ?? 0), 0);
+}
+
 // Head-to-head roster table (vintage matchup mockup): both teams in one card,
 // slot pill in the middle, higher score per row in gold.
-function H2HRoster({ leftTitle, rightTitle, leftRoster, rightRoster, leagueId, prevScoreMap, dimScores = false }: {
+function H2HRoster({ leftTitle, rightTitle, leftRoster, rightRoster, leagueId, dimScores = false }: {
   leftTitle: string;
   rightTitle: string;
   leftRoster: RosterSpot[];
   rightRoster: RosterSpot[];
   leagueId?: string;
-  prevScoreMap?: Record<string, number>;
   dimScores?: boolean;
 }) {
   const renderRow = (slot: string, last: boolean) => {
     const l = getRosterSpot(leftRoster, slot);
     const r = getRosterSpot(rightRoster, slot);
-    const ls = h2hScoreOf(l, prevScoreMap);
-    const rs = h2hScoreOf(r, prevScoreMap);
+    const ls = h2hScoreOf(l);
+    const rs = h2hScoreOf(r);
     const isBench = slot.startsWith('Bench');
     const lHi = !dimScores && !isBench && ls != null && (rs == null || ls > rs);
     const rHi = !dimScores && !isBench && rs != null && (ls == null || rs > ls);
@@ -774,10 +780,12 @@ function MyTeamTab({ leagueId, league, phase }: { leagueId: string; league: Leag
 
 // Expanded body of an around-the-league row: both full rosters with that
 // week's per-artist scores, fetched on demand when the row is opened.
-function MatchupDetailPanel({ leagueId, matchupId }: { leagueId: string; matchupId: string }) {
+function MatchupDetailPanel({ leagueId, matchupId, referenceWeek }: { leagueId: string; matchupId: string; referenceWeek?: number | null }) {
   const { data, isLoading } = useQuery({
-    queryKey: ['matchupDetail', leagueId, matchupId],
-    queryFn: () => api.get<Matchup>(`/leagues/${leagueId}/matchups/${matchupId}`),
+    queryKey: ['matchupDetail', leagueId, matchupId, referenceWeek ?? null],
+    queryFn: () => api.get<Matchup>(
+      `/leagues/${leagueId}/matchups/${matchupId}${referenceWeek ? `?scoresFromWeek=${referenceWeek}` : ''}`,
+    ),
   });
 
   if (isLoading) return <div className="flex justify-center py-4"><Spinner className="w-5 h-5" /></div>;
@@ -791,6 +799,7 @@ function MatchupDetailPanel({ leagueId, matchupId }: { leagueId: string; matchup
         leftRoster={data.homeTeam?.rosterSpots ?? []}
         rightRoster={data.awayTeam?.rosterSpots ?? []}
         leagueId={leagueId}
+        dimScores={!!referenceWeek}
       />
     </div>
   );
@@ -799,11 +808,15 @@ function MatchupDetailPanel({ leagueId, matchupId }: { leagueId: string; matchup
 // Every matchup in the league for one week — shown under the user's own
 // matchup so any week's full slate (including games you're not in) is visible.
 // Rows expand on click to show both rosters and their artist scores.
-function LeagueMatchupsCard({ leagueId, week, myTeamId, upcoming = false }: {
+// referenceWeek: the Monday view. This week's stored scores are all 0, so the
+// row reads "vs" like an upcoming game, and expanding it shows last week's
+// numbers against today's rosters.
+function LeagueMatchupsCard({ leagueId, week, myTeamId, upcoming = false, referenceWeek }: {
   leagueId: string;
   week: number;
   myTeamId?: string;
   upcoming?: boolean;
+  referenceWeek?: number | null;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const { data } = useQuery({
@@ -832,7 +845,7 @@ function LeagueMatchupsCard({ leagueId, week, myTeamId, upcoming = false }: {
               </div>
               <div className="sm:col-span-4 flex flex-col items-center gap-0.5">
                 <div className="font-serif text-[13px] sm:text-[15px] whitespace-nowrap">
-                  {upcoming ? (
+                  {upcoming || referenceWeek ? (
                     <span className="text-gray-600">vs</span>
                   ) : (
                     <>
@@ -868,7 +881,7 @@ function LeagueMatchupsCard({ leagueId, week, myTeamId, upcoming = false }: {
                   {row}
                 </button>
               )}
-              {open && !upcoming && <MatchupDetailPanel leagueId={leagueId} matchupId={m.id} />}
+              {open && !upcoming && <MatchupDetailPanel leagueId={leagueId} matchupId={m.id} referenceWeek={referenceWeek} />}
             </div>
           );
         })}
@@ -888,9 +901,17 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
   const isPastWeek = viewWeek < league.currentWeek || phase === 'complete';
   const isFutureWeek = viewWeek > league.currentWeek && phase !== 'complete';
 
+  // On Monday the new week hasn't been played yet, so both rosters are scored
+  // against last week as a reference. /matchups/previous only knows about last
+  // week's opponent — the new opponent's column came back all dashes — so the
+  // reference week is asked for on the current-week matchup itself.
+  const referenceWeek = isCurrentWeek && phase === 'adjustment' && league.currentWeek > 1 ? league.currentWeek - 1 : null;
+
   const { data: matchup, isLoading } = useQuery({
-    queryKey: ['matchup', leagueId, 'week', viewWeek],
-    queryFn: () => api.get<Matchup | null>(`/leagues/${leagueId}/matchups/week/${viewWeek}`),
+    queryKey: ['matchup', leagueId, 'week', viewWeek, referenceWeek],
+    queryFn: () => api.get<Matchup | null>(
+      `/leagues/${leagueId}/matchups/week/${viewWeek}${referenceWeek ? `?scoresFromWeek=${referenceWeek}` : ''}`,
+    ),
     enabled: phase !== 'pre_season',
   });
 
@@ -1013,17 +1034,6 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
   const iWon = matchup.isFinalized && matchup.winnerId === myTeamId;
   const iLost = matchup.isFinalized && matchup.winnerId != null && matchup.winnerId !== myTeamId;
 
-  // Build map: artistId → prev week totalPoints (from both rosters in previous matchup)
-  const prevScoreMap: Record<string, number> = {};
-  if (prevMatchup) {
-    for (const spot of [...(prevMatchup.homeTeam?.rosterSpots ?? []), ...(prevMatchup.awayTeam?.rosterSpots ?? [])]) {
-      if (spot.artistId && spot.artist?.weeklyScores?.[0] != null) {
-        prevScoreMap[spot.artistId] = spot.artist.weeklyScores[0].totalPoints;
-      }
-    }
-  }
-  const hasPrevScores = Object.keys(prevScoreMap).length > 0;
-
   // Previous week result info for popup
   const prevIsHome = prevMatchup?.homeTeam?.userId === user?.id;
   const prevMyTeamId = prevIsHome ? prevMatchup?.homeTeamId : prevMatchup?.awayTeamId;
@@ -1143,8 +1153,15 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
           Lineup open · adjust on My Team before Tuesday
         </div>
 
-        {/* H2H header — scores are 0, week hasn't started */}
-        <MatchupHeader my={myTeamData} opp={oppTeamData} myScore={myScore} oppScore={oppScore} showScores dim>
+        {/* H2H header — this week hasn't started; totals are last week's, off today's lineups */}
+        <MatchupHeader
+          my={myTeamData}
+          opp={oppTeamData}
+          myScore={referenceWeek ? startersTotal(myTeamData?.rosterSpots) : 0}
+          oppScore={referenceWeek ? startersTotal(oppTeamData?.rosterSpots) : 0}
+          showScores={!!referenceWeek}
+          dim
+        >
           <span>Week {league.currentWeek} · starts Tuesday</span>
           <PlayoffTag matchupType={matchup.matchupType} />
         </MatchupHeader>
@@ -1156,13 +1173,12 @@ function MatchupTab({ leagueId, league, phase }: { leagueId: string; league: Lea
           leftRoster={myTeamData?.rosterSpots ?? []}
           rightRoster={oppTeamData?.rosterSpots ?? []}
           leagueId={leagueId}
-          prevScoreMap={hasPrevScores ? prevScoreMap : undefined}
           dimScores
         />
-        {hasPrevScores && (
-          <p className="text-xs text-center text-gray-600">Scores shown are from Week {league.currentWeek - 1}</p>
+        {!!referenceWeek && (
+          <p className="text-xs text-center text-gray-600">Scores shown are from Week {referenceWeek} · this week's lineup</p>
         )}
-        <LeagueMatchupsCard leagueId={leagueId} week={league.currentWeek} myTeamId={myTeamId} />
+        <LeagueMatchupsCard leagueId={leagueId} week={league.currentWeek} myTeamId={myTeamId} referenceWeek={referenceWeek} />
       </div>
     );
   }

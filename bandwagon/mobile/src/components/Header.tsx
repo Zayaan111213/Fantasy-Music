@@ -49,7 +49,9 @@ export function Header({ showBack = true, title, actions, showWordmark = false, 
 
       {actions}
 
-      <Pressable onPress={() => navigation.navigate('AccountSettings')} className="flex-row items-center gap-2">
+      {/* AccountSettings is a tab inside MainTabs, not a root-stack screen —
+          navigating to the bare name is a silent no-op. */}
+      <Pressable onPress={() => navigation.navigate('Main', { screen: 'Account' })} hitSlop={8} className="flex-row items-center gap-2">
         <Avatar src={user?.avatarUrl} name={user?.username ?? '?'} size="sm" />
       </Pressable>
       <Button variant="ghost" size="sm" onPress={() => logout()}>

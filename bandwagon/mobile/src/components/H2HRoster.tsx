@@ -22,26 +22,24 @@ function H2HArtistCell({ spot, right = false, leagueId }: { spot: RosterSpot; ri
   );
 }
 
-function h2hScoreOf(spot: RosterSpot, prevScoreMap?: Record<string, number>): number | null {
-  if (prevScoreMap) return spot.artistId ? prevScoreMap[spot.artistId] ?? null : null;
+function h2hScoreOf(spot: RosterSpot): number | null {
   const s = spot.artist?.weeklyScores?.[0];
   return s ? s.totalPoints : null;
 }
 
-export function H2HRoster({ leftTitle, rightTitle, leftRoster, rightRoster, leagueId, prevScoreMap, dimScores = false }: {
+export function H2HRoster({ leftTitle, rightTitle, leftRoster, rightRoster, leagueId, dimScores = false }: {
   leftTitle: string;
   rightTitle: string;
   leftRoster: RosterSpot[];
   rightRoster: RosterSpot[];
   leagueId?: string;
-  prevScoreMap?: Record<string, number>;
   dimScores?: boolean;
 }) {
   function renderRow(slot: string, last: boolean) {
     const l = getRosterSpot(leftRoster, slot);
     const r = getRosterSpot(rightRoster, slot);
-    const ls = h2hScoreOf(l, prevScoreMap);
-    const rs = h2hScoreOf(r, prevScoreMap);
+    const ls = h2hScoreOf(l);
+    const rs = h2hScoreOf(r);
     const isBench = slot.startsWith('Bench');
     const lHi = !dimScores && !isBench && ls != null && (rs == null || ls > rs);
     const rHi = !dimScores && !isBench && rs != null && (ls == null || rs > ls);

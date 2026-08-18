@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { View, Text, Pressable, TextInput, Modal, ScrollView } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Search, X, Check, Plus, ArrowLeftRight } from 'lucide-react-native';
 import { api } from '../../api/client';
@@ -40,6 +41,7 @@ export function PlayersTab({ leagueId, league, onProposeTrade }: {
   league: League;
   onProposeTrade?: (teamId: string, artistId: string) => void;
 }) {
+  const navigation = useNavigation<any>();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [genre, setGenre] = useState('');
@@ -198,26 +200,32 @@ export function PlayersTab({ leagueId, league, onProposeTrade }: {
       ) : (
         <Card>
           <View className="p-3 border-b border-white/10 flex-row items-center">
-            <View className="flex-1"><SortHeader label="Artist" field="name" sort={sort} onSort={handleSort} /></View>
-            <View className="w-14 items-end"><SortHeader label="Last" field="last" sort={sort} onSort={handleSort} align="right" /></View>
-            <View className="w-14 items-end"><SortHeader label="5W" field="avg" sort={sort} onSort={handleSort} align="right" /></View>
-            <View className="w-20" />
+            <View className="flex-1 min-w-0"><SortHeader label="Artist" field="name" sort={sort} onSort={handleSort} /></View>
+            <View className="w-12 items-end"><SortHeader label="Last" field="last" sort={sort} onSort={handleSort} align="right" /></View>
+            <View className="w-12 items-end"><SortHeader label="5W" field="avg" sort={sort} onSort={handleSort} align="right" /></View>
+            <View className="w-[92px]" />
           </View>
           {sorted.map((artist) => (
             <View key={artist.id} className="p-3 border-b border-white/5 last:border-0 flex-row items-center gap-2">
-              <View className="flex-1 flex-row items-center gap-2 min-w-0">
+              <Pressable
+                onPress={() => navigation.navigate('ArtistDetail', { artistId: artist.id, leagueId })}
+                className="flex-1 flex-row items-center gap-2 min-w-0"
+              >
                 <Avatar src={artist.imageUrl} name={artist.name} size="sm" />
-                <View className="min-w-0">
+                <View className="flex-1 min-w-0">
                   <Text className="text-sm font-medium text-white" numberOfLines={1}>{artist.name}</Text>
-                  <Badge genre={artist.primaryGenre} className="mt-0.5">{genreLabel(artist.primaryGenre)}</Badge>
+                  <View className="flex-row"><Badge genre={artist.primaryGenre} className="mt-0.5">{genreLabel(artist.primaryGenre)}</Badge></View>
                 </View>
-              </View>
-              <Text className="w-14 text-right font-mono text-sm font-semibold text-white">{(artist.lastWeekPoints ?? 0).toFixed(1)}</Text>
-              <Text className="w-14 text-right font-mono text-sm text-gray-300">{(artist.avgLast5Points ?? 0).toFixed(1)}</Text>
-              <View className="w-20 items-end">
+              </Pressable>
+              <Text className="w-12 text-right font-mono text-sm font-semibold text-white">{(artist.lastWeekPoints ?? 0).toFixed(1)}</Text>
+              <Text className="w-12 text-right font-mono text-sm text-gray-300">{(artist.avgLast5Points ?? 0).toFixed(1)}</Text>
+              {/* Fixed width + shrinkable children: without flex-shrink on the
+                  owner name RN lets it size to content and spill left over the
+                  5W column. */}
+              <View className="w-[92px] items-end">
                 {artist.rosteredBy ? (
-                  <View className="flex-row items-center gap-1.5">
-                    <Text className="text-xs text-gray-500" numberOfLines={1}>@{artist.rosteredBy.name}</Text>
+                  <View className="flex-row items-center gap-1.5 w-full justify-end">
+                    <Text className="shrink text-xs text-gray-500 text-right" numberOfLines={1}>@{artist.rosteredBy.name}</Text>
                     {league.status === 'active' && artist.rosteredBy.id !== myTeam?.id && onProposeTrade && (
                       <Pressable onPress={() => onProposeTrade(artist.rosteredBy!.id, artist.id)} className="p-1 rounded-md bg-indigo-500/10 border border-indigo-500/30">
                         <ArrowLeftRight color="#D9A02C" size={14} />

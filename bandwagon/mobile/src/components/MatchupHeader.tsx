@@ -29,14 +29,14 @@ export function MatchupHeader({ my, opp, myScore, oppScore, showScores, dim = fa
         <View className="flex-row items-center gap-3 flex-1 min-w-0">
           <Avatar src={my?.logoUrl} name={myName} size="md" />
           <View className="min-w-0">
-            <Text className="text-sm font-semibold" numberOfLines={1}>{myName}</Text>
+            <Text className="text-sm font-semibold text-white" numberOfLines={1}>{myName}</Text>
             <Text className="font-serif text-3xl font-bold" style={{ color: scoreColor(iLead) }}>{showScores ? myScore.toFixed(1) : '–'}</Text>
           </View>
         </View>
         <Text className="text-xs font-bold text-gray-500">VS</Text>
         <View className="flex-row items-center gap-3 flex-1 min-w-0 justify-end">
           <View className="min-w-0 items-end">
-            <Text className="text-sm font-semibold" numberOfLines={1}>{oppName}</Text>
+            <Text className="text-sm font-semibold text-white" numberOfLines={1}>{oppName}</Text>
             <Text className="font-serif text-3xl font-bold" style={{ color: scoreColor(oppLead) }}>{showScores ? oppScore.toFixed(1) : '–'}</Text>
           </View>
           <Avatar src={opp?.logoUrl} name={oppName} size="md" />
