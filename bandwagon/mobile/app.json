@@ -2,11 +2,15 @@
   "expo": {
     "name": "Bandwagoner",
     "slug": "bandwagoner",
+    "owner": "bandwagoner",
     "version": "1.0.0",
     "scheme": "bandwagoner",
     "orientation": "portrait",
     "runtimeVersion": {
       "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/e79f1e7e-20fd-41d0-a352-12ca021ddd80"
     },
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -50,6 +54,11 @@
           "backgroundColor": "#140D09"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e79f1e7e-20fd-41d0-a352-12ca021ddd80"
+      }
+    }
   }
 }
