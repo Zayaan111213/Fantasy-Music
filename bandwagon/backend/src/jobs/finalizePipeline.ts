@@ -242,19 +242,25 @@ export async function runFinalizePipeline(options: { force?: boolean } = {}): Pr
       console.log(`[finalize] league ${leagueId} — already finalized on ${todayPT}, skipping`);
       continue;
     }
-    // Week 1 exception: there is no game in the gap between draft completion and the
-    // first scoring Tuesday. Only finalize once the Monday AFTER the first full scoring
-    // week (Tue–Sun) has been reached — i.e. firstScoringTuesday + 6 days.
-    if (week === 1 && draftTime) {
-      const firstTuesdayStr = firstScoringTuesdayPT(draftTime);
-      const firstTuesdayDate = new Date(firstTuesdayStr + 'T12:00:00Z');
-      const firstMonday = new Date(firstTuesdayDate);
-      firstMonday.setUTCDate(firstTuesdayDate.getUTCDate() + 6);
-      const firstMondayStr = firstMonday.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
-      if (todayPT < firstMondayStr) {
+    // A league week may only be settled once its Tue–Sun scoring window has
+    // actually closed, i.e. from the Monday after its chart Tuesday onwards.
+    //
+    // This generalizes what used to be a week-1-only gate. It has to live here
+    // rather than in the caller: runFinalizePipeline is also the CLI entry
+    // point (`npm run pipeline:finalize`), and the Monday-only check exists
+    // only in the in-process scheduler. A daily cron running the CLI therefore
+    // finalized whatever currentWeek happened to be, every single day, marching
+    // a league a week ahead per day until it pointed at chart weeks that hadn't
+    // happened yet (observed in production: a league on week 9 scoring against
+    // 2026-09-01 while the live chart week was 2026-08-18).
+    if (!options.force && draftTime) {
+      const weekTuesday = weekDateForLeagueWeek({ draftTime, currentWeek: week }, week);
+      const settleMonday = new Date(weekTuesday.getTime() + 6 * 24 * 60 * 60 * 1000);
+      const settleMondayStr = settleMonday.toISOString().slice(0, 10);
+      if (todayPT < settleMondayStr) {
         console.log(
-          `[finalize] league ${leagueId} week 1 — first scoring week starts ${firstTuesdayStr},` +
-          ` first finalize on ${firstMondayStr}, skipping (today ${todayPT})`,
+          `[finalize] league ${leagueId} week ${week} — scoring week ${weekTuesday.toISOString().slice(0, 10)}` +
+          ` closes ${settleMondayStr}, skipping (today ${todayPT})`,
         );
         continue;
       }
