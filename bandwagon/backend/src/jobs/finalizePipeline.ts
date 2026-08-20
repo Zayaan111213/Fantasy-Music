@@ -68,9 +68,21 @@ export async function finalizeLeagueWeek(
     // A previous run may have crashed after the isFinalized flip but before the
     // trade/bracket/advance steps — re-run them (all idempotent) so the league
     // can't get stranded mid-boundary.
+    //
+    // advanceSeason MUST run for every week, not just week >= REGULAR_SEASON_WEEKS.
+    // Gating it stranded three production leagues (incident of 2026-08-17): two
+    // finalize runners overlap (the in-process scheduler and the finalize cron
+    // service), one flips isFinalized and then dies in the trade/waiver steps,
+    // the other arrives to count === 0 and returns without ever advancing
+    // currentWeek — and because it returns *successfully* it stamps
+    // lastFinalizedDatePT, so the guard skips every later attempt. The league
+    // then sits on that week forever, re-scoring one fixed chart week while the
+    // charts move on. advanceSeason is monotonic (currentWeek: { lt: week + 1 })
+    // and bracket creation no-ops when next week's matchups exist, so calling it
+    // unconditionally is safe.
     await runTradeFinalizeSteps(leagueId, week);
     await resolveWaivers(leagueId);
-    if (week >= REGULAR_SEASON_WEEKS) await advanceSeason(leagueId, week);
+    await advanceSeason(leagueId, week);
     return;
   }
 
