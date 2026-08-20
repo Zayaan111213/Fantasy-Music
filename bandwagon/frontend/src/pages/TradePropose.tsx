@@ -107,7 +107,7 @@ export function TradePropose() {
     if (!player) {
       setNotice('That artist could not be found in this league.');
     } else if (!player.rosteredBy) {
-      setNotice(`${player.name} is a free agent. Claim them from the Players tab instead of trading.`);
+      setNotice(`${player.name} is a free agent. Claim them from the Artists tab instead of trading.`);
     } else if (player.rosteredBy.id === myTeamId) {
       setGive((prev) => new Set(prev).add(player.id));
     } else {

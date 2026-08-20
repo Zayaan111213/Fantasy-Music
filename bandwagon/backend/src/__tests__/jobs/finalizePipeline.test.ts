@@ -258,6 +258,32 @@ describe('finalizeLeagueWeek', () => {
     expect(resolveWaivers).toHaveBeenCalledWith('league1');
   });
 
+  // Regression for the incident of 2026-08-17: advanceSeason used to be gated
+  // behind `week >= REGULAR_SEASON_WEEKS` on this path, so a regular week that
+  // was flipped to isFinalized by an overlapping runner that then died never
+  // advanced currentWeek. The league sat on that week forever, re-scoring one
+  // fixed chart week while the charts moved on.
+  it('advances currentWeek on the count=0 crash-recovery path for a regular week', async () => {
+    vi.mocked(prisma.league.updateMany).mockClear();
+    vi.mocked(prisma.matchup.findFirst).mockResolvedValueOnce({ id: 'next-week-matchup' } as never);
+    // matchup.updateMany default returns { count: 0 } — the recovery path
+    await finalizeLeagueWeek('league1', 2, 2026);
+
+    expect(prisma.league.updateMany).toHaveBeenCalledWith({
+      where: { id: 'league1', currentWeek: { lt: 3 } },
+      data: { currentWeek: 3 },
+    });
+  });
+
+  it('does not advance on the recovery path when next week has no matchups', async () => {
+    vi.mocked(prisma.league.updateMany).mockClear();
+    vi.mocked(prisma.matchup.findFirst).mockResolvedValueOnce(null as never);
+
+    await finalizeLeagueWeek('league1', 2, 2026);
+
+    expect(prisma.league.updateMany).not.toHaveBeenCalled();
+  });
+
   it('sends league-scoped lineup reminders to every member when the week advances', async () => {
     vi.mocked(prisma.notification.createMany).mockClear();
     vi.mocked(prisma.matchup.updateMany).mockResolvedValueOnce({ count: 1 } as never);

@@ -2362,7 +2362,7 @@ export function LeagueHub() {
       : { id: 'myteam', label: 'My Team', icon: <User className="w-4 h-4" /> },
     { id: 'matchup', label: 'Matchup', icon: <Swords className="w-4 h-4" /> },
     { id: 'standings', label: 'Standings', icon: <Trophy className="w-4 h-4" /> },
-    { id: 'players', label: 'Players', icon: <Users className="w-4 h-4" /> },
+    { id: 'players', label: 'Artists', icon: <Users className="w-4 h-4" /> },
     { id: 'notifications', label: 'Notifications', icon: <Bell className="w-4 h-4" /> },
     { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> },
   ];
