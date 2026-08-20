@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../../db/prisma', () => ({
   prisma: {
@@ -342,6 +342,58 @@ describe('finalizeLeagueWeek', () => {
 // firstScoringTuesdayPT — first Tuesday after the draft
 // All draft times are noon UTC so PT date == UTC date (PDT is UTC-7 in summer).
 // ---------------------------------------------------------------------------
+// A league week may only settle after its Tue–Sun window closes. The gate lives
+// in runFinalizePipeline, not the scheduler, because the CLI entry point is also
+// wired to a daily Railway cron — which used to march a league one week ahead
+// per day until it pointed at chart weeks that had not happened yet.
+// Calendar (2026): Mon=Jun15, Tue=16 … Sun=21, Mon=22, Tue=23 … Sun=28, Mon=29
+describe('runFinalizePipeline week-closed gate', () => {
+  // draft Mon Jun 15 noon PT → week 1 Tuesday Jun 16, week 2 Tuesday Jun 23,
+  // so week 2 may only settle from Mon Jun 29.
+  const league = {
+    id: 'league1',
+    currentWeek: 2,
+    draftTime: new Date('2026-06-15T19:00:00Z'),
+    lastFinalizedDatePT: null,
+  };
+
+  function atPT(dateStr: string) {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(`${dateStr}T19:00:00Z`)); // noon PT
+    vi.mocked(prisma.league.findMany).mockResolvedValueOnce([league] as never);
+    vi.mocked(prisma.league.update).mockClear();
+  }
+
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('skips a week whose Tue–Sun window has not closed yet', async () => {
+    atPT('2026-06-25'); // Thursday of week 2
+    await runFinalizePipeline();
+    expect(prisma.league.update).not.toHaveBeenCalled();
+  });
+
+  it('skips on the Sunday the week ends, before the settle Monday', async () => {
+    atPT('2026-06-28'); // Sunday of week 2
+    await runFinalizePipeline();
+    expect(prisma.league.update).not.toHaveBeenCalled();
+  });
+
+  it('settles on the Monday after the week closes', async () => {
+    atPT('2026-06-29'); // Monday
+    await runFinalizePipeline();
+    expect(prisma.league.update).toHaveBeenCalledWith({
+      where: { id: 'league1' },
+      data: { lastFinalizedDatePT: '2026-06-29' },
+    });
+  });
+
+  it('--force bypasses the gate for a deliberate mid-week re-run', async () => {
+    atPT('2026-06-25');
+    await runFinalizePipeline({ force: true });
+    expect(prisma.league.update).toHaveBeenCalled();
+  });
+});
+
 describe('firstScoringTuesdayPT', () => {
   // Whole week of July 1–7, 2026:  Wed / Thu / Fri / Sat / Sun / Mon all land on July 7;
   // a Tuesday draft skips to the following Tuesday (July 14).
