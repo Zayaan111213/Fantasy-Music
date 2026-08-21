@@ -124,9 +124,11 @@ async function main() {
     { slot: 'Country',            artist: country[idx] },
     { slot: 'Other',              artist: other[idx] },
     { slot: 'Flex',               artist: flex[idx] },
-    { slot: 'Bench 1',            artist: bench[idx * 3] },
-    { slot: 'Bench 2',            artist: bench[idx * 3 + 1] },
-    { slot: 'Bench 3',            artist: bench[idx * 3 + 2] },
+    // Hyphenated to match ALL_BENCH_SLOTS in the web and mobile clients — both
+    // look spots up by exact slot name, so 'Bench 1' rendered an empty bench.
+    { slot: 'Bench-1',            artist: bench[idx * 3] },
+    { slot: 'Bench-2',            artist: bench[idx * 3 + 1] },
+    { slot: 'Bench-3',            artist: bench[idx * 3 + 2] },
   ];
 
   const rosters = Array.from({ length: TEAM_COUNT }, (_, i) => buildRoster(i));
