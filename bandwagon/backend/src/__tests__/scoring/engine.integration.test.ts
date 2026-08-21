@@ -6,6 +6,7 @@ vi.mock('../../db/prisma', () => {
     league: { findUnique: vi.fn() },
     weeklyScore: { findUnique: vi.fn() },
     genreStreamingTier: { findMany: vi.fn() },
+    lineupSnapshot: { findMany: vi.fn() },
   };
   // readSnapshot only pins an isolation level; hand the callback the same mock
   // client so assertions still see the calls on `prisma.*`.
@@ -20,6 +21,7 @@ const pm = prisma as unknown as {
   league: { findUnique: ReturnType<typeof vi.fn> };
   weeklyScore: { findUnique: ReturnType<typeof vi.fn> };
   genreStreamingTier: { findMany: ReturnType<typeof vi.fn> };
+  lineupSnapshot: { findMany: ReturnType<typeof vi.fn> };
 };
 
 // ScoringConfig with custom chart position: rank 1 = 100 pts (default is 25)
@@ -46,8 +48,8 @@ function rosterSpot(artistId: string, genre: string) {
 function matchupFixture(homeSpots: ReturnType<typeof rosterSpot>[], awaySpots: ReturnType<typeof rosterSpot>[]) {
   return {
     id: 'matchup-1',
-    homeTeam: { rosterSpots: homeSpots },
-    awayTeam: { rosterSpots: awaySpots },
+    homeTeam: { id: 'home-1', rosterSpots: homeSpots },
+    awayTeam: { id: 'away-1', rosterSpots: awaySpots },
   };
 }
 
@@ -64,6 +66,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   pm.matchup.update.mockResolvedValue({});
   pm.genreStreamingTier.findMany.mockResolvedValue([GENRE_TIER]);
+  // No frozen lineup by default, so scoring reads the live roster spots.
+  pm.lineupSnapshot.findMany.mockResolvedValue([]);
 });
 
 describe('updateMatchupScores — custom scoring', () => {
@@ -94,6 +98,70 @@ describe('updateMatchupScores — custom scoring', () => {
     // No custom config → use ws.totalPoints = 32
     expect(pm.matchup.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ homeScore: 32, awayScore: 0 }) })
+    );
+  });
+
+  it('scores the frozen lineup, not the live roster, when the week has a snapshot', async () => {
+    // The live roster holds an artist acquired after the fact; the snapshot
+    // holds the one that actually started that week.
+    pm.matchup.findMany.mockResolvedValue([
+      matchupFixture([rosterSpot('acquired-later', 'Pop')], []),
+    ]);
+    pm.lineupSnapshot.findMany.mockResolvedValue([
+      { teamId: 'home-1', artistId: 'started-that-week', artist: { primaryGenre: 'Pop' } },
+    ]);
+    pm.league.findUnique.mockResolvedValue({ scoringConfig: null });
+    pm.weeklyScore.findUnique.mockResolvedValue(WS_RANK1);
+
+    await updateMatchupScores('league-1', 2, 2026);
+
+    expect(pm.weeklyScore.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { artistId_weekDate: { artistId: 'started-that-week', weekDate: 2026 } } })
+    );
+    expect(pm.weeklyScore.findUnique).not.toHaveBeenCalledWith(
+      expect.objectContaining({ where: { artistId_weekDate: { artistId: 'acquired-later', weekDate: 2026 } } })
+    );
+  });
+
+  it('falls back to the live roster for a team the snapshot does not cover', async () => {
+    pm.matchup.findMany.mockResolvedValue([
+      matchupFixture([rosterSpot('home-artist', 'Pop')], [rosterSpot('away-artist', 'Pop')]),
+    ]);
+    // Only the home team was frozen — a week captured before the away team existed.
+    pm.lineupSnapshot.findMany.mockResolvedValue([
+      { teamId: 'home-1', artistId: 'home-frozen', artist: { primaryGenre: 'Pop' } },
+    ]);
+    pm.league.findUnique.mockResolvedValue({ scoringConfig: null });
+    pm.weeklyScore.findUnique.mockResolvedValue(WS_RANK1);
+
+    await updateMatchupScores('league-1', 2, 2026);
+
+    const looked = pm.weeklyScore.findUnique.mock.calls.map((c) => c[0].where.artistId_weekDate.artistId);
+    expect(looked).toContain('home-frozen');
+    expect(looked).toContain('away-artist');
+    expect(looked).not.toContain('home-artist');
+  });
+
+  it('leaves a finalized week alone — a settled game is never rescored', async () => {
+    pm.matchup.findMany.mockResolvedValue([]);
+    pm.league.findUnique.mockResolvedValue({ scoringConfig: null });
+
+    await updateMatchupScores('league-1', 2, 2026);
+
+    expect(pm.matchup.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { leagueId: 'league-1', week: 2, isFinalized: false } })
+    );
+    expect(pm.matchup.update).not.toHaveBeenCalled();
+  });
+
+  it('includeFinalized lets repair tooling rebuild a settled week', async () => {
+    pm.matchup.findMany.mockResolvedValue([]);
+    pm.league.findUnique.mockResolvedValue({ scoringConfig: null });
+
+    await updateMatchupScores('league-1', 2, 2026, { includeFinalized: true });
+
+    expect(pm.matchup.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { leagueId: 'league-1', week: 2 } })
     );
   });
 

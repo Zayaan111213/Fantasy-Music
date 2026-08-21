@@ -23,14 +23,34 @@ async function snapshotIfLocked(leagueId: string, week: number, draftTime: Date 
   if (count > 0) console.log(`[daily] league ${leagueId} — froze ${count} lineup spots for week ${week}`);
 }
 
-export async function runDailyPipeline(): Promise<void> {
-  const weekDate = getCurrentWeekDate();
-  console.log(`[daily] week of ${weekDate.toISOString().slice(0, 10)}`);
+// True on Mondays (PT), the one day the pipeline runs outside the chart week
+// getCurrentWeekDate() names: the Tue–Sun window closed at Sunday 23:59 and
+// finalize has already frozen that week's matchup scores.
+export function isChartWeekClosed(now: Date = new Date()): boolean {
+  return now.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/Los_Angeles' }) === 'Monday';
+}
 
-  console.log('[daily] 1/4 chart ingest');
-  const [songs, albums] = await Promise.all([fetchFeed(SONGS_URL), fetchFeed(ALBUMS_URL)]);
-  await ingestSongsFromFeed(songs, weekDate);
-  await ingestAlbumsFromFeed(albums, weekDate);
+// opts.ingest forces the chart ingest + rescore on or off; by default it is on
+// except for the closed week described above. A manual CLI run can override it
+// with --ingest.
+export async function runDailyPipeline(opts: { ingest?: boolean } = {}): Promise<void> {
+  const weekDate = getCurrentWeekDate();
+  // Re-ingesting a closed week rewrites the very WeeklyScore rows the matchup
+  // page prints under a final score that was computed from their older values,
+  // which is how a finished game ended up showing a box score that added up to
+  // 132 beneath a 104 header. A week's chart data is whatever its last in-window
+  // run (Sunday) saw — the same data the final score was built from.
+  const ingest = opts.ingest ?? !isChartWeekClosed();
+  console.log(`[daily] week of ${weekDate.toISOString().slice(0, 10)}${ingest ? '' : ' (closed — ingest skipped)'}`);
+
+  if (ingest) {
+    console.log('[daily] 1/4 chart ingest');
+    const [songs, albums] = await Promise.all([fetchFeed(SONGS_URL), fetchFeed(ALBUMS_URL)]);
+    await ingestSongsFromFeed(songs, weekDate);
+    await ingestAlbumsFromFeed(albums, weekDate);
+  } else {
+    console.log('[daily] 1/4 chart ingest — skipped, that chart week is already final');
+  }
 
   console.log('[daily] 2/4 genre enrichment');
   await runBackfill();
@@ -45,8 +65,9 @@ export async function runDailyPipeline(): Promise<void> {
   });
 
   if (leagues.length) {
-    // Scores are keyed by calendar chart week, shared by every league.
-    await scoreAllArtistsForWeek(weekDate);
+    // Scores are keyed by calendar chart week, shared by every league. Skipped
+    // for a closed week for the same reason the ingest above is.
+    if (ingest) await scoreAllArtistsForWeek(weekDate);
     await Promise.all(
       leagues.map(({ id, currentWeek: week, draftTime }) => {
         // The league's own week date, NOT the global chart week. On Mondays
@@ -74,7 +95,7 @@ export async function runDailyPipeline(): Promise<void> {
 }
 
 if (require.main === module) {
-  runDailyPipeline()
+  runDailyPipeline(process.argv.includes('--ingest') ? { ingest: true } : {})
     .catch((err) => { console.error('[daily] fatal:', err); process.exit(1); })
     .finally(() => prisma.$disconnect());
 }

@@ -225,6 +225,13 @@ export function applyCustomScoringToWeeklyScore(
 // Matchup score rollup (reads WeeklyScore → writes Matchup.homeScore/awayScore)
 // ---------------------------------------------------------------------------
 
+// One starting-lineup row, whether it came from the live roster or from the
+// week's frozen LineupSnapshot — the two are scored identically.
+interface LineupRow {
+  artistId: string | null;
+  artist: { primaryGenre: string } | null;
+}
+
 const rosterInclude = {
   rosterSpots: {
     where: { slot: { not: { startsWith: 'Bench' } } },
@@ -234,21 +241,55 @@ const rosterInclude = {
 
 // week identifies the league's matchups; weekDate identifies the calendar
 // chart week whose WeeklyScore rows feed the totals.
-export async function updateMatchupScores(leagueId: string, week: number, weekDate: Date): Promise<void> {
-  // One snapshot for both reads. A pipeline run can be long, so a league
+//
+// Two rules keep a past matchup's score equal to the lineup the matchup page
+// renders for that same week:
+//
+//  1. A finalized week is history and is never rescored. Without this, a roster
+//     change made days later silently rewrote a game that had already been
+//     played — a team that won a waiver in week 3 had its week-2 score
+//     recomputed off the new roster and the box score stopped adding up to the
+//     final (Zaki S-R League week 2 read 124 against a lineup summing to 69).
+//     Repair tooling that deliberately rebuilds settled weeks passes
+//     `includeFinalized`.
+//  2. While the week is still open, the totals come from that week's
+//     LineupSnapshot when one exists — the same frozen rows applyLineupSnapshot()
+//     serves to the matchup routes — so the header and the box score are driven
+//     by one set of rows. Weeks that predate snapshotting fall back to the live
+//     roster, exactly as before.
+export async function updateMatchupScores(
+  leagueId: string,
+  week: number,
+  weekDate: Date,
+  opts: { includeFinalized?: boolean } = {},
+): Promise<void> {
+  // One snapshot for all reads. A pipeline run can be long, so a league
   // deleted partway through would otherwise strand these matchups' required
   // team relations between Prisma's separate include queries.
-  const [matchups, leagueRow] = await readSnapshot((tx) => Promise.all([
+  const [matchups, leagueRow, frozenStarters] = await readSnapshot((tx) => Promise.all([
     tx.matchup.findMany({
-      where: { leagueId, week },
+      where: { leagueId, week, ...(opts.includeFinalized ? {} : { isFinalized: false }) },
       include: {
         homeTeam: { include: rosterInclude },
         awayTeam: { include: rosterInclude },
       },
     }),
     tx.league.findUnique({ where: { id: leagueId }, select: { scoringConfig: true } }),
+    tx.lineupSnapshot.findMany({
+      where: { leagueId, week, slot: { not: { startsWith: 'Bench' } } },
+      select: { teamId: true, artistId: true, artist: { select: { primaryGenre: true } } },
+    }),
   ]));
   if (!matchups.length) return;
+
+  const startersByTeam = new Map<string, LineupRow[]>();
+  for (const row of frozenStarters ?? []) {
+    const list = startersByTeam.get(row.teamId) ?? [];
+    list.push({ artistId: row.artistId, artist: row.artist });
+    startersByTeam.set(row.teamId, list);
+  }
+  const lineupOf = (team: { id: string; rosterSpots: LineupRow[] }): LineupRow[] =>
+    startersByTeam.get(team.id) ?? team.rosterSpots;
 
   const cfg = ScoringConfigSchema.safeParse(leagueRow?.scoringConfig).data ?? null;
   const genreTierCache = new Map<string, Awaited<ReturnType<typeof prisma.genreStreamingTier.findMany>>>();
@@ -269,7 +310,7 @@ export async function updateMatchupScores(leagueId: string, week: number, weekDa
     return applyCustomScoringToWeeklyScore(ws, g, genreTierCache.get(g)!, cfg).totalPoints;
   }
 
-  async function teamScore(spots: { artistId: string | null; artist: { primaryGenre: string } | null }[]): Promise<number> {
+  async function teamScore(spots: LineupRow[]): Promise<number> {
     let total = 0;
     for (const spot of spots) total += await spotScore(spot.artistId, spot.artist?.primaryGenre ?? null);
     return total;
@@ -278,8 +319,8 @@ export async function updateMatchupScores(leagueId: string, week: number, weekDa
   await Promise.all(
     matchups.map(async (matchup) => {
       const [homeScore, awayScore] = await Promise.all([
-        teamScore(matchup.homeTeam.rosterSpots),
-        teamScore(matchup.awayTeam.rosterSpots),
+        teamScore(lineupOf(matchup.homeTeam)),
+        teamScore(lineupOf(matchup.awayTeam)),
       ]);
       await prisma.matchup.update({ where: { id: matchup.id }, data: { homeScore, awayScore } });
     })

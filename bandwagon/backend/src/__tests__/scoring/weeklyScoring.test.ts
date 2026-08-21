@@ -24,6 +24,8 @@ vi.mock('../../db/prisma', () => {
     notification: { createMany: vi.fn() },
     leagueEvent:  { create: vi.fn() },
     rosterSpot:  { findMany: vi.fn().mockResolvedValue([]) },
+    // No frozen lineup in this scenario, so scoring reads the live roster.
+    lineupSnapshot: { findMany: vi.fn().mockResolvedValue([]), createMany: vi.fn().mockResolvedValue({ count: 0 }) },
     trade:       { findMany: vi.fn().mockResolvedValue([]), updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
     waiverClaim: { findMany: vi.fn().mockResolvedValue([]) },
     tradeItem:   { findMany: vi.fn().mockResolvedValue([]) },
