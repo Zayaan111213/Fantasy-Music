@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock('../../db/prisma', () => ({
   prisma: {
     rosterSpot:  { findMany: vi.fn() },
-    lineupSnapshot: { createMany: vi.fn() },
+    lineupSnapshot: { createMany: vi.fn(), findMany: vi.fn() },
     trade:       { findMany: vi.fn().mockResolvedValue([]), updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
     tradeItem:   { findMany: vi.fn().mockResolvedValue([]) },
     weeklyScore: { findUnique: vi.fn() },
@@ -55,6 +55,8 @@ beforeEach(() => {
   // for the bestArtistScore lookups that follow it.
   vi.mocked(prisma.rosterSpot.findMany).mockResolvedValue([] as never);
   vi.mocked(prisma.lineupSnapshot.createMany).mockResolvedValue({ count: 0 } as never);
+  // No frozen lineup by default, so the tiebreaker falls back to the live roster.
+  vi.mocked(prisma.lineupSnapshot.findMany).mockResolvedValue([] as never);
 });
 
 describe('resolveWinner', () => {

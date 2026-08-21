@@ -13,11 +13,33 @@ import { runTradeFinalizeSteps } from '../trades/engine';
 import { resolveWaivers } from '../waivers/engine';
 import { logLeagueEvent } from '../events/leagueEvents';
 
-export async function bestArtistScore(teamId: string, weekDate: Date): Promise<number> {
-  const spots = await prisma.rosterSpot.findMany({
-    where: { teamId, slot: { not: { startsWith: 'Bench' } }, artistId: { not: null } },
-    select: { artistId: true },
-  });
+// `frozen` names the league week whose LineupSnapshot holds the starters that
+// actually played. Passing it keeps the tiebreaker reading the same rows the
+// matchup page shows; without a snapshot (weeks that predate the feature) it
+// falls back to the live roster, as it always did.
+export async function bestArtistScore(
+  teamId: string,
+  weekDate: Date,
+  frozen?: { leagueId: string; week: number },
+): Promise<number> {
+  const snapshot = frozen
+    ? await prisma.lineupSnapshot.findMany({
+        where: {
+          leagueId: frozen.leagueId,
+          teamId,
+          week: frozen.week,
+          slot: { not: { startsWith: 'Bench' } },
+          artistId: { not: null },
+        },
+        select: { artistId: true },
+      })
+    : [];
+  const spots = snapshot.length
+    ? snapshot
+    : await prisma.rosterSpot.findMany({
+        where: { teamId, slot: { not: { startsWith: 'Bench' } }, artistId: { not: null } },
+        select: { artistId: true },
+      });
   const scores = await Promise.all(
     spots.map(({ artistId }) =>
       prisma.weeklyScore.findUnique({
@@ -35,14 +57,15 @@ export async function resolveWinner(
   homeScore: number,
   awayScore: number,
   weekDate: Date,
+  frozen?: { leagueId: string; week: number },
 ): Promise<string | null> {
   if (homeScore !== awayScore) {
     return homeScore > awayScore ? homeTeamId : awayTeamId;
   }
   // Tiebreaker: highest single artist score among starters
   const [homeBest, awayBest] = await Promise.all([
-    bestArtistScore(homeTeamId, weekDate),
-    bestArtistScore(awayTeamId, weekDate),
+    bestArtistScore(homeTeamId, weekDate, frozen),
+    bestArtistScore(awayTeamId, weekDate, frozen),
   ]);
   if (homeBest !== awayBest) return homeBest > awayBest ? homeTeamId : awayTeamId;
   return null; // true tie
@@ -102,7 +125,7 @@ export async function finalizeLeagueWeek(
   const matchups = await prisma.matchup.findMany({ where: { leagueId, week } });
   for (const m of matchups) {
     let winnerId = await resolveWinner(
-      m.homeTeamId, m.awayTeamId, m.homeScore, m.awayScore, weekDate,
+      m.homeTeamId, m.awayTeamId, m.homeScore, m.awayScore, weekDate, { leagueId, week },
     );
     // Playoff games can't end in a tie: the better (lower-number) seed advances.
     if (winnerId === null && m.matchupType !== 'regular' && m.homeSeed != null && m.awaySeed != null) {
