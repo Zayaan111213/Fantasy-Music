@@ -23,6 +23,7 @@ import tradeRoutes from './api/routes/trades';
 import notificationRoutes from './api/routes/notifications';
 import chartRoutes from './api/routes/charts';
 import moderationRoutes from './api/routes/moderation';
+import { APPLE_APP_SITE_ASSOCIATION } from './api/appleAppSiteAssociation';
 import { errorHandler, notFound, shouldReportToSentry } from './api/middleware/errorHandler';
 import { registerDraftSocket, startDraftScheduler } from './sockets/draft';
 import { startPipelineScheduler } from './jobs/scheduler';
@@ -74,32 +75,11 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 // outright, silently — universal links just never work and there's nothing in
 // the app to debug.
 //
-// `components` is the important part. `applinks:bandwagoner.com` in app.json
-// claims the WHOLE domain by default, so without narrowing it here, tapping
-// any bandwagoner.com link on a phone with the app installed would open the
-// app — including the Privacy Policy and Terms links that Account Settings
-// deliberately opens in a browser. Only /reset-password is claimed.
+// Which paths are claimed, and why each one is safe to claim, lives with the
+// document in api/appleAppSiteAssociation.ts.
 //
-// League invite links are deliberately NOT claimed: an invite opened while
-// logged out targets a screen that doesn't exist in the logged-out navigator,
-// so the code would be dropped. LeagueJoinScreen's manual code entry covers
-// that case until the pending-invite handoff is built.
-//
-// The Team ID is not a secret; this file is public by design and the same
-// value is embedded in every copy of the app. It must match `bundleIdentifier`
-// in mobile/app.json.
-const APPLE_APP_ID = '64YY39ABUD.com.bandwagoner.app';
 app.get('/.well-known/apple-app-site-association', (_req, res) => {
-  res.type('application/json').json({
-    applinks: {
-      details: [
-        {
-          appIDs: [APPLE_APP_ID],
-          components: [{ '/': '/reset-password', comment: 'password reset link from email' }],
-        },
-      ],
-    },
-  });
+  res.type('application/json').json(APPLE_APP_SITE_ASSOCIATION);
 });
 
 const frontendDist = path.join(__dirname, '../../frontend/dist');

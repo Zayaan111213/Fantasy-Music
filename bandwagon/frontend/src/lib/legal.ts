@@ -2,14 +2,16 @@
  * Single source of truth for the values that appear in the public legal pages
  * (/privacy and /terms) so the two documents can never drift apart.
  *
- * TODO(before submitting to the App Store): confirm both of these.
+ * GOVERNING_LAW_STATE is confirmed correct (2026-08-21) — it is the state of
+ * residence, not a leftover default.
  *
- *  - CONTACT_EMAIL must actually receive mail. The domain is registered through
- *    Porkbun, and notifications@bandwagoner.com is send-only (Resend), so this
- *    address needs an email forward set up or a reviewer (and any user
- *    exercising a privacy right) will hit a bounce.
- *  - GOVERNING_LAW_STATE must be the state you actually reside in. It is not
- *    something to leave at a default.
+ * CONTACT_EMAIL is load-bearing in three places at once: the privacy contact
+ * printed on both legal pages, the App Store support contact, and the
+ * destination for in-app content reports (SUPPORT_EMAIL in the backend's
+ * moderation routes defaults to it). bandwagoner.com publishes MX records for
+ * Porkbun's forwarders, so the domain accepts mail; what still has to hold is
+ * a forward rule for this specific alias. notifications@bandwagoner.com is
+ * send-only via Resend and cannot receive, so it is not a substitute.
  */
 export const CONTACT_EMAIL = 'support@bandwagoner.com';
 
