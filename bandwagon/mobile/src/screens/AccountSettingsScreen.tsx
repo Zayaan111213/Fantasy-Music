@@ -17,7 +17,7 @@ const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,20}$/;
 
 // Must match CONTACT_EMAIL in frontend/src/lib/legal.ts, which is what the
 // published Privacy Policy and Terms give out.
-const SUPPORT_EMAIL = 'support@bandwagoner.com';
+const SUPPORT_EMAIL = 'bandwagonersupport@gmail.com';
 
 interface BlockedUser {
   id: string;
