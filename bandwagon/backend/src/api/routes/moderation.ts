@@ -6,7 +6,11 @@ import { sendEmail } from '../../email/mailer';
 
 const router = Router();
 
-const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'support@bandwagoner.com';
+// Keep in sync with CONTACT_EMAIL in frontend/src/lib/legal.ts, which is the
+// address published on the legal pages. The backend cannot import from the
+// web app, so this fallback is a deliberate copy. SUPPORT_EMAIL overrides it
+// if reports should go somewhere other than the public address.
+const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'bandwagonersupport@gmail.com';
 
 const ReportSchema = z.object({
   targetType: z.enum(['user', 'team', 'league']),
