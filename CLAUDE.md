@@ -252,11 +252,12 @@ cd bandwagon && railway up
 - `CHART-2026` — "Chart Toppers 2026", private, `active`, week 3, 4 demo teams, real-chart artists (for testing roster/matchup/standings/playoff bracket)
 - `PUBLIC-2026` — "Open Draft 2026", public, `pending`, 8-team cap, 1 member (for testing join flow)
 
-**Screenshot leagues** (created by `src/jobs/screenshotLeagues.ts`, for App Store / marketing shots — re-runnable, deletes and rebuilds only its own three invite codes):
+**Screenshot leagues** (created by `src/jobs/screenshotLeagues.ts`, for App Store / marketing shots — re-runnable, deletes and rebuilds only its own four invite codes):
 - `SHOT-MID` — "The Hit List", private, `active`, 10 teams, week 6 live with 5 finished weeks behind it; also carries a pending trade and a queued waiver claim
 - `SHOT-CUP` — "Platinum Cup", private, `complete`, 8 teams, full playoff bracket + champion banner (its first 3 league weeks predate the chart history and score 0)
 - `SHOT-DRAFT` — "Rookie Season", private, `pre_draft`, 10 teams, 2-hour lobby countdown
-- 12 fictional accounts `shot01..shot12@bandwagon.app` / `password123`; `shot01` (Avery) owns a team in all three and is the account given to App Review
+- `SHOT-LIVE` — "Draft Night", private, `drafting`, 10 teams, stopped 40 picks in (4 rounds done) with `shot01` on the clock at the top of round 5. Picks are made through `makePick()`, not written directly, so rounds/pick numbers/roster spots match a real draft. Nothing counts down until a client opens the room (`startPickTimer` only runs while someone is connected), so it holds the same pick indefinitely and the ring opens at a full 60s — but the clock is real from there, and letting it expire auto-drafts the pick. Re-run the script to reset it.
+- 12 fictional accounts `shot01..shot12@bandwagon.app` / `password123`; `shot01` (Avery) owns a team in all four and is the account given to App Review
 - Seasons are played through the real pipeline (`updateMatchupScores()` then `finalizeLeagueWeek()` per week) rather than by writing scores directly, so snapshots, winners, standings and the feed all agree and past matchups add up to their own headers. Keep it that way — writing scores directly would reintroduce the mismatch the pipeline now prevents.
 
 ## Key Implementation Notes

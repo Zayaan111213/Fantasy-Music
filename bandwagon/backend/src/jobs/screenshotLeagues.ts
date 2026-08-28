@@ -5,6 +5,7 @@
  *   SHOT-MID   "The Hit List"   10 teams, active, mid-season (week 6 live)
  *   SHOT-CUP   "Platinum Cup"    8 teams, complete — full playoff bracket + champion
  *   SHOT-DRAFT "Rookie Season"  10 teams, pre-draft lobby with a running countdown
+ *   SHOT-LIVE  "Draft Night"    10 teams, drafting — 4 rounds on the board, hero on the clock
  *
  * Seasons are played through the REAL pipeline — updateMatchupScores() then
  * finalizeLeagueWeek() for each week in order — rather than by writing scores
@@ -18,7 +19,7 @@
  * that maps to a chart week older than the data we hold scores 0 (reported at
  * the end). SHOT-MID is anchored to have none.
  *
- * Idempotent: deletes its own three leagues by invite code and rebuilds them.
+ * Idempotent: deletes its own four leagues by invite code and rebuilds them.
  * User-created leagues and the CHART-2026 / PUBLIC-2026 demo leagues are never
  * touched.
  *
@@ -29,10 +30,11 @@ import { prisma } from '../db/prisma';
 import { updateMatchupScores } from '../scoring/engine';
 import { weekDateForLeagueWeek } from '../scoring/weeks';
 import { finalizeLeagueWeek } from './finalizePipeline';
+import { makePick, isEligible, ALL_SLOTS } from '../api/routes/draft';
 import { buildRoundRobin } from '../utils/schedule';
 import { logLeagueEvent } from '../events/leagueEvents';
 
-const SHOT_CODES = ['SHOT-MID', 'SHOT-CUP', 'SHOT-DRAFT'];
+const SHOT_CODES = ['SHOT-MID', 'SHOT-CUP', 'SHOT-DRAFT', 'SHOT-LIVE'];
 const PASSWORD = 'password123';
 const YEAR = 2026;
 const REGULAR_WEEKS = 10;
@@ -289,6 +291,110 @@ async function buildDraftLobby(owners: typeof OWNERS): Promise<string> {
   return league.id;
 }
 
+// Four complete rounds of ten, so the fifth opens on the first team in the
+// order — the hero. Half a board of picks behind it, four of nine slots filled,
+// which is what "mid draft" has to look like to be worth photographing.
+const LIVE_DRAFT_PICKS = 40;
+
+// Best available, starters first, the way people actually draft. An artist is
+// considered for their own genre slot (or Other) before Flex and the bench, and
+// any pick that opens a starter slot beats one that can only fill a bench —
+// otherwise the top of the pool lands on benches and every roster looks wrong.
+function chooseDraftPick(
+  pool: Artist[],
+  taken: Set<string>,
+  filled: Set<string>,
+): { artist: Artist; slot: string } | null {
+  let benchFallback: { artist: Artist; slot: string } | null = null;
+
+  for (const artist of pool) {
+    if (taken.has(artist.id)) continue;
+    const slot = ALL_SLOTS.find((s) => !filled.has(s) && isEligible(artist.primaryGenre, s));
+    if (!slot) continue;
+    if (!slot.startsWith('Bench')) return { artist, slot };
+    benchFallback ??= { artist, slot };
+  }
+  return benchFallback;
+}
+
+// A draft caught in the act. SHOT-DRAFT only ever shows the lobby countdown, so
+// the live draft room — pick clock, filling slot list, running pick feed — needs
+// a league of its own, stopped at a pick the hero account owns.
+//
+// Picks run through makePick() rather than writing DraftPick rows directly, so
+// the roster spots, pick numbers and rounds are the same ones a real draft would
+// have produced, and the screen after this one still works if a pick is made.
+//
+// Nothing counts down until someone opens the room: startPickTimer only runs
+// while a client is connected, so this league sits on the same pick indefinitely
+// and the ring starts at a full 60 seconds when the room opens. From there the
+// clock is real — let it expire and auto-draft takes the pick. Re-run the script
+// to put it back.
+async function buildLiveDraft(owners: typeof OWNERS, pool: Artist[]): Promise<string> {
+  const users = await Promise.all(owners.map((o) => prisma.user.findUniqueOrThrow({ where: { email: o.email } })));
+
+  const league = await prisma.league.create({
+    data: {
+      name: 'Draft Night',
+      commissionerId: users[0].id,
+      teamCount: owners.length,
+      isPrivate: true,
+      status: 'drafting',
+      inviteCode: 'SHOT-LIVE',
+      currentWeek: 1,
+      seasonYear: YEAR,
+      // Picking is already under way, so the scheduled time is behind us. The
+      // draft scheduler only looks at `pending` leagues, so it leaves this one be.
+      draftTime: new Date(Date.now() - 20 * 60_000),
+    },
+  });
+
+  const teams: { id: string; name: string; userId: string }[] = [];
+  for (let i = 0; i < owners.length; i++) {
+    teams.push(await prisma.team.create({
+      data: { leagueId: league.id, userId: users[i].id, name: owners[i].team, draftPosition: i + 1 },
+    }));
+    if (i > 0) {
+      await logLeagueEvent(prisma, league.id, 'member_joined', `${users[i].username} joined the league as ${owners[i].team}`);
+    }
+  }
+
+  // The same snake scheduledDraftStart() builds: draft order forward on even
+  // rounds, reversed on odd ones, one round per roster slot.
+  const teamIds = teams.map((t) => t.id);
+  const pickOrder: string[] = [];
+  for (let round = 0; round < ALL_SLOTS.length; round++) {
+    pickOrder.push(...(round % 2 === 0 ? teamIds : [...teamIds].reverse()));
+  }
+  await prisma.draftState.create({
+    data: { leagueId: league.id, currentPick: 0, pickOrder, timerEndsAt: null },
+  });
+
+  const taken = new Set<string>();
+  const filledByTeam = new Map<string, Set<string>>(teamIds.map((id) => [id, new Set<string>()]));
+
+  for (let pick = 0; pick < LIVE_DRAFT_PICKS; pick++) {
+    const team = teams.find((t) => t.id === pickOrder[pick])!;
+    const filled = filledByTeam.get(team.id)!;
+    const choice = chooseDraftPick(pool, taken, filled);
+    if (!choice) throw new Error(`Draft Night ran out of draftable artists at pick ${pick + 1}`);
+
+    const result = await makePick(league.id, team.userId, choice.artist.id, choice.slot, false);
+    if ('error' in result) throw new Error(`Draft Night pick ${pick + 1} (${team.name}): ${result.error}`);
+
+    taken.add(choice.artist.id);
+    filled.add(choice.slot);
+  }
+
+  // Clear the clock the last pick set. Both clients open their timer ring at a
+  // full 60 and let the server's per-second tick take it from there, but a
+  // timerEndsAt read on join is used as-is — and this one is already in the
+  // past, so leaving it set makes the ring flash zero before the first tick.
+  await prisma.draftState.update({ where: { leagueId: league.id }, data: { timerEndsAt: null } });
+
+  return league.id;
+}
+
 async function main() {
   const deleted = await prisma.league.deleteMany({ where: { inviteCode: { in: SHOT_CODES } } });
   console.log(`Deleted ${deleted.count} existing screenshot league(s)`);
@@ -329,6 +435,7 @@ async function main() {
   }, pool);
 
   const draftId = await buildDraftLobby(OWNERS.slice(0, 10));
+  const liveId = await buildLiveDraft(OWNERS.slice(0, 10), pool);
 
   // Playing a whole season in a few seconds emits one lineup reminder per team
   // per week — seventeen stacked banners on Home, which is an artifact of the
@@ -348,7 +455,7 @@ async function main() {
   });
   console.log(`Retired ${retired.count} unsent notification(s) for the fictional accounts`);
 
-  for (const [label, id] of [['The Hit List', mid.leagueId], ['Platinum Cup', cup.leagueId], ['Rookie Season', draftId]] as const) {
+  for (const [label, id] of [['The Hit List', mid.leagueId], ['Platinum Cup', cup.leagueId], ['Rookie Season', draftId], ['Draft Night', liveId]] as const) {
     const l = await prisma.league.findUniqueOrThrow({ where: { id } });
     console.log(`\n${label} (${l.inviteCode}) — ${l.status}, week ${l.currentWeek}`);
     const standings = await prisma.team.findMany({
@@ -361,10 +468,21 @@ async function main() {
     }
   }
 
+  const liveState = await prisma.draftState.findUniqueOrThrow({ where: { leagueId: liveId } });
+  const onClock = await prisma.team.findUniqueOrThrow({
+    where: { id: liveState.pickOrder[liveState.currentPick] },
+    select: { name: true },
+  });
+  console.log(
+    `\nDraft Night: ${liveState.currentPick} picks made, ${onClock.name} on the clock ` +
+    `(round ${Math.floor(liveState.currentPick / OWNERS.slice(0, 10).length) + 1}, pick ${liveState.currentPick + 1}). ` +
+    `The 60s pick clock starts when the room is opened — re-run this script if it expires.`,
+  );
+
   if (mid.deadWeeks.length) console.log(`\n⚠ The Hit List weeks with no chart data: ${mid.deadWeeks.join(', ')}`);
   if (cup.deadWeeks.length) console.log(`⚠ Platinum Cup weeks with no chart data (predate the chart history): ${cup.deadWeeks.join(', ')}`);
 
-  console.log(`\nSign in as ${OWNERS[0].email} / ${PASSWORD} — that account owns a team in all three leagues.`);
+  console.log(`\nSign in as ${OWNERS[0].email} / ${PASSWORD} — that account owns a team in all four leagues.`);
 }
 
 main()
