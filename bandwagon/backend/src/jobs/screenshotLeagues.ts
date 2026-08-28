@@ -27,7 +27,6 @@
 import bcrypt from 'bcryptjs';
 import { prisma } from '../db/prisma';
 import { updateMatchupScores } from '../scoring/engine';
-import { getCurrentWeekDate } from './ingestCharts';
 import { weekDateForLeagueWeek } from '../scoring/weeks';
 import { finalizeLeagueWeek } from './finalizePipeline';
 import { buildRoundRobin } from '../utils/schedule';
@@ -73,8 +72,21 @@ function draftTimeForFirstTuesday(tuesday: Date): Date {
   return new Date(tuesday.getTime() - 2 * DAY + 19 * 3_600_000); // Sunday 19:00 UTC
 }
 
-async function loadArtistPool(): Promise<Artist[]> {
-  const weekDate = getCurrentWeekDate();
+// The newest chart week that actually holds scores, which is NOT necessarily
+// the week containing today: if the daily pipeline is behind, getCurrentWeekDate()
+// names a week with no rows at all. Anchoring the seasons on the calendar in that
+// state scores the live week — and the championship — 0, which is exactly the
+// screen nobody wants to photograph.
+async function latestScoredWeek(): Promise<Date> {
+  const row = await prisma.weeklyScore.findFirst({
+    orderBy: { weekDate: 'desc' },
+    select: { weekDate: true },
+  });
+  if (!row) throw new Error('No WeeklyScore rows at all — run the daily pipeline first.');
+  return row.weekDate;
+}
+
+async function loadArtistPool(weekDate: Date): Promise<Artist[]> {
   const rows = await prisma.artist.findMany({
     where: { hiddenAt: null },
     select: {
@@ -291,10 +303,9 @@ async function main() {
   }
   console.log(`${OWNERS.length} screenshot accounts ready`);
 
-  const pool = await loadArtistPool();
-  console.log(`${pool.length} artists in the pool`);
-
-  const latest = getCurrentWeekDate();
+  const latest = await latestScoredWeek();
+  const pool = await loadArtistPool(latest);
+  console.log(`${pool.length} artists in the pool, ranked on the week of ${latest.toISOString().slice(0, 10)}`);
 
   // Mid-season: week 6 is live, so week 1 sits 5 chart weeks back — every week
   // of its season has real data.
@@ -319,11 +330,20 @@ async function main() {
 
   const draftId = await buildDraftLobby(OWNERS.slice(0, 10));
 
-  // These accounts are fictional and their inboxes do not exist. Retiring the
-  // notifications the season generated keeps the outbox dispatcher from
-  // spending retries on addresses that can only bounce.
+  // Playing a whole season in a few seconds emits one lineup reminder per team
+  // per week — seventeen stacked banners on Home, which is an artifact of the
+  // fast-forward rather than anything a real user would ever see. Drop them.
+  const emails = OWNERS.map((o) => o.email);
+  const spam = await prisma.notification.deleteMany({
+    where: { user: { email: { in: emails } }, type: 'lineup_reminder' },
+  });
+  console.log(`Cleared ${spam.count} fast-forward lineup reminder(s)`);
+
+  // Whatever is left is fictional too, and those inboxes do not exist. Retiring
+  // them keeps the outbox dispatcher from spending retries on addresses that
+  // can only bounce.
   const retired = await prisma.notification.updateMany({
-    where: { user: { email: { in: OWNERS.map((o) => o.email) } }, emailedAt: null },
+    where: { user: { email: { in: emails } }, emailedAt: null },
     data: { emailedAt: new Date() },
   });
   console.log(`Retired ${retired.count} unsent notification(s) for the fictional accounts`);
