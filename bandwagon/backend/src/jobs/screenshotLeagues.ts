@@ -5,7 +5,7 @@
  *   SHOT-MID   "The Hit List"   10 teams, active, mid-season (week 6 live)
  *   SHOT-CUP   "Platinum Cup"    8 teams, complete — full playoff bracket + champion
  *   SHOT-DRAFT "Rookie Season"  10 teams, pre-draft lobby with a running countdown
- *   SHOT-LIVE  "Draft Night"    10 teams, drafting — 4 rounds on the board, hero on the clock
+ *   SHOT-LIVE  "Draft Night"    10 teams, drafting — 2 rounds on the board, hero on the clock
  *
  * Seasons are played through the REAL pipeline — updateMatchupScores() then
  * finalizeLeagueWeek() for each week in order — rather than by writing scores
@@ -291,10 +291,12 @@ async function buildDraftLobby(owners: typeof OWNERS): Promise<string> {
   return league.id;
 }
 
-// Four complete rounds of ten, so the fifth opens on the first team in the
-// order — the hero. Half a board of picks behind it, four of nine slots filled,
-// which is what "mid draft" has to look like to be worth photographing.
-const LIVE_DRAFT_PICKS = 40;
+// Two complete rounds of ten, so the third opens on the first team in the
+// order — the hero. Deep enough to read as a draft already under way, shallow
+// enough that the board is still worth looking at: every pick retires the top
+// of the pool, and by about round four the available list is down to names no
+// screenshot wants to lead with.
+const LIVE_DRAFT_PICKS = 20;
 
 // Best available, starters first, the way people actually draft. An artist is
 // considered for their own genre slot (or Other) before Flex and the bench, and
@@ -325,11 +327,13 @@ function chooseDraftPick(
 // the roster spots, pick numbers and rounds are the same ones a real draft would
 // have produced, and the screen after this one still works if a pick is made.
 //
-// Nothing counts down until someone opens the room: startPickTimer only runs
-// while a client is connected, so this league sits on the same pick indefinitely
-// and the ring starts at a full 60 seconds when the room opens. From there the
-// clock is real — let it expire and auto-draft takes the pick. Re-run the script
-// to put it back.
+// Nothing counts down until the room is opened for the first time — no timer
+// exists until a draft:join creates one. After that the draft drives itself:
+// the socket layer's disconnect handler only clears the user id, and
+// fireAutoDraft restarts the clock behind every expiry, so it keeps auto-drafting
+// a pick a minute until the board is full whether or not anyone is still
+// watching. Re-run this script immediately before shooting the room, and take
+// the screenshot inside the first 60 seconds.
 async function buildLiveDraft(owners: typeof OWNERS, pool: Artist[]): Promise<string> {
   const users = await Promise.all(owners.map((o) => prisma.user.findUniqueOrThrow({ where: { email: o.email } })));
 
