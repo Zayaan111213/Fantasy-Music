@@ -142,8 +142,15 @@ interface LeagueSpec {
   finalizeThrough: number; // last league week to play out
 }
 
-async function buildPlayedLeague(spec: LeagueSpec, pool: Artist[]): Promise<{ leagueId: string; deadWeeks: number[] }> {
+async function buildPlayedLeague(
+  spec: LeagueSpec,
+  pool: Artist[],
+): Promise<{ leagueId: string; deadWeeks: number[]; championIndex: number | null }> {
   const teamCount = spec.owners.length;
+  // The hero is not always at index 0 — SHOT-CUP moves it into whichever slot
+  // wins the title (see main). Everything index-based (rosters, schedule, draft
+  // order) must stay put, so only the commissioner follows the hero.
+  const heroIndex = Math.max(spec.owners.findIndex((o) => o.email === OWNERS[0].email), 0);
   const draftTime = draftTimeForFirstTuesday(spec.firstTuesday);
 
   const users = await Promise.all(spec.owners.map((o) => prisma.user.findUniqueOrThrow({ where: { email: o.email } })));
@@ -151,7 +158,7 @@ async function buildPlayedLeague(spec: LeagueSpec, pool: Artist[]): Promise<{ le
   const league = await prisma.league.create({
     data: {
       name: spec.name,
-      commissionerId: users[0].id,
+      commissionerId: users[heroIndex].id,
       teamCount,
       isPrivate: true,
       status: 'active',
@@ -186,7 +193,8 @@ async function buildPlayedLeague(spec: LeagueSpec, pool: Artist[]): Promise<{ le
     data: buildRoundRobin(teams.map((t) => t.id), league.id, REGULAR_WEEKS),
   });
 
-  for (let i = 1; i < teamCount; i++) {
+  for (let i = 0; i < teamCount; i++) {
+    if (i === heroIndex) continue; // the commissioner creates the league, they don't join it
     await logLeagueEvent(prisma, league.id, 'member_joined', `${users[i].username} joined the league as ${teams[i].name}`);
   }
   await logLeagueEvent(prisma, league.id, 'draft_complete', 'The draft is complete. The season begins!');
@@ -210,7 +218,13 @@ async function buildPlayedLeague(spec: LeagueSpec, pool: Artist[]): Promise<{ le
     await updateMatchupScores(league.id, fresh.currentWeek, weekDateForLeagueWeek(fresh, fresh.currentWeek));
   }
 
-  return { leagueId: league.id, deadWeeks };
+  const final = await prisma.matchup.findFirst({
+    where: { leagueId: league.id, matchupType: 'championship', winnerId: { not: null } },
+    select: { winnerId: true },
+  });
+  const championIndex = final ? teams.findIndex((t) => t.id === final.winnerId) : -1;
+
+  return { leagueId: league.id, deadWeeks, championIndex: championIndex >= 0 ? championIndex : null };
 }
 
 // A pending incoming trade and a queued waiver claim, so the Trades screen and
@@ -430,13 +444,37 @@ async function main() {
 
   // Finished season: week 12 is the live chart week, so the championship is
   // scored off real data. The earliest weeks predate the chart history.
-  const cup = await buildPlayedLeague({
+  const cupSpec: LeagueSpec = {
     code: 'SHOT-CUP',
     name: 'Platinum Cup',
     owners: [OWNERS[0], ...OWNERS.slice(2, 9)],
     firstTuesday: new Date(latest.getTime() - (FINALS_WEEK - 1) * 7 * DAY),
     finalizeThrough: FINALS_WEEK,
-  }, pool);
+  };
+  let cup = await buildPlayedLeague(cupSpec, pool);
+
+  // The champion popup only fires for the team that actually won, so if the
+  // title landed on someone else the screen cannot be photographed at all — and
+  // App Review, who sign in as the hero account, would never see the feature.
+  //
+  // Rosters, schedule and seeding are all keyed to a team's INDEX, not to who
+  // owns it, so swapping the hero into the winning slot reruns the identical
+  // season and hands the identical trophy to the hero instead. Nothing about
+  // the standings spread changes; only the names on two of the teams do.
+  let heroSlot = 0;
+  if (cup.championIndex !== null && cup.championIndex !== heroSlot) {
+    const owners = [...cupSpec.owners];
+    [owners[heroSlot], owners[cup.championIndex]] = [owners[cup.championIndex], owners[heroSlot]];
+    console.log(`Platinum Cup: title landed on slot ${cup.championIndex}; rebuilding with the hero in it`);
+    heroSlot = cup.championIndex; // the hero now occupies the slot that wins
+    await prisma.league.deleteMany({ where: { inviteCode: 'SHOT-CUP' } });
+    cup = await buildPlayedLeague({ ...cupSpec, owners }, pool);
+  }
+  console.log(
+    cup.championIndex === heroSlot
+      ? `Platinum Cup: ${OWNERS[0].team} are the champions — the popup screen is capturable.`
+      : '⚠ Platinum Cup: the hero did not end up champion, so the popup screen cannot be captured.',
+  );
 
   const draftId = await buildDraftLobby(OWNERS.slice(0, 10));
   const liveId = await buildLiveDraft(OWNERS.slice(0, 10), pool);

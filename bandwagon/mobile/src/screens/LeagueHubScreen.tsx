@@ -18,6 +18,7 @@ import { NotificationsTab } from './league-hub/NotificationsTab';
 import { SettingsTab } from './league-hub/SettingsTab';
 import { LeagueIntroTab } from './league-hub/LeagueIntroTab';
 import { SeasonCompleteBanner } from './league-hub/SeasonCompleteBanner';
+import { ChampionPopup } from './league-hub/ChampionPopup';
 
 type Tab = 'overview' | 'myteam' | 'matchup' | 'standings' | 'players' | 'notifications' | 'settings';
 
@@ -104,6 +105,8 @@ export function LeagueHubScreen() {
           );
         })}
       </View>
+
+      {league.status === 'complete' && <ChampionPopup leagueId={leagueId} league={league} />}
 
       <ScrollView contentContainerClassName="px-4 py-6">
         {league.status === 'complete' && <SeasonCompleteBanner leagueId={leagueId} league={league} isCommissioner={isCommissioner} />}
