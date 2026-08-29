@@ -2,11 +2,15 @@ import { Link } from 'react-router-dom';
 import { WagonMark, Wordmark } from './Logo';
 
 /**
- * Shared shell for the public legal pages (/privacy, /terms).
+ * Shared shell for the public legal pages (/privacy, /terms) and /support.
  *
  * These are deliberately reachable while logged out: the App Store review
- * process fetches the privacy policy URL without an account, and a logged-in
- * gate there is a submission blocker.
+ * process fetches the privacy policy and support URLs without an account, and
+ * a logged-in gate on either is a submission blocker.
+ *
+ * effectiveDate is optional because /support is not a dated document the way
+ * the two legal pages are. It describes how the app behaves today, and putting
+ * a date on it would only invite the question of whether it has gone stale.
  */
 export function LegalPage({
   title,
@@ -14,7 +18,7 @@ export function LegalPage({
   children,
 }: {
   title: string;
-  effectiveDate: string;
+  effectiveDate?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -36,11 +40,18 @@ export function LegalPage({
 
       <main className="max-w-3xl mx-auto px-4 py-12">
         <h1 className="text-3xl font-bold text-white mb-1">{title}</h1>
-        <p className="text-sm text-gray-500 mb-10">Effective {effectiveDate}</p>
+        {effectiveDate ? (
+          <p className="text-sm text-gray-500 mb-10">Effective {effectiveDate}</p>
+        ) : (
+          <div className="mb-10" />
+        )}
 
         <div className="space-y-8 text-gray-300 leading-relaxed">{children}</div>
 
         <div className="mt-16 pt-8 border-t border-white/10 flex gap-4 text-sm text-gray-500">
+          <Link to="/support" className="hover:text-gray-300 transition-colors">
+            Support
+          </Link>
           <Link to="/privacy" className="hover:text-gray-300 transition-colors">
             Privacy Policy
           </Link>

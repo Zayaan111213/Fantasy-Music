@@ -251,6 +251,9 @@ export function AccountSettingsScreen() {
         <Card className="p-6">
           <Text className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">About</Text>
           <View className="gap-3">
+            <Pressable onPress={() => Linking.openURL(`${WEB_URL}/support`)}>
+              <Text className="text-sm text-indigo-400">Help and Support</Text>
+            </Pressable>
             <Pressable onPress={() => Linking.openURL(`${WEB_URL}/privacy`)}>
               <Text className="text-sm text-indigo-400">Privacy Policy</Text>
             </Pressable>

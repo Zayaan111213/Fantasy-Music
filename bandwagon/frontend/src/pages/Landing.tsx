@@ -143,6 +143,9 @@ export function Landing() {
         <div className="max-w-5xl mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-gray-500">
           <p>Free to play. No entry fees, no prizes.</p>
           <div className="flex gap-4">
+            <Link to="/support" className="hover:text-gray-300 transition-colors">
+              Support
+            </Link>
             <Link to="/privacy" className="hover:text-gray-300 transition-colors">
               Privacy Policy
             </Link>
