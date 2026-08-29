@@ -9,6 +9,7 @@ import { ForgotPassword } from './pages/ForgotPassword';
 import { ResetPassword } from './pages/ResetPassword';
 import { Privacy } from './pages/Privacy';
 import { Terms } from './pages/Terms';
+import { Support } from './pages/Support';
 import { Onboarding } from './pages/Onboarding';
 import { AccountSettings } from './pages/AccountSettings';
 import { Home } from './pages/Home';
@@ -75,6 +76,7 @@ export function App() {
       {/* Public on purpose: App Store review fetches the privacy policy logged out. */}
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/terms" element={<Terms />} />
+      <Route path="/support" element={<Support />} />
       <Route path="/onboarding" element={<RequireAuth><Onboarding /></RequireAuth>} />
       <Route path="/" element={<LandingOrHome />} />
       <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
